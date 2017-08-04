@@ -4,10 +4,15 @@
 #+begin_export html
 <x:draft/>
 
-<div id="test">
-  <canvas width="600" height="600" v-draw="param"/>
-  <input type="range" min="0" max="100" step="10" v-model="param"/>
+<div id="diagram-delaunay">
+  <canvas width="600" height="600" v-draw="{mesh}"/>
 </div>
+
+<div id="diagram-voronoi">
+  <canvas width="600" height="600" v-draw="{mesh}"/>
+  <br/><input type="range" min="0" max="100" step="1" v-model="param"/>
+</div>
+
 #+end_export
 
 
@@ -17,6 +22,6 @@
     <script src="_bundle.js"/>
 
     Created 3 Aug 2017 with <a href="https://vue.org/">Vue.js</a> and Emacs org-mode (<a href="index.org">source of this page</a>); &#160;
-    <!-- hhmts start -->Last modified: 03 Aug 2017<!-- hhmts end -->
+    <!-- hhmts start -->Last modified: 04 Aug 2017<!-- hhmts end -->
   </x:footer>
 #+end_export
