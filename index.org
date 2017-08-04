@@ -5,7 +5,7 @@
 <x:draft/>
 
 <div id="test">
-  <canvas width="600" height="300" v-draw="param"/>
+  <canvas width="600" height="600" v-draw="param"/>
   <input type="range" min="0" max="100" step="10" v-model="param"/>
 </div>
 #+end_export
