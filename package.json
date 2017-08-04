@@ -3,11 +3,11 @@
     "version": "1.0.0",
     "private": true,
     "dependencies": {
-        "trianglemesh": "file:../triangle-mesh"
+        "@redblobgames/triangle-mesh": "file:../triangle-mesh",
+        "poisson-disk-sampling": "*",
+        "delaunator": "*"
     },
-    "devDependencies": {
-        "budo": "*"
-    },
+    "devDependencies": {},
     "scripts": {
         "build": "browserify diagrams.js -o _bundle.js",
         "start": "budo diagrams.js:_bundle.js --live"
