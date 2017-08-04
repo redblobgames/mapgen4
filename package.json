@@ -1,0 +1,15 @@
+{
+    "name": "@redblobgames/mapgen2",
+    "version": "1.0.0",
+    "private": true,
+    "dependencies": {
+        "trianglemesh": "file:../triangle-mesh"
+    },
+    "devDependencies": {
+        "budo": "*"
+    },
+    "scripts": {
+        "build": "browserify diagrams.js -o _bundle.js",
+        "start": "budo diagrams.js:_bundle.js --live"
+    }
+}
