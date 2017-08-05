@@ -9,11 +9,15 @@ const create_mesh = require('@redblobgames/triangle-mesh/create');
 
 const mesh_75 = new TriangleMesh(create_mesh(75.0));
 
+function fallback(value, or_else) {
+    return (value !== undefined)? value : or_else;
+}
+
 function set_canvas_style(ctx, style, defaults) {
-    ctx.globalAlpha = style.globalAlpha || defaults.globalAlpha || 1.0;
-    ctx.fillStyle = style.fillStyle || defaults.fillStyle || "black";
-    ctx.strokeStyle = style.strokeStyle || defaults.strokeStyle || "black";
-    ctx.lineWidth = style.lineWidth || defaults.lineWidth || 1.0;
+    ctx.globalAlpha = fallback(style.globalAlpha, fallback(defaults.globalAlpha, 1.0));
+    ctx.lineWidth =   fallback(style.lineWidth,   fallback(defaults.lineWidth,   1.0));
+    ctx.fillStyle =   fallback(style.fillStyle,   fallback(defaults.fillStyle,   "black"));
+    ctx.strokeStyle = fallback(style.strokeStyle, fallback(defaults.strokeStyle, "black"));
 }
 
 let layers = {};
