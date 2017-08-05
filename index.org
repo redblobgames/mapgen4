@@ -4,11 +4,28 @@
 #+begin_export html
 <x:draft/>
 
+First pick some points:
+
+<div id="diagram-polygon-centers">
+  <canvas width="600" height="600" v-draw="{mesh}"/>
+</div>
+
+Then construct the Delaunay triangulation:
+
 <div id="diagram-delaunay">
   <canvas width="600" height="600" v-draw="{mesh}"/>
 </div>
 
-<div id="diagram-voronoi">
+Then calculate the triangle centroids (or circumcenters):
+
+<div id="diagram-triangle-centers">
+  <canvas width="600" height="600" v-draw="{mesh}"/>
+  <br/><input type="range" min="0" max="100" step="1" v-model="param"/>
+</div>
+
+Then connect those points to construct centroid polygons (or Voronoi polygons):
+
+<div id="diagram-dual-mesh">
   <canvas width="600" height="600" v-draw="{mesh}"/>
   <br/><input type="range" min="0" max="100" step="1" v-model="param"/>
 </div>
