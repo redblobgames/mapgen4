@@ -4,32 +4,40 @@
 #+begin_export html
 <x:draft/>
 
-First pick some points:
+<style>
+  figure { margin-left: 0; margin-right: 0; }
+</style>
+#+end_export
 
-<div id="diagram-polygon-centers">
-  <canvas width="600" height="600" v-draw="{mesh}"/>
+There are four steps to constructing the polygon mesh we need:
+
+1. Pick some points (red), ideally evenly distributed. I used [[http://devmag.org.za/2009/05/03/poisson-disk-sampling/][Poisson disc sampling]] in this project and [[https://en.wikipedia.org/wiki/Lloyd%2527s_algorithm][Lloyd relaxation]] in a previous project.
+2. Construct the Delaunay triangulation. The boundary of the map is tricky, as I want it to be smooth.
+3. Calculate the triangle centroids (blue). Alternatively, use circumcenters to produce a Voronoi diagram.
+4. Construct centroid polygons from the centroid points. Alternatively, construct Voronoi polygons from the circumcenters.
+
+#+begin_export html
+<div id="diagram-mesh-construction">
+  <figure>
+    <canvas width="600" height="600" v-draw="{mesh,time}"/>
+    <figcaption>
+      <span v-if="time &lt;= 1">1. Pick points</span>
+      <span v-else-if="time &lt;= 2">2. Delaunay triangulation</span>
+      <span v-else-if="time &lt;= 3">3. Triangle centroids</span>
+      <span v-else="">4. Polygons</span>
+    </figcaption>
+  </figure>
+  <button v-on:click="play">Restart</button> 
 </div>
+#+end_export
 
-Then construct the Delaunay triangulation:
+Compare centroid and voronoi:
 
-<div id="diagram-delaunay">
-  <canvas width="600" height="600" v-draw="{mesh}"/>
-</div>
-
-Then calculate the triangle centroids (or circumcenters):
-
-<p id="diagram-triangle-centers" style="text-align:center">
-  <canvas width="600" height="600" v-draw="{mesh,param}"/>
-  <br/>Centroid<input type="range" min="0" max="1" step="0.01" v-model="param"/>Circumcenter
-</p>
-
-Then connect those points to construct centroid polygons (or Voronoi polygons):
-
+#+begin_export html
 <p id="diagram-dual-mesh" style="text-align:center">
   <canvas width="600" height="600" v-draw="{mesh,param}"/>
-  <br/>Centroid<input type="range" min="0" max="1" step="0.01" v-model="param"/>Circumcenter
+  <br/>Centroid polygons<input type="range" min="0" max="1" step="0.01" v-model="param"/>Voronoi polygons (circumcenters)
 </p>
-
 #+end_export
 
 
@@ -39,6 +47,6 @@ Then connect those points to construct centroid polygons (or Voronoi polygons):
     <script src="_bundle.js"/>
 
     Created 3 Aug 2017 with <a href="https://vue.org/">Vue.js</a> and Emacs org-mode (<a href="index.org">source of this page</a>); &#160;
-    <!-- hhmts start -->Last modified: 04 Aug 2017<!-- hhmts end -->
+    <!-- hhmts start -->Last modified: 05 Aug 2017<!-- hhmts end -->
   </x:footer>
 #+end_export

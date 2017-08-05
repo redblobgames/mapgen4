@@ -88,11 +88,18 @@ function diagram(canvas, mesh, layers) {
     ctx.restore();
 }
 
-
 function mix(a, b, t) {
     return a * (1.0-t) + b * t;
 }
 
+function smoothstep(a, b, t) {
+    // https://en.wikipedia.org/wiki/Smoothstep
+    if (t <= a) { return 0; }
+    if (t >= b) { return 1; }
+    t = (t - a) / (b - a);
+    return (3 - 2*t) * t * t;
+}
+    
 function circumcenter(a, b, c) {
     // https://en.wikipedia.org/wiki/Circumscribed_circle#Circumcenter_coordinates
     let ad = a[0]*a[0] + a[1]*a[1],
@@ -126,50 +133,6 @@ function create_circumcenter_mesh(mesh, mixture) {
 
 
 new Vue({
-    el: "#diagram-polygon-centers",
-    data: {
-        mesh: Object.freeze(mesh_75)
-    },
-    directives: {
-        draw: function(canvas, binding) {
-            diagram(canvas, binding.value.mesh,
-                    [layers.polygon_centers({})]);
-        }
-    }
-});
-
-new Vue({
-    el: "#diagram-delaunay",
-    data: {
-        mesh: Object.freeze(mesh_75)
-    },
-    directives: {
-        draw: function(canvas, binding) {
-            diagram(canvas, binding.value.mesh,
-                    [layers.triangle_edges({}), layers.polygon_centers({})]);
-        }
-    }
-});
-
-new Vue({
-    el: "#diagram-triangle-centers",
-    data: {
-        param: 0.0
-    },
-    computed: {
-        mesh: function() { return Object.freeze(create_circumcenter_mesh(mesh_75, parseFloat(this.param))); }
-    },
-    directives: {
-        draw: function(canvas, binding) {
-            diagram(canvas, binding.value.mesh,
-                    [layers.triangle_edges({}),
-                     layers.polygon_centers({}),
-                     layers.triangle_centers({})]);
-        }
-    }
-});
-
-new Vue({
     el: "#diagram-dual-mesh",
     data: {
         param: 0.0
@@ -187,3 +150,24 @@ new Vue({
         }
     }
 });
+
+let diagram_mesh_construction = new Vue({
+    el: "#diagram-mesh-construction",
+    data: { time: 0.0, mesh: Object.freeze(mesh_75) },
+    methods: {
+        play: function() { this.time = 0.0; }
+    },
+    directives: {
+        draw: function(canvas, {value: {mesh, time}}) {
+            diagram(canvas, mesh,
+                    [layers.triangle_edges({globalAlpha: smoothstep(0.9, 1.0, time)}),
+                     layers.polygon_edges({globalAlpha: smoothstep(2.9, 3.0, time)}),
+                     layers.polygon_centers({globalAlpha: smoothstep(0, 0.1, time)}),
+                     layers.triangle_centers({globalAlpha: smoothstep(1.9, 2.0, time)})]);
+        }
+    }
+});
+
+setInterval(() => {
+    diagram_mesh_construction.time += 0.01;
+}, 20);
