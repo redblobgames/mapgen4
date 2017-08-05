@@ -18,17 +18,17 @@ Then construct the Delaunay triangulation:
 
 Then calculate the triangle centroids (or circumcenters):
 
-<div id="diagram-triangle-centers">
+<p id="diagram-triangle-centers" style="text-align:center">
   <canvas width="600" height="600" v-draw="{mesh,param}"/>
-  <br/><input type="range" min="0" max="100" step="1" v-model="param"/>
-</div>
+  <br/>Centroid<input type="range" min="0" max="1" step="0.01" v-model="param"/>Circumcenter
+</p>
 
 Then connect those points to construct centroid polygons (or Voronoi polygons):
 
-<div id="diagram-dual-mesh">
+<p id="diagram-dual-mesh" style="text-align:center">
   <canvas width="600" height="600" v-draw="{mesh,param}"/>
-  <br/><input type="range" min="0" max="100" step="1" v-model="param"/>
-</div>
+  <br/>Centroid<input type="range" min="0" max="1" step="0.01" v-model="param"/>Circumcenter
+</p>
 
 #+end_export
 

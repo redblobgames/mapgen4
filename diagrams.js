@@ -48,7 +48,7 @@ layers.polygon_edges = (style) => (ctx, mesh) => {
 
 layers.triangle_centers = (style) => (ctx, mesh) => {
     const radius = style.radius || 4;
-    set_canvas_style(ctx, style, {fillStyle: "blue", strokeStyle: "hsl(0,0%,75%)", lineWidth: 3.0});
+    set_canvas_style(ctx, style, {fillStyle: "hsl(240,50%,50%)", strokeStyle: "white", lineWidth: 1.0});
     for (let t = 0; t < mesh.num_solid_triangles; t++) {
         ctx.beginPath();
         ctx.arc(mesh.centers[t][0], mesh.centers[t][1], radius, 0, 2*Math.PI);
@@ -59,7 +59,7 @@ layers.triangle_centers = (style) => (ctx, mesh) => {
 
 layers.polygon_centers = (style) => (ctx, mesh) => {
     const radius = style.radius || 5;
-    set_canvas_style(ctx, style, {fillStyle: "red", strokeStyle: "hsl(0,0%,75%)", lineWidth: 3.0});
+    set_canvas_style(ctx, style, {fillStyle: "hsl(0,50%,50%)", strokeStyle: "hsl(0,0%,75%)", lineWidth: 3.0});
     for (let v = 0; v < mesh.num_solid_vertices; v++) {
         ctx.beginPath();
         ctx.arc(mesh.vertices[v][0], mesh.vertices[v][1], radius, 0, 2*Math.PI);
@@ -83,6 +83,43 @@ function diagram(canvas, mesh, layers) {
     
     ctx.restore();
 }
+
+
+function mix(a, b, t) {
+    return a * (1.0-t) + b * t;
+}
+
+function circumcenter(a, b, c) {
+    // https://en.wikipedia.org/wiki/Circumscribed_circle#Circumcenter_coordinates
+    let ad = a[0]*a[0] + a[1]*a[1],
+        bd = b[0]*b[0] + b[1]*b[1],
+        cd = c[0]*c[0] + c[1]*c[1];
+    let D = 2 * (a[0] * (b[1] - c[1]) + b[0] * (c[1] - a[1]) + c[0] * (a[1] - b[1]));
+    let Ux = 1/D * (ad * (b[1] - c[1]) + bd * (c[1] - a[1]) + cd * (a[1] - b[1]));
+    let Uy = 1/D * (ad * (c[0] - b[0]) + bd * (a[0] - c[0]) + cd * (b[0] - a[0]));
+    return [Ux, Uy];
+}
+
+
+function create_circumcenter_mesh(mesh, mixture) {
+    let centers = [], v_out = [];
+    for (var t = 0; t < mesh.num_solid_triangles; t++) {
+        mesh.t_circulate_v(v_out, t);
+        let a = mesh.vertices[v_out[0]],
+            b = mesh.vertices[v_out[1]],
+            c = mesh.vertices[v_out[2]];
+        let center = circumcenter(a, b, c);
+        centers.push([mix(mesh.centers[t][0], center[0], mixture),
+                      mix(mesh.centers[t][1], center[1], mixture)]);
+    }
+    for (; t < mesh.num_triangles; t++) {
+        centers.push(mesh.centers[t]);
+    }
+    let new_mesh = new TriangleMesh(mesh);
+    new_mesh.centers = centers;
+    return new_mesh;
+}
+
 
 new Vue({
     el: "#diagram-polygon-centers",
@@ -113,8 +150,10 @@ new Vue({
 new Vue({
     el: "#diagram-triangle-centers",
     data: {
-        param: 75.0,
-        mesh: Object.freeze(mesh_75)
+        param: 0.0
+    },
+    computed: {
+        mesh: function() { return Object.freeze(create_circumcenter_mesh(mesh_75, parseFloat(this.param))); }
     },
     directives: {
         draw: function(canvas, binding) {
@@ -129,8 +168,10 @@ new Vue({
 new Vue({
     el: "#diagram-dual-mesh",
     data: {
-        param: 5.0,
-        mesh: Object.freeze(mesh_75)
+        param: 0.0
+    },
+    computed: {
+        mesh: function() { return Object.freeze(create_circumcenter_mesh(mesh_75, parseFloat(this.param))); }
     },
     directives: {
         draw: function(canvas, binding) {
