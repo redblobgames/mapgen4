@@ -6,7 +6,10 @@
 
 const TriangleMesh = require('@redblobgames/triangle-mesh');
 const create_mesh = require('@redblobgames/triangle-mesh/create');
+const SimplexNoise = require('simplex-noise');
 
+const mesh_40 = new TriangleMesh(create_mesh(40.0));
+const mesh_50 = new TriangleMesh(create_mesh(50.0));
 const mesh_75 = new TriangleMesh(create_mesh(75.0));
 
 function fallback(value, or_else) {
@@ -66,19 +69,37 @@ layers.polygon_centers = (style) => (ctx, mesh) => {
     set_canvas_style(ctx, style, {fillStyle: "hsl(0,50%,50%)", strokeStyle: "hsl(0,0%,75%)", lineWidth: 3.0});
     for (let v = 0; v < mesh.num_solid_vertices; v++) {
         ctx.beginPath();
-        ctx.arc(mesh.vertices[v][0], mesh.vertices[v][1], radius, 0, 2*Math.PI);
+        ctx.arc(mesh.vertices[v][0], mesh.vertices[v][1], mesh.is_boundary_vertex(v) ? radius/2 : radius, 0, 2*Math.PI);
         ctx.stroke();
         ctx.fill();
     }
 };
 
-function diagram(canvas, mesh, layers) {
+/* coloring should be a function from v (polygon) to color string */
+layers.polygon_colors = (style, coloring) => (ctx, mesh) => {
+    const radius = style.radius || 5;
+    let t_out = [];
+    set_canvas_style(ctx, style, {});
+    for (let v = 0; v < mesh.num_solid_vertices; v++) {
+        mesh.v_circulate_t(t_out, v);
+        ctx.fillStyle = coloring(v);
+        ctx.beginPath();
+        ctx.moveTo(mesh.centers[t_out[0]][0], mesh.centers[t_out[0]][1]);
+        for (let i = 1; i < t_out.length; i++) {
+            ctx.lineTo(mesh.centers[t_out[i]][0], mesh.centers[t_out[i]][1]);
+        }
+        ctx.fill();
+    }
+};
+
+function diagram(canvas, mesh, options, layers) {
+    const scale = fallback(options.scale, 1.0);
     let ctx = canvas.getContext('2d');
     ctx.save();
     ctx.scale(canvas.width/1000, canvas.height/1000);
     ctx.clearRect(0, 0, 1000, 1000);
-    ctx.translate(50, 50); ctx.scale(0.9, 0.9);
-    ctx.fillStyle = "hsl(0, 0%, 75%)";
+    ctx.translate(500, 500); ctx.scale(scale, scale); ctx.translate(-500, -500);
+    ctx.fillStyle = "hsl(60, 5%, 75%)";
     ctx.fillRect(0, 0, 1000, 1000);
 
     for (let layer of layers) {
@@ -86,6 +107,12 @@ function diagram(canvas, mesh, layers) {
     }
     
     ctx.restore();
+}
+
+function clamp(t, lo, hi) {
+    if (t < lo) { return lo; }
+    if (t > hi) { return hi; }
+    return t;
 }
 
 function mix(a, b, t) {
@@ -132,42 +159,76 @@ function create_circumcenter_mesh(mesh, mixture) {
 }
 
 
-new Vue({
-    el: "#diagram-dual-mesh",
-    data: {
-        param: 0.0
-    },
-    computed: {
-        mesh: function() { return Object.freeze(create_circumcenter_mesh(mesh_75, parseFloat(this.param))); }
-    },
-    directives: {
-        draw: function(canvas, binding) {
-            diagram(canvas, binding.value.mesh,
-                    [layers.triangle_edges({}),
-                     layers.polygon_edges({}),
-                     layers.polygon_centers({}),
-                     layers.triangle_centers({})]);
+
+
+function fbm_noise(noise, nx, ny) {
+    return 0.5 * noise.noise2D(nx, ny, 0)
+        + 0.3 * noise.noise2D(nx * 2, ny * 2, 1)
+        + 0.2 * noise.noise2D(nx * 4, ny * 4, 2)
+        + 0.1 * noise.noise2D(nx * 8, ny * 8, 3);
+}
+
+function assign_water(mesh, noise, params) {
+    let water = [];
+    for (let v = 0; v < mesh.num_vertices; v++) {
+        if (mesh.is_ghost_vertex(v) || mesh.is_boundary_vertex(v)) {
+            water[v] = true;
+        } else {
+            let dx = (mesh.vertices[v][0] - 500) / 500;
+            let dy = (mesh.vertices[v][1] - 500) / 500;
+            let distance_squared = dx*dx + dy*dy;
+            let n = mix(fbm_noise(noise, dx, dy), 0.5, params.round);
+            water[v] = n - (1.0 - params.inflate) * distance_squared < 0;
         }
     }
-});
+    return water;
+}
+
 
 let diagram_mesh_construction = new Vue({
     el: "#diagram-mesh-construction",
-    data: { time: 0.0, mesh: Object.freeze(mesh_75) },
-    methods: {
-        play: function() { this.time = 0.0; }
+    data: {
+        time: 0.0,
+        time_goal: 0.0,
+        centroid_circumcenter_mix: 0.0,
+        mesh: Object.freeze(mesh_75)
     },
     directives: {
-        draw: function(canvas, {value: {mesh, time}}) {
-            diagram(canvas, mesh,
-                    [layers.triangle_edges({globalAlpha: smoothstep(0.9, 1.0, time)}),
-                     layers.polygon_edges({globalAlpha: smoothstep(2.9, 3.0, time)}),
-                     layers.polygon_centers({globalAlpha: smoothstep(0, 0.1, time)}),
-                     layers.triangle_centers({globalAlpha: smoothstep(1.9, 2.0, time)})]);
+        draw: function(canvas, {value: {mesh, time, centroid_circumcenter_mix}}) {
+            diagram(canvas,
+                    create_circumcenter_mesh(mesh, centroid_circumcenter_mix),
+                    {scale: 0.9},
+                    [layers.triangle_edges({globalAlpha: smoothstep(0.1, 1.0, time) - 0.75 * smoothstep(1.1, 3.0, time)}),
+                     layers.polygon_edges({globalAlpha: smoothstep(2.1, 3.0, time), strokeStyle: "hsl(0,0%,90%)"}),
+                     layers.polygon_centers({}),
+                     layers.triangle_centers({globalAlpha: smoothstep(1.1, 2.0, time)})]);
         }
     }
 });
 
 setInterval(() => {
-    diagram_mesh_construction.time += 0.01;
+    const speed = 1.0;
+    const dt = 20/1000;
+    let step = clamp(speed * (diagram_mesh_construction.time_goal - diagram_mesh_construction.time), -dt, +dt);
+    diagram_mesh_construction.time += step;
 }, 20);
+
+
+let noise = new SimplexNoise();
+new Vue({
+    el: "#diagram-water-assignment",
+    data: {
+        round: 0.5,
+        inflate: 0.5,
+        mesh: Object.freeze(mesh_40)
+    },
+    directives: {
+        draw: function(canvas, {value: {mesh, round, inflate}}) {
+            let water = assign_water(mesh, noise, {round, inflate});
+            diagram(canvas, mesh, {},
+                    [layers.polygon_colors({}, (v) => water[v]? "hsl(230,30%,30%)" : "hsl(30,30%,60%)"),
+                     layers.polygon_edges({}),
+                     layers.polygon_centers({radius: 1, fillStyle: "white"})]);
+        }
+    }
+});

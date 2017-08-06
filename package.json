@@ -5,7 +5,8 @@
     "dependencies": {
         "@redblobgames/triangle-mesh": "file:../triangle-mesh",
         "poisson-disk-sampling": "*",
-        "delaunator": "*"
+        "delaunator": "*",
+        "simplex-noise": "*"
     },
     "devDependencies": {},
     "scripts": {

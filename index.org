@@ -9,37 +9,51 @@
 </style>
 #+end_export
 
-There are four steps to constructing the polygon mesh we need:
+WIP- recreating the diagrams and algorithms from http://www-cs-students.stanford.edu/~amitp/game-programming/polygon-map-generation/ in html5
 
-1. Pick some points (red), ideally evenly distributed. I used [[http://devmag.org.za/2009/05/03/poisson-disk-sampling/][Poisson disc sampling]] in this project and [[https://en.wikipedia.org/wiki/Lloyd%2527s_algorithm][Lloyd relaxation]] in a previous project.
-2. Construct the Delaunay triangulation. The boundary of the map is tricky, as I want it to be smooth.
-3. Calculate the triangle centroids (blue). Alternatively, use circumcenters to produce a Voronoi diagram.
-4. Construct centroid polygons from the centroid points. Alternatively, construct Voronoi polygons from the circumcenters.
+There are four steps to constructing the polygon mesh we need:
 
 #+begin_export html
 <div id="diagram-mesh-construction">
+  <ol>
+    <li><button v-on:click="time_goal = 0">Go</button> <span v-if="time &lt; 0.9">→</span> Pick some evenly distributed points.</li>
+    <li><button v-on:click="time_goal = 1">Go</button> <span v-if="time &gt;= 0.9 &amp;&amp; time &lt; 1.9">→</span> Construct the Delaunay triangulation.</li>
+    <li><button v-on:click="time_goal = 2">Go</button> <span v-if="time &gt;= 1.9 &amp;&amp; time &lt; 2.9">→</span> Calculate the triangle centroids.</li>
+    <li><button v-on:click="time_goal = 3">Go</button> <span v-if="time &gt;= 2.9">→</span> Construct polygons from the centroid points.</li>
+  </ol>
   <figure>
-    <canvas width="600" height="600" v-draw="{mesh,time}"/>
+    <canvas width="600" height="600" v-draw="{mesh,time,centroid_circumcenter_mix}"/>
     <figcaption>
-      <span v-if="time &lt;= 1">1. Pick points</span>
-      <span v-else-if="time &lt;= 2">2. Delaunay triangulation</span>
-      <span v-else-if="time &lt;= 3">3. Triangle centroids</span>
+      <span v-if="time &lt; 0.9">1. Pick points</span>
+      <span v-else-if="time &lt; 1.9">2. Delaunay triangulation</span>
+      <span v-else-if="time &lt; 2.9">3. Triangle centroids</span>
       <span v-else="">4. Polygons</span>
+      <span v-if="time &gt;= 1.9">&nbsp;&nbsp;(compare: centroid <input type="range" min="0" max="1" step="0.01" v-model.number="centroid_circumcenter_mix"/> voronoi)</span>
     </figcaption>
   </figure>
-  <button v-on:click="play">Restart</button> 
 </div>
 #+end_export
 
-Compare centroid and voronoi:
+For evenly distributed red points, I used [[http://devmag.org.za/2009/05/03/poisson-disk-sampling/][Poisson disc sampling]] in this project and [[https://en.wikipedia.org/wiki/Lloyd%2527s_algorithm][Lloyd relaxation]] in a previous project. I added points along the boundary of the map with a slight curvature to avoid long skinny Delaunay triangles. I originally used Voronoi polygons but to more evenly space the blue points, I switched to centroids.
+
+* Oceans and lakes
+
+I'm generating islands, so the boundary of the map will always be water. In the interior, I can use noise to determine which areas are land and water.
 
 #+begin_export html
-<p id="diagram-dual-mesh" style="text-align:center">
-  <canvas width="600" height="600" v-draw="{mesh,param}"/>
-  <br/>Centroid polygons<input type="range" min="0" max="1" step="0.01" v-model="param"/>Voronoi polygons (circumcenters)
-</p>
+<div id="diagram-water-assignment">
+  <figure>
+    <canvas width="600" height="600" v-draw="{mesh,round,inflate}"/>
+    <figcaption>Water assigned to polygons</figcaption>
+    parameters: noisy<input type="range" min="0" max="1" step="0.01" v-model.number="round"/>round ;  
+    deflate<input type="range" min="0" max="1" step="0.01" v-model.number="inflate"/>inflate
+  </figure>
+</div>
 #+end_export
 
+* References
+
+* More
 
 #+begin_export html
   <x:footer>
