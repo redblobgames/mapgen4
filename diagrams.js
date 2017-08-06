@@ -28,8 +28,8 @@ let layers = {};
 layers.triangle_edges = (style) => (ctx, mesh) => {
     set_canvas_style(ctx, style, {strokeStyle: "black", lineWidth: 1.0});
     for (let e = 0; e < mesh.num_solid_edges; e++) {
-        let v0 = mesh.e_to_begin_v(e);
-        let v1 = mesh.e_to_end_v(e);
+        let v0 = mesh.e_begin_v(e);
+        let v1 = mesh.e_end_v(e);
         ctx.beginPath();
         ctx.moveTo(mesh.vertices[v0][0], mesh.vertices[v0][1]);
         ctx.lineTo(mesh.vertices[v1][0], mesh.vertices[v1][1]);
@@ -40,8 +40,8 @@ layers.triangle_edges = (style) => (ctx, mesh) => {
 layers.polygon_edges = (style) => (ctx, mesh) => {
     set_canvas_style(ctx, style, {strokeStyle: "white", lineWidth: 2.0});
     for (let e = 0; e < mesh.num_edges; e++) {
-        let v0 = mesh.e_to_begin_v(e);
-        let v1 = mesh.e_to_end_v(e);
+        let v0 = mesh.e_begin_v(e);
+        let v1 = mesh.e_end_v(e);
         let t0 = TriangleMesh.e_to_t(e);
         let t1 = TriangleMesh.e_to_t(mesh.opposites[e]);
         if (t0 > t1) {
@@ -69,7 +69,7 @@ layers.polygon_centers = (style) => (ctx, mesh) => {
     set_canvas_style(ctx, style, {fillStyle: "hsl(0,50%,50%)", strokeStyle: "hsl(0,0%,75%)", lineWidth: 3.0});
     for (let v = 0; v < mesh.num_solid_vertices; v++) {
         ctx.beginPath();
-        ctx.arc(mesh.vertices[v][0], mesh.vertices[v][1], mesh.is_boundary_vertex(v) ? radius/2 : radius, 0, 2*Math.PI);
+        ctx.arc(mesh.vertices[v][0], mesh.vertices[v][1], mesh.v_boundary(v) ? radius/2 : radius, 0, 2*Math.PI);
         ctx.stroke();
         ctx.fill();
     }
@@ -169,19 +169,19 @@ function fbm_noise(noise, nx, ny) {
 }
 
 function assign_water(mesh, noise, params) {
-    let water = [];
+    let v_water = [];
     for (let v = 0; v < mesh.num_vertices; v++) {
-        if (mesh.is_ghost_vertex(v) || mesh.is_boundary_vertex(v)) {
-            water[v] = true;
+        if (mesh.v_ghost(v) || mesh.v_boundary(v)) {
+            v_water[v] = true;
         } else {
             let dx = (mesh.vertices[v][0] - 500) / 500;
             let dy = (mesh.vertices[v][1] - 500) / 500;
             let distance_squared = dx*dx + dy*dy;
             let n = mix(fbm_noise(noise, dx, dy), 0.5, params.round);
-            water[v] = n - (1.0 - params.inflate) * distance_squared < 0;
+            v_water[v] = n - (1.0 - params.inflate) * distance_squared < 0;
         }
     }
-    return water;
+    return v_water;
 }
 
 
@@ -224,9 +224,9 @@ new Vue({
     },
     directives: {
         draw: function(canvas, {value: {mesh, round, inflate}}) {
-            let water = assign_water(mesh, noise, {round, inflate});
+            let v_water = assign_water(mesh, noise, {round, inflate});
             diagram(canvas, mesh, {},
-                    [layers.polygon_colors({}, (v) => water[v]? "hsl(230,30%,30%)" : "hsl(30,30%,60%)"),
+                    [layers.polygon_colors({}, (v) => v_water[v]? "hsl(230,30%,30%)" : "hsl(30,30%,60%)"),
                      layers.polygon_edges({}),
                      layers.polygon_centers({radius: 1, fillStyle: "white"})]);
         }
