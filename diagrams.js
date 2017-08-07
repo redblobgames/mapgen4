@@ -7,7 +7,10 @@
 const TriangleMesh = require('@redblobgames/triangle-mesh');
 const create_mesh = require('@redblobgames/triangle-mesh/create');
 const SimplexNoise = require('simplex-noise');
+const {mix, clamp, smoothstep, circumcenter} = require('./algorithms/util');
+const water = require('./algorithms/water');
 
+const mesh_30 = new TriangleMesh(create_mesh(30.0));
 const mesh_40 = new TriangleMesh(create_mesh(40.0));
 const mesh_50 = new TriangleMesh(create_mesh(50.0));
 const mesh_75 = new TriangleMesh(create_mesh(75.0));
@@ -54,7 +57,7 @@ layers.polygon_edges = (style) => (ctx, mesh) => {
 };
 
 layers.triangle_centers = (style) => (ctx, mesh) => {
-    const radius = style.radius || 4;
+    const radius = style.radius || 5;
     set_canvas_style(ctx, style, {fillStyle: "hsl(240,50%,50%)", strokeStyle: "white", lineWidth: 1.0});
     for (let t = 0; t < mesh.num_solid_triangles; t++) {
         ctx.beginPath();
@@ -109,36 +112,6 @@ function diagram(canvas, mesh, options, layers) {
     ctx.restore();
 }
 
-function clamp(t, lo, hi) {
-    if (t < lo) { return lo; }
-    if (t > hi) { return hi; }
-    return t;
-}
-
-function mix(a, b, t) {
-    return a * (1.0-t) + b * t;
-}
-
-function smoothstep(a, b, t) {
-    // https://en.wikipedia.org/wiki/Smoothstep
-    if (t <= a) { return 0; }
-    if (t >= b) { return 1; }
-    t = (t - a) / (b - a);
-    return (3 - 2*t) * t * t;
-}
-    
-function circumcenter(a, b, c) {
-    // https://en.wikipedia.org/wiki/Circumscribed_circle#Circumcenter_coordinates
-    let ad = a[0]*a[0] + a[1]*a[1],
-        bd = b[0]*b[0] + b[1]*b[1],
-        cd = c[0]*c[0] + c[1]*c[1];
-    let D = 2 * (a[0] * (b[1] - c[1]) + b[0] * (c[1] - a[1]) + c[0] * (a[1] - b[1]));
-    let Ux = 1/D * (ad * (b[1] - c[1]) + bd * (c[1] - a[1]) + cd * (a[1] - b[1]));
-    let Uy = 1/D * (ad * (c[0] - b[0]) + bd * (a[0] - c[0]) + cd * (b[0] - a[0]));
-    return [Ux, Uy];
-}
-
-
 function create_circumcenter_mesh(mesh, mixture) {
     let centers = [], v_out = [];
     for (var t = 0; t < mesh.num_solid_triangles; t++) {
@@ -159,32 +132,6 @@ function create_circumcenter_mesh(mesh, mixture) {
 }
 
 
-
-
-function fbm_noise(noise, nx, ny) {
-    return 0.5 * noise.noise2D(nx, ny, 0)
-        + 0.3 * noise.noise2D(nx * 2, ny * 2, 1)
-        + 0.2 * noise.noise2D(nx * 4, ny * 4, 2)
-        + 0.1 * noise.noise2D(nx * 8, ny * 8, 3);
-}
-
-function assign_water(mesh, noise, params) {
-    let v_water = [];
-    for (let v = 0; v < mesh.num_vertices; v++) {
-        if (mesh.v_ghost(v) || mesh.v_boundary(v)) {
-            v_water[v] = true;
-        } else {
-            let dx = (mesh.vertices[v][0] - 500) / 500;
-            let dy = (mesh.vertices[v][1] - 500) / 500;
-            let distance_squared = dx*dx + dy*dy;
-            let n = mix(fbm_noise(noise, dx, dy), 0.5, params.round);
-            v_water[v] = n - (1.0 - params.inflate) * distance_squared < 0;
-        }
-    }
-    return v_water;
-}
-
-
 let diagram_mesh_construction = new Vue({
     el: "#diagram-mesh-construction",
     data: {
@@ -198,9 +145,9 @@ let diagram_mesh_construction = new Vue({
             diagram(canvas,
                     create_circumcenter_mesh(mesh, centroid_circumcenter_mix),
                     {scale: 0.9},
-                    [layers.triangle_edges({globalAlpha: smoothstep(0.1, 1.0, time) - 0.75 * smoothstep(1.1, 3.0, time)}),
-                     layers.polygon_edges({globalAlpha: smoothstep(2.1, 3.0, time), strokeStyle: "hsl(0,0%,90%)"}),
-                     layers.polygon_centers({}),
+                    [layers.triangle_edges({globalAlpha: smoothstep(0.1, 1.0, time) - 0.75 * smoothstep(1.1, 3.0, time), lineWidth: 3.0}),
+                     layers.polygon_edges({globalAlpha: smoothstep(2.1, 3.0, time), strokeStyle: "hsl(0,0%,90%)", lineWidth: 4.0}),
+                     layers.polygon_centers({radius: 7}),
                      layers.triangle_centers({globalAlpha: smoothstep(1.1, 2.0, time)})]);
         }
     }
@@ -220,15 +167,34 @@ new Vue({
     data: {
         round: 0.5,
         inflate: 0.5,
-        mesh: Object.freeze(mesh_40)
+        mesh: Object.freeze(mesh_30)
+    },
+    computed: {
+        v_water: function() {
+            return water.assign_v_water(this.mesh, noise,
+                                        {round: this.round, inflate: this.inflate});
+        },
+        v_ocean: function() {
+            console.log("computing v_ocean");
+            return water.assign_v_ocean(this.mesh, this.v_water);
+        },
+        counts: function() {
+            let ocean = 0, lake = 0;
+            for (let v = 0; v < this.mesh.num_vertices; v++) {
+                if (this.v_water[v]) {
+                    if (this.v_ocean[v]) { ocean++; }
+                    else                 { lake++; }
+                }
+            }
+            return {ocean, lake};
+        }
     },
     directives: {
-        draw: function(canvas, {value: {mesh, round, inflate}}) {
-            let v_water = assign_water(mesh, noise, {round, inflate});
+        draw: function(canvas, {value: {mesh, v_water, v_ocean}}) {
             diagram(canvas, mesh, {},
-                    [layers.polygon_colors({}, (v) => v_water[v]? "hsl(230,30%,30%)" : "hsl(30,30%,60%)"),
-                     layers.polygon_edges({}),
-                     layers.polygon_centers({radius: 1, fillStyle: "white"})]);
+                    [layers.polygon_colors({}, (v) => v_ocean[v]? "hsl(230,30%,30%)" : v_water[v]? "hsl(200,30%,50%)" : "hsl(30,15%,60%)"),
+                     layers.polygon_edges({strokeStyle: "black"}),
+                     layers.polygon_centers({radius: 1.5, fillStyle: "black", strokeStyle: "black"})]);
         }
     }
 });

@@ -6,20 +6,24 @@
 
 <style>
   figure { margin-left: 0; margin-right: 0; }
+  #diagram-mesh-construction button { background-color: hsl(60,10%,90%); }
+  #diagram-mesh-construction button.active { background-color: hsl(120,50%,80%); border-color: hsl(120,50%,50%); }
 </style>
 #+end_export
 
 WIP- recreating the diagrams and algorithms from http://www-cs-students.stanford.edu/~amitp/game-programming/polygon-map-generation/ in html5
+
+* Polygons
 
 There are four steps to constructing the polygon mesh we need:
 
 #+begin_export html
 <div id="diagram-mesh-construction">
   <ol>
-    <li><button v-on:click="time_goal = 0">Go</button> <span v-if="time &lt; 0.9">→</span> Pick some evenly distributed points.</li>
-    <li><button v-on:click="time_goal = 1">Go</button> <span v-if="time &gt;= 0.9 &amp;&amp; time &lt; 1.9">→</span> Construct the Delaunay triangulation.</li>
-    <li><button v-on:click="time_goal = 2">Go</button> <span v-if="time &gt;= 1.9 &amp;&amp; time &lt; 2.9">→</span> Calculate the triangle centroids.</li>
-    <li><button v-on:click="time_goal = 3">Go</button> <span v-if="time &gt;= 2.9">→</span> Construct polygons from the centroid points.</li>
+    <li><button v-on:click="time_goal = 0" :class="time &lt; 0.9? 'active':null">Go</button> Pick some evenly distributed points.</li>
+    <li><button v-on:click="time_goal = 1" :class="time &gt;= 0.9 &amp;&amp; time &lt; 1.9? 'active':null">Go</button> Construct the Delaunay triangulation.</li>
+    <li><button v-on:click="time_goal = 2" :class="time &gt;= 1.9 &amp;&amp; time &lt; 2.9? 'active':null">Go</button> Calculate the triangle centroids.</li>
+    <li><button v-on:click="time_goal = 3" :class="time &gt;= 2.9 ? 'active':null">Go</button> Construct polygons from the centroid points.</li>
   </ol>
   <figure>
     <canvas width="600" height="600" v-draw="{mesh,time,centroid_circumcenter_mix}"/>
@@ -36,20 +40,47 @@ There are four steps to constructing the polygon mesh we need:
 
 For evenly distributed red points, I used [[http://devmag.org.za/2009/05/03/poisson-disk-sampling/][Poisson disc sampling]] in this project and [[https://en.wikipedia.org/wiki/Lloyd%2527s_algorithm][Lloyd relaxation]] in a previous project. I added points along the boundary of the map with a slight curvature to avoid long skinny Delaunay triangles. I originally used Voronoi polygons but to more evenly space the blue points, I switched to centroids.
 
-* Oceans and lakes
+* Map representation
+
+* Islands
 
 I'm generating islands, so the boundary of the map will always be water. In the interior, I can use noise to determine which areas are land and water.
 
 #+begin_export html
 <div id="diagram-water-assignment">
   <figure>
-    <canvas width="600" height="600" v-draw="{mesh,round,inflate}"/>
+    <canvas width="600" height="600" v-draw="{mesh,v_water,v_ocean:v_water}"/>
     <figcaption>Water assigned to polygons</figcaption>
     parameters: noisy<input type="range" min="0" max="1" step="0.01" v-model.number="round"/>round ;  
     deflate<input type="range" min="0" max="1" step="0.01" v-model.number="inflate"/>inflate
   </figure>
+  <p>
+    The next step is to distinguish ocean polygons from lake polygons. The oceans are the ones connected to the boundary of the map. In this map there are {{counts.ocean}} oceans and {{counts.lake}} lakes.
+    <em v-if="counts.lake === 0">Try changing the parameters until lakes form.</em>
+  </p>
+  <figure>
+    <canvas width="600" height="600" v-draw="{mesh,v_water,v_ocean}"/>
+    <figcaption>Oceans are water polygons connected to the boundary</figcaption>
+  </figure>
 </div>
 #+end_export
+
+
+* Elevation
+
+* Rivers
+
+* Moisture
+
+* Biomes
+
+* Noisy rendering
+
+** Noisy edges
+
+** Noisy transitions
+
+** Noisy fills
 
 * References
 
@@ -61,6 +92,6 @@ I'm generating islands, so the boundary of the map will always be water. In the 
     <script src="_bundle.js"/>
 
     Created 3 Aug 2017 with <a href="https://vue.org/">Vue.js</a> and Emacs org-mode (<a href="index.org">source of this page</a>); &#160;
-    <!-- hhmts start -->Last modified: 05 Aug 2017<!-- hhmts end -->
+    <!-- hhmts start -->Last modified: 06 Aug 2017<!-- hhmts end -->
   </x:footer>
 #+end_export
