@@ -4,16 +4,18 @@
 
 'use strict';
 
+const SEED = 123456789;
 const TriangleMesh = require('@redblobgames/triangle-mesh');
 const create_mesh = require('@redblobgames/triangle-mesh/create');
 const SimplexNoise = require('simplex-noise');
 const {mix, clamp, smoothstep, circumcenter} = require('./algorithms/util');
 const water = require('./algorithms/water');
 
-const mesh_30 = new TriangleMesh(create_mesh(30.0));
-const mesh_40 = new TriangleMesh(create_mesh(40.0));
-const mesh_50 = new TriangleMesh(create_mesh(50.0));
-const mesh_75 = new TriangleMesh(create_mesh(75.0));
+let noise = new SimplexNoise(makeRandFloat(SEED));
+const mesh_30 = new TriangleMesh(create_mesh(30.0, makeRandFloat(SEED)));
+const mesh_40 = new TriangleMesh(create_mesh(40.0, makeRandFloat(SEED)));
+const mesh_50 = new TriangleMesh(create_mesh(50.0, makeRandFloat(SEED)));
+const mesh_75 = new TriangleMesh(create_mesh(75.0, makeRandFloat(SEED)));
 
 function fallback(value, or_else) {
     return (value !== undefined)? value : or_else;
@@ -161,7 +163,6 @@ setInterval(() => {
 }, 20);
 
 
-let noise = new SimplexNoise();
 new Vue({
     el: "#diagram-water-assignment",
     data: {

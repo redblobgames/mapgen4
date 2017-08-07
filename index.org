@@ -89,9 +89,10 @@ I'm generating islands, so the boundary of the map will always be water. In the 
 #+begin_export html
   <x:footer>
     <script src="/js/vue.js"/>
+    <script src="/js/prng.js"/>
     <script src="_bundle.js"/>
 
     Created 3 Aug 2017 with <a href="https://vue.org/">Vue.js</a> and Emacs org-mode (<a href="index.org">source of this page</a>); &#160;
-    <!-- hhmts start -->Last modified: 06 Aug 2017<!-- hhmts end -->
+    <!-- hhmts start -->Last modified: 07 Aug 2017<!-- hhmts end -->
   </x:footer>
 #+end_export
