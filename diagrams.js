@@ -58,6 +58,26 @@ layers.polygon_edges = (style) => (ctx, mesh) => {
     }
 };
 
+layers.polygon_edges_colored = (style, coloring) => (ctx, mesh) => {
+    set_canvas_style(ctx, style, {lineWidth: 2.0});
+    for (let e = 0; e < mesh.num_edges; e++) {
+        let v0 = mesh.e_begin_v(e);
+        let v1 = mesh.e_end_v(e);
+        let t0 = TriangleMesh.e_to_t(e);
+        let t1 = TriangleMesh.e_to_t(mesh.opposites[e]);
+        if (t0 > t1) {
+            let color = coloring(v0, v1, t0, t1);
+            if (color !== null) {
+                ctx.strokeStyle = color;
+                ctx.beginPath();
+                ctx.moveTo(mesh.centers[t0][0], mesh.centers[t0][1]);
+                ctx.lineTo(mesh.centers[t1][0], mesh.centers[t1][1]);
+                ctx.stroke();
+            }
+        }
+    }
+};
+
 layers.triangle_centers = (style) => (ctx, mesh) => {
     const radius = style.radius || 5;
     set_canvas_style(ctx, style, {fillStyle: "hsl(240,50%,50%)", strokeStyle: "white", lineWidth: 1.0});
@@ -168,6 +188,8 @@ new Vue({
     data: {
         round: 0.5,
         inflate: 0.5,
+        show_lakes: false,
+        show_coast: false,
         mesh: Object.freeze(mesh_30)
     },
     computed: {
@@ -175,10 +197,7 @@ new Vue({
             return water.assign_v_water(this.mesh, noise,
                                         {round: this.round, inflate: this.inflate});
         },
-        v_ocean: function() {
-            console.log("computing v_ocean");
-            return water.assign_v_ocean(this.mesh, this.v_water);
-        },
+        v_ocean: function() { return water.assign_v_ocean(this.mesh, this.v_water); },
         counts: function() {
             let ocean = 0, lake = 0;
             for (let v = 0; v < this.mesh.num_vertices; v++) {
@@ -191,11 +210,14 @@ new Vue({
         }
     },
     directives: {
-        draw: function(canvas, {value: {mesh, v_water, v_ocean}}) {
+        draw: function(canvas, {value: {mesh, v_water, v_ocean, show_lakes, show_coast}}) {
+            if (show_coast) { show_lakes = true; }
+            if (!show_lakes) { v_ocean = v_water; }
             diagram(canvas, mesh, {},
                     [layers.polygon_colors({}, (v) => v_ocean[v]? "hsl(230,30%,30%)" : v_water[v]? "hsl(200,30%,50%)" : "hsl(30,15%,60%)"),
                      layers.polygon_edges({strokeStyle: "black"}),
+                     layers.polygon_edges_colored({lineWidth: 4.0, globalAlpha: show_coast? 1.0 : 0.0}, (v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "white" : null),
                      layers.polygon_centers({radius: 1.5, fillStyle: "black", strokeStyle: "black"})]);
-        }
+        },
     }
 });

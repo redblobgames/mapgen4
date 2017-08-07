@@ -6,6 +6,7 @@
 
 <style>
   figure { margin-left: 0; margin-right: 0; }
+  .hover-term { cursor: help; border-bottom: 2px dashed black; }
   #diagram-mesh-construction button { background-color: hsl(60,10%,90%); }
   #diagram-mesh-construction button.active { background-color: hsl(120,50%,80%); border-color: hsl(120,50%,50%); }
 </style>
@@ -49,22 +50,22 @@ I'm generating islands, so the boundary of the map will always be water. In the 
 #+begin_export html
 <div id="diagram-water-assignment">
   <figure>
-    <canvas width="600" height="600" v-draw="{mesh,v_water,v_ocean:v_water}"/>
-    <figcaption>Water assigned to polygons</figcaption>
+    <figcaption v-if="show_coast">Coastline separates oceans from land</figcaption>
+    <figcaption v-else-if="show_lakes">Lakes are water polygons not connected to the boundary</figcaption>
+    <figcaption v-else="">Choose polygons that are water vs land</figcaption>
+    <canvas width="600" height="600" v-draw="{mesh,v_water,v_ocean,show_lakes,show_coast}"/>
     parameters: noisy<input type="range" min="0" max="1" step="0.01" v-model.number="round"/>round ;  
     deflate<input type="range" min="0" max="1" step="0.01" v-model.number="inflate"/>inflate
   </figure>
   <p>
-    The next step is to distinguish ocean polygons from lake polygons. The oceans are the ones connected to the boundary of the map. In this map there are {{counts.ocean}} oceans and {{counts.lake}} lakes.
-    <em v-if="counts.lake === 0">Try changing the parameters until lakes form.</em>
+    There are two things we need once we've assigned water vs land:
   </p>
-  <figure>
-    <canvas width="600" height="600" v-draw="{mesh,v_water,v_ocean}"/>
-    <figcaption>Oceans are water polygons connected to the boundary</figcaption>
-  </figure>
+  <ol>
+    <li><span class="hover-term" v-on:mouseover="show_lakes=true" v-on:mouseout="show_lakes=false">Lakes</span> are the polygons not connected to the boundary of the map. In this map there are {{counts.ocean}} oceans and {{counts.lake}} lakes. <em v-if="counts.lake === 0">Try changing the parameters until lakes form.</em></li>
+    <li><span class="hover-term" v-on:mouseover="show_coast=true" v-on:mouseout="show_coast=false">Coastlines</span> are the edges connected to an ocean polygon on one side and a land polygon on the other.</li>
+  </ol>
 </div>
 #+end_export
-
 
 * Elevation
 
