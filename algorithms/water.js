@@ -10,7 +10,7 @@ const util = require('./util');
 
 /* a polygon is water if the noise value is low */
 exports.assign_v_water = function(mesh, noise, params) {
-    let v_water = new Array(mesh.num_triangles);
+    let v_water = new Array(mesh.num_vertices);
     v_water.fill(false);
     for (let v = 0; v < mesh.num_vertices; v++) {
         if (mesh.v_ghost(v) || mesh.v_boundary(v)) {
@@ -31,7 +31,7 @@ exports.assign_v_water = function(mesh, noise, params) {
    which is outside the boundary of the map; this could be any seed set but
    for islands, the ghost polygon is a good seed */
 exports.assign_v_ocean = function(mesh, v_water) {
-    let v_ocean = new Array(mesh.num_triangles);
+    let v_ocean = new Array(mesh.num_vertices);
     v_ocean.fill(false);
     let stack = [mesh.ghost_v()];
     let v_out = [];
@@ -46,4 +46,4 @@ exports.assign_v_ocean = function(mesh, v_water) {
         }
     }
     return v_ocean;
-}
+};
