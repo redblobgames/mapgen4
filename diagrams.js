@@ -10,10 +10,12 @@ const create_mesh = require('@redblobgames/triangle-mesh/create');
 const SimplexNoise = require('simplex-noise');
 const {mix, clamp, smoothstep, circumcenter} = require('./algorithms/util');
 const water = require('./algorithms/water');
+const elevation = require('./algorithms/elevation');
 
 let noise = new SimplexNoise(makeRandFloat(SEED));
+//const mesh_10 = new TriangleMesh(create_mesh(10.0, makeRandFloat(SEED)));
 const mesh_30 = new TriangleMesh(create_mesh(30.0, makeRandFloat(SEED)));
-const mesh_40 = new TriangleMesh(create_mesh(40.0, makeRandFloat(SEED)));
+//const mesh_40 = new TriangleMesh(create_mesh(40.0, makeRandFloat(SEED)));
 const mesh_50 = new TriangleMesh(create_mesh(50.0, makeRandFloat(SEED)));
 const mesh_75 = new TriangleMesh(create_mesh(75.0, makeRandFloat(SEED)));
 
@@ -43,7 +45,7 @@ layers.triangle_edges = (style) => (ctx, mesh) => {
 };
 
 layers.polygon_edges = (style) => (ctx, mesh) => {
-    set_canvas_style(ctx, style, {strokeStyle: "white", lineWidth: 2.0});
+    set_canvas_style(ctx, style, {strokeStyle: "white", lineWidth: 1.5});
     for (let e = 0; e < mesh.num_edges; e++) {
         let v0 = mesh.e_begin_v(e);
         let v1 = mesh.e_end_v(e);
@@ -67,7 +69,7 @@ layers.polygon_edges_colored = (style, coloring) => (ctx, mesh) => {
         let t1 = TriangleMesh.e_to_t(mesh.opposites[e]);
         if (t0 > t1) {
             let color = coloring(v0, v1, t0, t1);
-            if (color !== null) {
+            if (color) {
                 ctx.strokeStyle = color;
                 ctx.beginPath();
                 ctx.moveTo(mesh.centers[t0][0], mesh.centers[t0][1]);
@@ -86,6 +88,21 @@ layers.triangle_centers = (style) => (ctx, mesh) => {
         ctx.arc(mesh.centers[t][0], mesh.centers[t][1], radius, 0, 2*Math.PI);
         ctx.stroke();
         ctx.fill();
+    }
+};
+
+layers.triangle_centers_colored = (style, coloring) => (ctx, mesh) => {
+    const radius = style.radius || 5;
+    set_canvas_style(ctx, style, {});
+    for (let t = 0; t < mesh.num_solid_triangles; t++) {
+        let color = coloring(t);
+        if (color) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(mesh.centers[t][0], mesh.centers[t][1], radius, 0, 2*Math.PI);
+            ctx.stroke();
+            ctx.fill();
+        }
     }
 };
 
@@ -218,6 +235,53 @@ new Vue({
                      layers.polygon_edges({strokeStyle: "black"}),
                      layers.polygon_edges_colored({lineWidth: 4.0, globalAlpha: show_coast? 1.0 : 0.0}, (v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "white" : null),
                      layers.polygon_centers({radius: 1.5, fillStyle: "black", strokeStyle: "black"})]);
-        },
+        }
+    }
+});
+
+
+new Vue({
+    el: "#diagram-elevation-assignment",
+    data: {
+        mesh: Object.freeze(mesh_30),
+        show: null
+    },
+    computed: {
+        v_water: function() { return water.assign_v_water(this.mesh, noise, {round: 0.5, inflate: 0.5}); },
+        v_ocean: function() { return water.assign_v_ocean(this.mesh, this.v_water); },
+        t_elevation: function() { return elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water); },
+        v_elevation: function() { return elevation.assign_v_elevation(this.mesh, this.t_elevation, this.v_ocean); }
+    },
+    directives: {
+        draw: function(canvas, {value: {show, mesh, v_water, v_ocean, t_elevation, v_elevation}}) {
+            let coasts_t = elevation.find_coasts_t(mesh, v_ocean);
+            function polygon_coloring(v) {
+                if (v_ocean[v]) {
+                    return `hsl(240,25%,${50-30*v_elevation[v]}%)`;
+                } else {
+                    return `hsl(105,${25-10*v_elevation[v]}%,${50+50*v_elevation[v]}%)`;
+                }
+            }
+            let config = null;
+            switch (show) {
+            case 'coast_t': config = [
+                layers.polygon_colors({}, (v) => v_ocean[v]? "hsl(230,30%,30%)" : "hsl(30,15%,60%)"),
+                layers.polygon_edges_colored({lineWidth: 1.5}, (v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "white" : null),
+                layers.triangle_centers_colored({radius: 5}, (t) => coasts_t.indexOf(t) >= 0? "white" : null)
+            ];
+                break;
+            case 'v_elevation': config = [
+                layers.polygon_colors({}, (v) => v_ocean[v]? "hsl(230,30%,30%)" : "hsl(30,15%,60%)"),
+                layers.triangle_centers_colored({radius: 5}, (t) => `hsl(60,15%,${100-100*t_elevation[t]}%)`)
+            ];
+                break;
+            default: config = [
+                layers.polygon_colors({}, polygon_coloring),
+                layers.polygon_edges({strokeStyle: "black", lineWidth: 1.0}),
+                layers.polygon_centers({radius: 0.5, fillStyle: "black", strokeStyle: "black"})
+            ];
+            }
+            diagram(canvas, mesh, {}, config);
+        }
     }
 });

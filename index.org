@@ -69,6 +69,27 @@ I'm generating islands, so the boundary of the map will always be water. In the 
 
 * Elevation
 
+For this project I set elevation based on the /distance from the coast/. It's not the right choice for most maps, but it was the right thing for the project I made this for. To calculate it, I'll run Breadth First Search from the coastline. I tried distances on the polygons and distances on the corners, and I found corners worked better for this map generator. 
+
+#+begin_export html
+<div id="diagram-elevation-assignment">
+  <figure>
+    <figcaption v-if="show==='coast_t'">Coastline</figcaption>
+    <figcaption v-else-if="show==='v_elevation'">Distance from coastline, corners</figcaption>
+    <figcaption v-else="">Distance from coastline, polygons</figcaption>
+    <canvas width="600" height="600" v-draw="{show,mesh,v_water,v_ocean,t_elevation,v_elevation}"/>
+  </figure>
+  
+  <p>
+    To find the start points for breadth first search, I picked <span class="hover-term" v-on:mouseover="show='coast_t'">corners along a coastline edge</span>. As above, coastline edges have an ocean on one side and land on the other side. Once I have <span class="hover-term" v-on:mouseover="show='v_elevation'">distance from the coastline</span> on corners, I need to convert it back to polygons. I chose to set the <span class="hover-term" v-on:mouseover="show=null">polygon elevation</span> to the =min()= of the corner elevations. The average or max would work as well.
+  </p>
+</div>
+#+end_export
+
+** TODO Handle lakes
+
+** TODO Elevation from noise
+
 * Rivers
 
 * Moisture
