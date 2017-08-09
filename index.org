@@ -21,19 +21,19 @@ There are four steps to constructing the polygon mesh we need:
 #+begin_export html
 <div id="diagram-mesh-construction">
   <ol>
-    <li><button v-on:click="time_goal = 0" :class="time &lt; 0.9? 'active':null">Go</button> Pick some evenly distributed points.</li>
-    <li><button v-on:click="time_goal = 1" :class="time &gt;= 0.9 &amp;&amp; time &lt; 1.9? 'active':null">Go</button> Construct the Delaunay triangulation.</li>
-    <li><button v-on:click="time_goal = 2" :class="time &gt;= 1.9 &amp;&amp; time &lt; 2.9? 'active':null">Go</button> Calculate the triangle centroids.</li>
-    <li><button v-on:click="time_goal = 3" :class="time &gt;= 2.9 ? 'active':null">Go</button> Construct polygons from the centroid points.</li>
+    <li><button v-on:click="timeGoal = 0" :class="time &lt; 0.9? 'active':null">Go</button> Pick some evenly distributed points.</li>
+    <li><button v-on:click="timeGoal = 1" :class="time &gt;= 0.9 &amp;&amp; time &lt; 1.9? 'active':null">Go</button> Construct the Delaunay triangulation.</li>
+    <li><button v-on:click="timeGoal = 2" :class="time &gt;= 1.9 &amp;&amp; time &lt; 2.9? 'active':null">Go</button> Calculate the triangle centroids.</li>
+    <li><button v-on:click="timeGoal = 3" :class="time &gt;= 2.9 ? 'active':null">Go</button> Construct polygons from the centroid points.</li>
   </ol>
   <figure>
-    <canvas width="600" height="600" v-draw="{mesh,time,centroid_circumcenter_mix}"/>
+    <canvas width="600" height="600" v-draw="{mesh,time,centroidCircumcenterMix}"/>
     <figcaption>
       <span v-if="time &lt; 0.9">1. Pick points</span>
       <span v-else-if="time &lt; 1.9">2. Delaunay triangulation</span>
       <span v-else-if="time &lt; 2.9">3. Triangle centroids</span>
       <span v-else="">4. Polygons</span>
-      <span v-if="time &gt;= 1.9">&nbsp;&nbsp;(compare: centroid <input type="range" min="0" max="1" step="0.01" v-model.number="centroid_circumcenter_mix"/> voronoi)</span>
+      <span v-if="time &gt;= 1.9">&nbsp;&nbsp;(compare: centroid <input type="range" min="0" max="1" step="0.01" v-model.number="centroidCircumcenterMix"/> voronoi)</span>
     </figcaption>
   </figure>
 </div>
@@ -50,10 +50,10 @@ I'm generating islands, so the boundary of the map will always be water. In the 
 #+begin_export html
 <div id="diagram-water-assignment">
   <figure>
-    <figcaption v-if="show_coast">Coastline separates oceans from land</figcaption>
-    <figcaption v-else-if="show_lakes">Lakes are water polygons not connected to the boundary</figcaption>
+    <figcaption v-if="showCoast">Coastline separates oceans from land</figcaption>
+    <figcaption v-else-if="showLakes">Lakes are water polygons not connected to the boundary</figcaption>
     <figcaption v-else="">Choose polygons that are water vs land</figcaption>
-    <canvas width="600" height="600" v-draw="{mesh,v_water,v_ocean,show_lakes,show_coast}"/>
+    <canvas width="600" height="600" v-draw="{mesh,v_water,v_ocean,showLakes,showCoast}"/>
     parameters: noisy<input type="range" min="0" max="1" step="0.01" v-model.number="round"/>round ;  
     deflate<input type="range" min="0" max="1" step="0.01" v-model.number="inflate"/>inflate
   </figure>
@@ -61,8 +61,8 @@ I'm generating islands, so the boundary of the map will always be water. In the 
     There are two things we need once we've assigned water vs land:
   </p>
   <ol>
-    <li><span class="hover-term" v-on:mouseover="show_lakes=true" v-on:mouseout="show_lakes=false">Lakes</span> are the polygons not connected to the boundary of the map. In this map there are {{counts.ocean}} oceans and {{counts.lake}} lakes. <em v-if="counts.lake === 0">Try changing the parameters until lakes form.</em></li>
-    <li><span class="hover-term" v-on:mouseover="show_coast=true" v-on:mouseout="show_coast=false">Coastlines</span> are the edges connected to an ocean polygon on one side and a land polygon on the other.</li>
+    <li><span class="hover-term" v-on:mouseover="showLakes=true" v-on:mouseout="showLakes=false">Lakes</span> are the polygons not connected to the boundary of the map. In this map there are {{counts.ocean}} oceans and {{counts.lake}} lakes. <em v-if="counts.lake === 0">Try changing the parameters until lakes form.</em></li>
+    <li><span class="hover-term" v-on:mouseover="showCoast=true" v-on:mouseout="showCoast=false">Coastlines</span> are the edges connected to an ocean polygon on one side and a land polygon on the other.</li>
   </ol>
 </div>
 #+end_export

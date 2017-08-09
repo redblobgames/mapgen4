@@ -2,55 +2,57 @@
 // Copyright 2017 Red Blob Games <redblobgames@gmail.com>
 // License: Apache v2.0 <http://www.apache.org/licenses/LICENSE-2.0.html>
 
+/* global makeRandFloat */
+
 'use strict';
 
 const SEED = 123456789;
 const TriangleMesh = require('@redblobgames/triangle-mesh');
-const create_mesh =  require('@redblobgames/triangle-mesh/create');
+const createMesh =   require('@redblobgames/triangle-mesh/create');
 const SimplexNoise = require('simplex-noise');
-const water =        require('./algorithms/water');
-const elevation =    require('./algorithms/elevation');
-const rivers =       require('./algorithms/rivers');
+const Water =        require('./algorithms/water');
+const Elevation =    require('./algorithms/elevation');
+const Rivers =       require('./algorithms/rivers');
 const {mix, clamp, smoothstep, circumcenter} = require('./algorithms/util');
 
 let noise = new SimplexNoise(makeRandFloat(SEED));
-//const mesh_10 = new TriangleMesh(create_mesh(10.0, makeRandFloat(SEED)));
-const mesh_30 = new TriangleMesh(create_mesh(30.0, makeRandFloat(SEED)));
-//const mesh_40 = new TriangleMesh(create_mesh(40.0, makeRandFloat(SEED)));
-const mesh_50 = new TriangleMesh(create_mesh(50.0, makeRandFloat(SEED)));
-const mesh_75 = new TriangleMesh(create_mesh(75.0, makeRandFloat(SEED)));
+//const mesh_10 = new TriangleMesh(createMesh(10.0, makeRandFloat(SEED)));
+const mesh_30 = new TriangleMesh(createMesh(30.0, makeRandFloat(SEED)));
+//const mesh_40 = new TriangleMesh(createMesh(40.0, makeRandFloat(SEED)));
+const mesh_50 = new TriangleMesh(createMesh(50.0, makeRandFloat(SEED)));
+const mesh_75 = new TriangleMesh(createMesh(75.0, makeRandFloat(SEED)));
 
 
-function draw_arrow(ctx, p, q) {
-    const stem_length = 0.5;
-    const head_length = 0.5;
-    const stem_width = 0.15;
-    const head_width = 0.4;
-    const tail_length = 0.1;
+function drawArrow(ctx, p, q) {
+    const stemLength = 0.5;
+    const headLength = 0.5;
+    const stemWidth = 0.15;
+    const headWidth = 0.4;
+    const tailLength = 0.1;
     
     let s = [mix(p[0], q[0], 0.2), mix(p[1], q[1], 0.2)];
     let dx = (q[0] - p[0]) * 0.7;
     let dy = (q[1] - p[1]) * 0.7;
 
     ctx.beginPath();
-    ctx.moveTo(s[0] + dx*tail_length, s[1] + dy*tail_length);
-    ctx.lineTo(s[0] - dy*stem_width, s[1] + dx*stem_width);
-    ctx.lineTo(s[0] + dx*stem_length - dy*stem_width, s[1] + dy*stem_length + dx*stem_width);
-    ctx.lineTo(s[0] + dx*(1-head_length) - dy*head_width, s[1] + dy*(1-head_length) + dx*head_width);
+    ctx.moveTo(s[0] + dx*tailLength, s[1] + dy*tailLength);
+    ctx.lineTo(s[0] - dy*stemWidth, s[1] + dx*stemWidth);
+    ctx.lineTo(s[0] + dx*stemLength - dy*stemWidth, s[1] + dy*stemLength + dx*stemWidth);
+    ctx.lineTo(s[0] + dx*(1-headLength) - dy*headWidth, s[1] + dy*(1-headLength) + dx*headWidth);
     ctx.lineTo(s[0] + dx, s[1] + dy);
-    ctx.lineTo(s[0] + dx*(1-head_length) + dy*head_width, s[1] + dy*(1-head_length) - dx*head_width);
-    ctx.lineTo(s[0] + dx*stem_length + dy*stem_width, s[1] + dy*stem_length - dx*stem_width);
-    ctx.lineTo(s[0] + dy*stem_width, s[1] - dx*stem_width);
-    ctx.lineTo(s[0] + dx*tail_length, s[1] + dy*tail_length);
+    ctx.lineTo(s[0] + dx*(1-headLength) + dy*headWidth, s[1] + dy*(1-headLength) - dx*headWidth);
+    ctx.lineTo(s[0] + dx*stemLength + dy*stemWidth, s[1] + dy*stemLength - dx*stemWidth);
+    ctx.lineTo(s[0] + dy*stemWidth, s[1] - dx*stemWidth);
+    ctx.lineTo(s[0] + dx*tailLength, s[1] + dy*tailLength);
     ctx.fill();
 }
 
 
-function fallback(value, or_else) {
-    return (value !== undefined)? value : or_else;
+function fallback(value, orElse) {
+    return (value !== undefined)? value : orElse;
 }
 
-function set_canvas_style(ctx, style, defaults) {
+function setCanvasStyle(ctx, style, defaults) {
     ctx.globalAlpha = fallback(style.globalAlpha, fallback(defaults.globalAlpha, 1.0));
     ctx.lineWidth =   fallback(style.lineWidth,   fallback(defaults.lineWidth,   1.0));
     ctx.fillStyle =   fallback(style.fillStyle,   fallback(defaults.fillStyle,   "black"));
@@ -59,9 +61,9 @@ function set_canvas_style(ctx, style, defaults) {
 
 let layers = {};
 
-layers.triangle_edges = (style) => (ctx, mesh) => {
-    set_canvas_style(ctx, style, {strokeStyle: "black", lineWidth: 1.0});
-    for (let e = 0; e < mesh.num_solid_edges; e++) {
+layers.triangleEdges = (style) => (ctx, mesh) => {
+    setCanvasStyle(ctx, style, {strokeStyle: "black", lineWidth: 1.0});
+    for (let e = 0; e < mesh.numSolidEdges; e++) {
         let v0 = mesh.e_begin_v(e);
         let v1 = mesh.e_end_v(e);
         ctx.beginPath();
@@ -71,9 +73,9 @@ layers.triangle_edges = (style) => (ctx, mesh) => {
     }
 };
 
-layers.polygon_edges = (style) => (ctx, mesh) => {
-    set_canvas_style(ctx, style, {strokeStyle: "white", lineWidth: 1.5});
-    for (let e = 0; e < mesh.num_edges; e++) {
+layers.polygonEdges = (style) => (ctx, mesh) => {
+    setCanvasStyle(ctx, style, {strokeStyle: "white", lineWidth: 1.5});
+    for (let e = 0; e < mesh.numEdges; e++) {
         let v0 = mesh.e_begin_v(e);
         let v1 = mesh.e_end_v(e);
         let t0 = TriangleMesh.e_to_t(e);
@@ -87,9 +89,9 @@ layers.polygon_edges = (style) => (ctx, mesh) => {
     }
 };
 
-layers.polygon_edges_colored = (style, coloring) => (ctx, mesh) => {
-    set_canvas_style(ctx, style, {lineWidth: 2.0});
-    for (let e = 0; e < mesh.num_edges; e++) {
+layers.polygonEdgesColored = (style, coloring) => (ctx, mesh) => {
+    setCanvasStyle(ctx, style, {lineWidth: 2.0});
+    for (let e = 0; e < mesh.numEdges; e++) {
         let v0 = mesh.e_begin_v(e);
         let v1 = mesh.e_end_v(e);
         let t0 = TriangleMesh.e_to_t(e);
@@ -107,10 +109,10 @@ layers.polygon_edges_colored = (style, coloring) => (ctx, mesh) => {
     }
 };
 
-layers.triangle_centers = (style) => (ctx, mesh) => {
+layers.triangleCenters = (style) => (ctx, mesh) => {
     const radius = style.radius || 5;
-    set_canvas_style(ctx, style, {fillStyle: "hsl(240,50%,50%)", strokeStyle: "white", lineWidth: 1.0});
-    for (let t = 0; t < mesh.num_solid_triangles; t++) {
+    setCanvasStyle(ctx, style, {fillStyle: "hsl(240,50%,50%)", strokeStyle: "white", lineWidth: 1.0});
+    for (let t = 0; t < mesh.numSolidTriangles; t++) {
         ctx.beginPath();
         ctx.arc(mesh.centers[t][0], mesh.centers[t][1], radius, 0, 2*Math.PI);
         ctx.stroke();
@@ -118,10 +120,10 @@ layers.triangle_centers = (style) => (ctx, mesh) => {
     }
 };
 
-layers.triangle_centers_colored = (style, coloring) => (ctx, mesh) => {
+layers.triangleCentersColored = (style, coloring) => (ctx, mesh) => {
     const radius = style.radius || 5;
-    set_canvas_style(ctx, style, {});
-    for (let t = 0; t < mesh.num_solid_triangles; t++) {
+    setCanvasStyle(ctx, style, {});
+    for (let t = 0; t < mesh.numSolidTriangles; t++) {
         let color = coloring(t);
         if (color) {
             ctx.fillStyle = color;
@@ -133,10 +135,10 @@ layers.triangle_centers_colored = (style, coloring) => (ctx, mesh) => {
     }
 };
 
-layers.polygon_centers = (style) => (ctx, mesh) => {
+layers.polygonCenters = (style) => (ctx, mesh) => {
     const radius = style.radius || 5;
-    set_canvas_style(ctx, style, {fillStyle: "hsl(0,50%,50%)", strokeStyle: "hsl(0,0%,75%)", lineWidth: 3.0});
-    for (let v = 0; v < mesh.num_solid_vertices; v++) {
+    setCanvasStyle(ctx, style, {fillStyle: "hsl(0,50%,50%)", strokeStyle: "hsl(0,0%,75%)", lineWidth: 3.0});
+    for (let v = 0; v < mesh.numSolidVertices; v++) {
         ctx.beginPath();
         ctx.arc(mesh.vertices[v][0], mesh.vertices[v][1], mesh.v_boundary(v) ? radius/2 : radius, 0, 2*Math.PI);
         ctx.stroke();
@@ -145,17 +147,17 @@ layers.polygon_centers = (style) => (ctx, mesh) => {
 };
 
 /* coloring should be a function from v (polygon) to color string */
-layers.polygon_colors = (style, coloring) => (ctx, mesh) => {
+layers.polygonColors = (style, coloring) => (ctx, mesh) => {
     const radius = style.radius || 5;
-    let t_out = [];
-    set_canvas_style(ctx, style, {});
-    for (let v = 0; v < mesh.num_solid_vertices; v++) {
-        mesh.v_circulate_t(t_out, v);
+    let out_t = [];
+    setCanvasStyle(ctx, style, {});
+    for (let v = 0; v < mesh.numSolidVertices; v++) {
+        mesh.v_circulate_t(out_t, v);
         ctx.fillStyle = coloring(v);
         ctx.beginPath();
-        ctx.moveTo(mesh.centers[t_out[0]][0], mesh.centers[t_out[0]][1]);
-        for (let i = 1; i < t_out.length; i++) {
-            ctx.lineTo(mesh.centers[t_out[i]][0], mesh.centers[t_out[i]][1]);
+        ctx.moveTo(mesh.centers[out_t[0]][0], mesh.centers[out_t[0]][1]);
+        for (let i = 1; i < out_t.length; i++) {
+            ctx.lineTo(mesh.centers[out_t[i]][0], mesh.centers[out_t[i]][1]);
         }
         ctx.fill();
     }
@@ -178,44 +180,44 @@ function diagram(canvas, mesh, options, layers) {
     ctx.restore();
 }
 
-function create_circumcenter_mesh(mesh, mixture) {
-    let centers = [], v_out = [];
-    for (var t = 0; t < mesh.num_solid_triangles; t++) {
-        mesh.t_circulate_v(v_out, t);
-        let a = mesh.vertices[v_out[0]],
-            b = mesh.vertices[v_out[1]],
-            c = mesh.vertices[v_out[2]];
+function createCircumcenterMesh(mesh, mixture) {
+    let centers = [], out_v = [];
+    for (var t = 0; t < mesh.numSolidTriangles; t++) {
+        mesh.t_circulate_v(out_v, t);
+        let a = mesh.vertices[out_v[0]],
+            b = mesh.vertices[out_v[1]],
+            c = mesh.vertices[out_v[2]];
         let center = circumcenter(a, b, c);
         centers.push([mix(mesh.centers[t][0], center[0], mixture),
                       mix(mesh.centers[t][1], center[1], mixture)]);
     }
-    for (; t < mesh.num_triangles; t++) {
+    for (; t < mesh.numTriangles; t++) {
         centers.push(mesh.centers[t]);
     }
-    let new_mesh = new TriangleMesh(mesh);
-    new_mesh.centers = centers;
-    return new_mesh;
+    let newMesh = new TriangleMesh(mesh);
+    newMesh.centers = centers;
+    return newMesh;
 }
 
 
-let diagram_mesh_construction = new Vue({
+let diagramMeshConstruction = new Vue({
     el: "#diagram-mesh-construction",
     data: {
         time: 0.0,
-        time_goal: 0.0,
-        centroid_circumcenter_mix: 0.0,
+        timeGoal: 0.0,
+        centroidCircumcenterMix: 0.0,
         mesh: Object.freeze(mesh_75)
     },
     directives: {
-        draw: function(canvas, {value: {mesh, time, centroid_circumcenter_mix}}) {
+        draw: function(canvas, {value: {mesh, time, centroidCircumcenterMix}}) {
             diagram(canvas,
-                    create_circumcenter_mesh(mesh, centroid_circumcenter_mix),
+                    createCircumcenterMesh(mesh, centroidCircumcenterMix),
                     {scale: 0.9},
                     [
-                        layers.triangle_edges({globalAlpha: smoothstep(0.1, 1.0, time) - 0.75 * smoothstep(1.1, 3.0, time), lineWidth: 3.0}),
-                        layers.polygon_edges({globalAlpha: smoothstep(2.1, 3.0, time), strokeStyle: "hsl(0,0%,90%)", lineWidth: 4.0}),
-                        layers.polygon_centers({radius: 7}),
-                        layers.triangle_centers({globalAlpha: smoothstep(1.1, 2.0, time)})
+                        layers.triangleEdges({globalAlpha: smoothstep(0.1, 1.0, time) - 0.75 * smoothstep(1.1, 3.0, time), lineWidth: 3.0}),
+                        layers.polygonEdges({globalAlpha: smoothstep(2.1, 3.0, time), strokeStyle: "hsl(0,0%,90%)", lineWidth: 4.0}),
+                        layers.polygonCenters({radius: 7}),
+                        layers.triangleCenters({globalAlpha: smoothstep(1.1, 2.0, time)})
                     ]);
         }
     }
@@ -224,8 +226,8 @@ let diagram_mesh_construction = new Vue({
 setInterval(() => {
     const speed = 1.0;
     const dt = 20/1000;
-    let step = clamp(speed * (diagram_mesh_construction.time_goal - diagram_mesh_construction.time), -dt, +dt);
-    diagram_mesh_construction.time += step;
+    let step = clamp(speed * (diagramMeshConstruction.timeGoal - diagramMeshConstruction.time), -dt, +dt);
+    diagramMeshConstruction.time += step;
 }, 20);
 
 
@@ -234,19 +236,19 @@ new Vue({
     data: {
         round: 0.5,
         inflate: 0.5,
-        show_lakes: false,
-        show_coast: false,
+        showLakes: false,
+        showCoast: false,
         mesh: Object.freeze(mesh_30)
     },
     computed: {
         v_water: function() {
-            return water.assign_v_water(this.mesh, noise,
+            return Water.assign_v_water(this.mesh, noise,
                                         {round: this.round, inflate: this.inflate});
         },
-        v_ocean: function() { return water.assign_v_ocean(this.mesh, this.v_water); },
+        v_ocean: function() { return Water.assign_v_ocean(this.mesh, this.v_water); },
         counts: function() {
             let ocean = 0, lake = 0;
-            for (let v = 0; v < this.mesh.num_vertices; v++) {
+            for (let v = 0; v < this.mesh.numVertices; v++) {
                 if (this.v_water[v]) {
                     if (this.v_ocean[v]) { ocean++; }
                     else                 { lake++; }
@@ -256,14 +258,14 @@ new Vue({
         }
     },
     directives: {
-        draw: function(canvas, {value: {mesh, v_water, v_ocean, show_lakes, show_coast}}) {
-            if (show_coast) { show_lakes = true; }
-            if (!show_lakes) { v_ocean = v_water; }
+        draw: function(canvas, {value: {mesh, v_water, v_ocean, showLakes, showCoast}}) {
+            if (showCoast) { showLakes = true; }
+            if (!showLakes) { v_ocean = v_water; }
             diagram(canvas, mesh, {}, [
-                layers.polygon_colors({}, (v) => v_ocean[v]? "hsl(230,30%,30%)" : v_water[v]? "hsl(200,30%,50%)" : "hsl(30,15%,60%)"),
-                layers.polygon_edges({strokeStyle: "black"}),
-                layers.polygon_edges_colored({lineWidth: 4.0, globalAlpha: show_coast? 1.0 : 0.0}, (v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "white" : null),
-                layers.polygon_centers({radius: 1.5, fillStyle: "black", strokeStyle: "black"})
+                layers.polygonColors({}, (v) => v_ocean[v]? "hsl(230,30%,30%)" : v_water[v]? "hsl(200,30%,50%)" : "hsl(30,15%,60%)"),
+                layers.polygonEdges({strokeStyle: "black"}),
+                layers.polygonEdgesColored({lineWidth: 4.0, globalAlpha: showCoast? 1.0 : 0.0}, (v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "white" : null),
+                layers.polygonCenters({radius: 1.5, fillStyle: "black", strokeStyle: "black"})
             ]);
         }
     }
@@ -277,15 +279,15 @@ new Vue({
         show: null
     },
     computed: {
-        v_water: function() { return water.assign_v_water(this.mesh, noise, {round: 0.5, inflate: 0.5}); },
-        v_ocean: function() { return water.assign_v_ocean(this.mesh, this.v_water); },
-        t_elevation: function() { return elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water); },
-        v_elevation: function() { return elevation.assign_v_elevation(this.mesh, this.t_elevation, this.v_ocean); }
+        v_water: function() { return Water.assign_v_water(this.mesh, noise, {round: 0.5, inflate: 0.5}); },
+        v_ocean: function() { return Water.assign_v_ocean(this.mesh, this.v_water); },
+        t_elevation: function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water); },
+        v_elevation: function() { return Elevation.assign_v_elevation(this.mesh, this.t_elevation, this.v_ocean); }
     },
     directives: {
         draw: function(canvas, {value: {show, mesh, v_water, v_ocean, t_elevation, v_elevation}}) {
-            let coasts_t = elevation.find_coasts_t(mesh, v_ocean);
-            function polygon_coloring(v) {
+            let coasts_t = Elevation.find_coasts_t(mesh, v_ocean);
+            function polygonColoring(v) {
                 if (v_ocean[v]) {
                     return `hsl(240,25%,${50+30*v_elevation[v]}%)`;
                 } else {
@@ -295,24 +297,24 @@ new Vue({
             let config = null;
             switch (show) {
             case 'coast_t': config = [
-                layers.polygon_colors({}, (v) => v_ocean[v]? "hsl(230,30%,30%)" : "hsl(30,15%,60%)"),
-                layers.polygon_edges_colored({lineWidth: 1.5}, (v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "white" : null),
-                layers.triangle_centers_colored({radius: 5}, (t) => coasts_t.indexOf(t) >= 0? "white" : null)
+                layers.polygonColors({}, (v) => v_ocean[v]? "hsl(230,30%,30%)" : "hsl(30,15%,60%)"),
+                layers.polygonEdgesColored({lineWidth: 1.5}, (v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "white" : null),
+                layers.triangleCentersColored({radius: 5}, (t) => coasts_t.indexOf(t) >= 0? "white" : null)
             ];
                 break;
             case 'v_elevation': config = [
-                layers.polygon_colors({}, (v) => v_ocean[v]? "hsl(230,30%,30%)" : "hsl(30,15%,60%)"),
-                layers.polygon_edges({strokeStyle: "black", lineWidth: 1.0}),
-                layers.triangle_centers_colored({radius: 5}, (t) =>
+                layers.polygonColors({}, (v) => v_ocean[v]? "hsl(230,30%,30%)" : "hsl(30,15%,60%)"),
+                layers.polygonEdges({strokeStyle: "black", lineWidth: 1.0}),
+                layers.triangleCentersColored({radius: 5}, (t) =>
                                                 t_elevation[t] == 0? "white"
                                                 : t_elevation[t] < 0? `hsl(240,25%,${100+100*t_elevation[t]}%)`
                                                 : `hsl(60,25%,${100-100*t_elevation[t]}%)`)
             ];
                 break;
             default: config = [
-                layers.polygon_colors({}, polygon_coloring),
-                layers.polygon_edges({strokeStyle: "black", lineWidth: 1.0}),
-                layers.polygon_centers({radius: 0.5, fillStyle: "black", strokeStyle: "black"})
+                layers.polygonColors({}, polygonColoring),
+                layers.polygonEdges({strokeStyle: "black", lineWidth: 1.0}),
+                layers.polygonCenters({radius: 0.5, fillStyle: "black", strokeStyle: "black"})
             ];
             }
             diagram(canvas, mesh, {}, config);
@@ -328,42 +330,42 @@ new Vue({
         show: null
     },
     computed: {
-        v_water: function() { return water.assign_v_water(this.mesh, noise, {round: 0.5, inflate: 0.5}); },
-        v_ocean: function() { return water.assign_v_ocean(this.mesh, this.v_water); },
-        t_elevation: function() { return elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water); },
-        v_elevation: function() { return elevation.assign_v_elevation(this.mesh, this.t_elevation, this.v_ocean); },
-        t_downslope_e: function() { return rivers.assign_t_downslope_e(this.mesh, this.t_elevation); }
+        v_water: function() { return Water.assign_v_water(this.mesh, noise, {round: 0.5, inflate: 0.5}); },
+        v_ocean: function() { return Water.assign_v_ocean(this.mesh, this.v_water); },
+        t_elevation: function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water); },
+        v_elevation: function() { return Elevation.assign_v_elevation(this.mesh, this.t_elevation, this.v_ocean); },
+        t_downslope_e: function() { return Rivers.assign_t_downslope_e(this.mesh, this.t_elevation); }
     },
     directives: {
         draw: function(canvas, {value: {show, mesh, v_water, v_ocean, v_elevation, t_downslope_e}}) {
-            let coasts_t = elevation.find_coasts_t(mesh, v_ocean);
-            function polygon_coloring(v) {
+            let coasts_t = Elevation.find_coasts_t(mesh, v_ocean);
+            function polygonColoring(v) {
                 if (v_ocean[v]) {
                     return `hsl(240,25%,${50+30*v_elevation[v]}%)`;
                 } else {
                     return `hsl(105,${25-10*v_elevation[v]}%,${50+50*v_elevation[v]}%)`;
                 }
             }
-            function draw_drainage(ctx, mesh) {
+            function drawDrainage(ctx, mesh) {
                 const alpha = 1.0;
                 ctx.lineWidth = 4.0;
-                for (let t1 = 0; t1 < mesh.num_solid_triangles; t1++) {
+                for (let t1 = 0; t1 < mesh.numSolidTriangles; t1++) {
                     let v = mesh.e_begin_v(3*t1);
                     ctx.fillStyle = v_ocean[v]? "black" : "hsl(240,50%,50%)";
                     let e = t_downslope_e[t1];
                     let t2 = e === -1? t1 : TriangleMesh.e_to_t(mesh.opposites[e]);
                     ctx.beginPath();
                     if (t1 !== t2) {
-                        draw_arrow(ctx, mesh.centers[t1], mesh.centers[t2]);
+                        drawArrow(ctx, mesh.centers[t1], mesh.centers[t2]);
                     }
                 }
             }
             
             let config = null;
             diagram(canvas, mesh, {}, [
-                layers.polygon_colors({}, polygon_coloring),
-                draw_drainage,
-                layers.triangle_centers_colored({radius: 5}, (t) => coasts_t.indexOf(t) >= 0? "white" : null)
+                layers.polygonColors({}, polygonColoring),
+                drawDrainage,
+                layers.triangleCentersColored({radius: 5}, (t) => coasts_t.indexOf(t) >= 0? "white" : null)
             ]);
         }
     }
