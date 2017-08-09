@@ -6,11 +6,12 @@
 
 const SEED = 123456789;
 const TriangleMesh = require('@redblobgames/triangle-mesh');
-const create_mesh = require('@redblobgames/triangle-mesh/create');
+const create_mesh =  require('@redblobgames/triangle-mesh/create');
 const SimplexNoise = require('simplex-noise');
+const water =        require('./algorithms/water');
+const elevation =    require('./algorithms/elevation');
+const rivers =       require('./algorithms/rivers');
 const {mix, clamp, smoothstep, circumcenter} = require('./algorithms/util');
-const water = require('./algorithms/water');
-const elevation = require('./algorithms/elevation');
 
 let noise = new SimplexNoise(makeRandFloat(SEED));
 //const mesh_10 = new TriangleMesh(create_mesh(10.0, makeRandFloat(SEED)));
@@ -184,10 +185,12 @@ let diagram_mesh_construction = new Vue({
             diagram(canvas,
                     create_circumcenter_mesh(mesh, centroid_circumcenter_mix),
                     {scale: 0.9},
-                    [layers.triangle_edges({globalAlpha: smoothstep(0.1, 1.0, time) - 0.75 * smoothstep(1.1, 3.0, time), lineWidth: 3.0}),
-                     layers.polygon_edges({globalAlpha: smoothstep(2.1, 3.0, time), strokeStyle: "hsl(0,0%,90%)", lineWidth: 4.0}),
-                     layers.polygon_centers({radius: 7}),
-                     layers.triangle_centers({globalAlpha: smoothstep(1.1, 2.0, time)})]);
+                    [
+                        layers.triangle_edges({globalAlpha: smoothstep(0.1, 1.0, time) - 0.75 * smoothstep(1.1, 3.0, time), lineWidth: 3.0}),
+                        layers.polygon_edges({globalAlpha: smoothstep(2.1, 3.0, time), strokeStyle: "hsl(0,0%,90%)", lineWidth: 4.0}),
+                        layers.polygon_centers({radius: 7}),
+                        layers.triangle_centers({globalAlpha: smoothstep(1.1, 2.0, time)})
+                    ]);
         }
     }
 });
@@ -230,11 +233,12 @@ new Vue({
         draw: function(canvas, {value: {mesh, v_water, v_ocean, show_lakes, show_coast}}) {
             if (show_coast) { show_lakes = true; }
             if (!show_lakes) { v_ocean = v_water; }
-            diagram(canvas, mesh, {},
-                    [layers.polygon_colors({}, (v) => v_ocean[v]? "hsl(230,30%,30%)" : v_water[v]? "hsl(200,30%,50%)" : "hsl(30,15%,60%)"),
-                     layers.polygon_edges({strokeStyle: "black"}),
-                     layers.polygon_edges_colored({lineWidth: 4.0, globalAlpha: show_coast? 1.0 : 0.0}, (v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "white" : null),
-                     layers.polygon_centers({radius: 1.5, fillStyle: "black", strokeStyle: "black"})]);
+            diagram(canvas, mesh, {}, [
+                layers.polygon_colors({}, (v) => v_ocean[v]? "hsl(230,30%,30%)" : v_water[v]? "hsl(200,30%,50%)" : "hsl(30,15%,60%)"),
+                layers.polygon_edges({strokeStyle: "black"}),
+                layers.polygon_edges_colored({lineWidth: 4.0, globalAlpha: show_coast? 1.0 : 0.0}, (v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "white" : null),
+                layers.polygon_centers({radius: 1.5, fillStyle: "black", strokeStyle: "black"})
+            ]);
         }
     }
 });
@@ -272,6 +276,7 @@ new Vue({
                 break;
             case 'v_elevation': config = [
                 layers.polygon_colors({}, (v) => v_ocean[v]? "hsl(230,30%,30%)" : "hsl(30,15%,60%)"),
+                layers.polygon_edges({strokeStyle: "black", lineWidth: 1.0}),
                 layers.triangle_centers_colored({radius: 5}, (t) => `hsl(60,15%,${100-100*t_elevation[t]}%)`)
             ];
                 break;
@@ -282,6 +287,57 @@ new Vue({
             ];
             }
             diagram(canvas, mesh, {}, config);
+        }
+    }
+});
+
+
+new Vue({
+    el: "#diagram-drainage-assignment",
+    data: {
+        mesh: Object.freeze(mesh_30),
+        show: null
+    },
+    computed: {
+        v_water: function() { return water.assign_v_water(this.mesh, noise, {round: 0.5, inflate: 0.5}); },
+        v_ocean: function() { return water.assign_v_ocean(this.mesh, this.v_water); },
+        t_elevation: function() { return elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water); },
+        v_elevation: function() { return elevation.assign_v_elevation(this.mesh, this.t_elevation, this.v_ocean); },
+        t_downslope_t: function() { return rivers.assign_t_downslope_t(this.mesh, this.t_elevation); }
+    },
+    directives: {
+        draw: function(canvas, {value: {show, mesh, v_water, v_ocean, v_elevation, t_downslope_t}}) {
+            let coasts_t = elevation.find_coasts_t(mesh, v_ocean);
+            function polygon_coloring(v) {
+                if (v_ocean[v]) {
+                    return `hsl(240,25%,${50-30*v_elevation[v]}%)`;
+                } else {
+                    return `hsl(105,${25-10*v_elevation[v]}%,${50+50*v_elevation[v]}%)`;
+                }
+            }
+            function draw_drainage(ctx, mesh) {
+                const alpha = 1.0;
+                ctx.lineWidth = 4.0;
+                for (let t1 = 0; t1 < mesh.num_solid_triangles; t1++) {
+                    let v = mesh.e_begin_v(3*t1);
+                    ctx.strokeStyle = v_ocean[v]? "black" : "hsl(240,50%,50%)";
+                    let t2 = t_downslope_t[t1];
+                    ctx.beginPath();
+                    if (t1 !== t2) {
+                        ctx.moveTo(mesh.centers[t1][0], mesh.centers[t1][1]);
+                        ctx.lineTo(mix(mesh.centers[t1][0], mesh.centers[t2][0], alpha),
+                                   mix(mesh.centers[t1][1], mesh.centers[t2][1], alpha));
+                        ctx.stroke();
+                    }
+                }
+            }
+            
+            let config = null;
+            diagram(canvas, mesh, {}, [
+                layers.polygon_colors({}, polygon_coloring),
+                draw_drainage,
+                layers.triangle_centers_colored({radius: 5}, (t) => coasts_t.indexOf(t) >= 0? "white" : null)
+            ]);
         }
     }
 });
