@@ -104,12 +104,16 @@ The algorithm I'm using here produces poor results in the oceans. That's ok for 
 #+begin_export html
 <div id="diagram-drainage-assignment">
   <figure>
-    <canvas width="600" height="600" v-draw="{show,mesh,v_water,v_ocean,v_elevation,t_downslope_t}"/>
+    <canvas width="600" height="600" v-draw="{show,mesh,v_water,v_ocean,v_elevation,t_downslope_e}"/>
   </figure>
 </div>
 #+end_export
 
 Drainage can be used for both watersheds and rivers, and both of those often form political boundaries. In this project I need rivers but not watersheds.
+
+The important thing about drainage is that it has /no cycles/.
+
+** TODO Lakes
 
 ** TODO Arrows
 
@@ -118,6 +122,8 @@ Drainage can be used for both watersheds and rivers, and both of those often for
 ** TODO Parameters for selecting a subset of rivers
 
 * Moisture
+
+I use “moisture” to assign biomes in the next section. I set moisture to the /distance/ from a river. The start points are the polygons adjacent to a river; they will have distance 0.
 
 * Biomes
 
@@ -140,6 +146,6 @@ Drainage can be used for both watersheds and rivers, and both of those often for
     <script src="_bundle.js"/>
 
     Created 3 Aug 2017 with <a href="https://vue.org/">Vue.js</a> and Emacs org-mode (<a href="index.org">source of this page</a>); &#160;
-    <!-- hhmts start -->Last modified: 08 Aug 2017<!-- hhmts end -->
+    <!-- hhmts start -->Last modified: 09 Aug 2017<!-- hhmts end -->
   </x:footer>
 #+end_export

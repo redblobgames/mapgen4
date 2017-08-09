@@ -20,6 +20,32 @@ const mesh_30 = new TriangleMesh(create_mesh(30.0, makeRandFloat(SEED)));
 const mesh_50 = new TriangleMesh(create_mesh(50.0, makeRandFloat(SEED)));
 const mesh_75 = new TriangleMesh(create_mesh(75.0, makeRandFloat(SEED)));
 
+
+function draw_arrow(ctx, p, q) {
+    const stem_length = 0.5;
+    const head_length = 0.5;
+    const stem_width = 0.15;
+    const head_width = 0.4;
+    const tail_length = 0.1;
+    
+    let s = [mix(p[0], q[0], 0.2), mix(p[1], q[1], 0.2)];
+    let dx = (q[0] - p[0]) * 0.7;
+    let dy = (q[1] - p[1]) * 0.7;
+
+    ctx.beginPath();
+    ctx.moveTo(s[0] + dx*tail_length, s[1] + dy*tail_length);
+    ctx.lineTo(s[0] - dy*stem_width, s[1] + dx*stem_width);
+    ctx.lineTo(s[0] + dx*stem_length - dy*stem_width, s[1] + dy*stem_length + dx*stem_width);
+    ctx.lineTo(s[0] + dx*(1-head_length) - dy*head_width, s[1] + dy*(1-head_length) + dx*head_width);
+    ctx.lineTo(s[0] + dx, s[1] + dy);
+    ctx.lineTo(s[0] + dx*(1-head_length) + dy*head_width, s[1] + dy*(1-head_length) - dx*head_width);
+    ctx.lineTo(s[0] + dx*stem_length + dy*stem_width, s[1] + dy*stem_length - dx*stem_width);
+    ctx.lineTo(s[0] + dy*stem_width, s[1] - dx*stem_width);
+    ctx.lineTo(s[0] + dx*tail_length, s[1] + dy*tail_length);
+    ctx.fill();
+}
+
+
 function fallback(value, or_else) {
     return (value !== undefined)? value : or_else;
 }
@@ -306,10 +332,10 @@ new Vue({
         v_ocean: function() { return water.assign_v_ocean(this.mesh, this.v_water); },
         t_elevation: function() { return elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water); },
         v_elevation: function() { return elevation.assign_v_elevation(this.mesh, this.t_elevation, this.v_ocean); },
-        t_downslope_t: function() { return rivers.assign_t_downslope_t(this.mesh, this.t_elevation); }
+        t_downslope_e: function() { return rivers.assign_t_downslope_e(this.mesh, this.t_elevation); }
     },
     directives: {
-        draw: function(canvas, {value: {show, mesh, v_water, v_ocean, v_elevation, t_downslope_t}}) {
+        draw: function(canvas, {value: {show, mesh, v_water, v_ocean, v_elevation, t_downslope_e}}) {
             let coasts_t = elevation.find_coasts_t(mesh, v_ocean);
             function polygon_coloring(v) {
                 if (v_ocean[v]) {
@@ -323,14 +349,12 @@ new Vue({
                 ctx.lineWidth = 4.0;
                 for (let t1 = 0; t1 < mesh.num_solid_triangles; t1++) {
                     let v = mesh.e_begin_v(3*t1);
-                    ctx.strokeStyle = v_ocean[v]? "black" : "hsl(240,50%,50%)";
-                    let t2 = t_downslope_t[t1];
+                    ctx.fillStyle = v_ocean[v]? "black" : "hsl(240,50%,50%)";
+                    let e = t_downslope_e[t1];
+                    let t2 = e === -1? t1 : TriangleMesh.e_to_t(mesh.opposites[e]);
                     ctx.beginPath();
                     if (t1 !== t2) {
-                        ctx.moveTo(mesh.centers[t1][0], mesh.centers[t1][1]);
-                        ctx.lineTo(mix(mesh.centers[t1][0], mesh.centers[t2][0], alpha),
-                                   mix(mesh.centers[t1][1], mesh.centers[t2][1], alpha));
-                        ctx.stroke();
+                        draw_arrow(ctx, mesh.centers[t1], mesh.centers[t2]);
                     }
                 }
             }
