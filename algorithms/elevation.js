@@ -22,10 +22,11 @@ exports.find_coasts_t = function(mesh, v_ocean) {
 };
 
 exports.assign_t_elevation = function(mesh, v_ocean, v_water) {
+    const t_ocean = (t) => v_ocean[mesh.e_begin_v(3*t)];
     let t_out = [];
     let queue_t = exports.find_coasts_t(mesh, v_ocean);
     let t_distance = new Array(mesh.num_triangles);
-    let max_distance = 0;
+    let min_distance = 0, max_distance = 0;
     queue_t.forEach((t) => { t_distance[t] = 0; });
     while (queue_t.length > 0) {
         let current_t = queue_t.shift();
@@ -34,15 +35,14 @@ exports.assign_t_elevation = function(mesh, v_ocean, v_water) {
             if (t_distance[neighbor_t] === undefined) {
                 let new_distance = 1 + t_distance[current_t];
                 t_distance[neighbor_t] = new_distance;
+                if (t_ocean(neighbor_t) && new_distance > min_distance) { min_distance = new_distance; }
+                if (!t_ocean(neighbor_t) && new_distance > max_distance) { max_distance = new_distance; }
                 queue_t.push(neighbor_t);
-                if (new_distance > max_distance) { max_distance = new_distance; }
             }
         }
     }
 
-    // TODO: bug: max_distance might be the deepest ocean instead of
-    // the highest mountain
-    let t_elevation = t_distance.map((d) => d / max_distance);
+    let t_elevation = t_distance.map((d, t) => t_ocean(t) ? (-d / min_distance) : (d / max_distance));
     return t_elevation;
 };
 

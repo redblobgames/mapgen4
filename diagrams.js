@@ -261,7 +261,7 @@ new Vue({
             let coasts_t = elevation.find_coasts_t(mesh, v_ocean);
             function polygon_coloring(v) {
                 if (v_ocean[v]) {
-                    return `hsl(240,25%,${50-30*v_elevation[v]}%)`;
+                    return `hsl(240,25%,${50+30*v_elevation[v]}%)`;
                 } else {
                     return `hsl(105,${25-10*v_elevation[v]}%,${50+50*v_elevation[v]}%)`;
                 }
@@ -277,7 +277,10 @@ new Vue({
             case 'v_elevation': config = [
                 layers.polygon_colors({}, (v) => v_ocean[v]? "hsl(230,30%,30%)" : "hsl(30,15%,60%)"),
                 layers.polygon_edges({strokeStyle: "black", lineWidth: 1.0}),
-                layers.triangle_centers_colored({radius: 5}, (t) => `hsl(60,15%,${100-100*t_elevation[t]}%)`)
+                layers.triangle_centers_colored({radius: 5}, (t) =>
+                                                t_elevation[t] == 0? "white"
+                                                : t_elevation[t] < 0? `hsl(240,25%,${100+100*t_elevation[t]}%)`
+                                                : `hsl(60,25%,${100-100*t_elevation[t]}%)`)
             ];
                 break;
             default: config = [
@@ -310,7 +313,7 @@ new Vue({
             let coasts_t = elevation.find_coasts_t(mesh, v_ocean);
             function polygon_coloring(v) {
                 if (v_ocean[v]) {
-                    return `hsl(240,25%,${50-30*v_elevation[v]}%)`;
+                    return `hsl(240,25%,${50+30*v_elevation[v]}%)`;
                 } else {
                     return `hsl(105,${25-10*v_elevation[v]}%,${50+50*v_elevation[v]}%)`;
                 }
