@@ -98,26 +98,25 @@ At each corner, I can point to the corner that has the lowest elevation. This fo
 
 1. Rivers join together (tributaries) but don't fork (distributaries).
 2. Rivers eventually reach the ocean.
+3. There are no cycles.
 
 The algorithm I'm using here produces poor results in the oceans. That's ok for now; I'm not using the values in the ocean in this project.
 
 #+begin_export html
 <div id="diagram-drainage-assignment">
   <figure>
-    <canvas width="600" height="600" v-draw="{show,mesh,v_water,v_ocean,v_elevation,t_downslope_e}"/>
+    <figcaption>Drainage patterns</figcaption>
+    <canvas width="600" height="600" v-draw="{show,mesh,v_water,v_ocean,v_elevation,t_downslope_e,river_t,e_flow}"/>
   </figure>
+  <button v-on:click="addRiver">Add River</button>
+  <button v-on:click="addRiver25">Add 25</button>
+  <button v-on:click="reset">Reset</button>
 </div>
 #+end_export
 
 Drainage can be used for both watersheds and rivers, and both of those often form political boundaries. In this project I need rivers but not watersheds.
 
-The important thing about drainage is that it has /no cycles/.
-
 ** TODO Lakes
-
-** TODO Arrows
-
-** TODO Mouse over a t-point to see the river
 
 ** TODO Parameters for selecting a subset of rivers
 
