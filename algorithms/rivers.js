@@ -44,7 +44,6 @@ exports.assign_e_flow = function(mesh, t_downslope_e, river_t) {
             let e = t_downslope_e[t];
             if (e === -1) { break; }
             e_flow[e]++;
-            e_flow[mesh.opposites[e]]++;
             let next_t = TriangleMesh.e_to_t(mesh.opposites[e]);
             if (next_t === t) { break; }
             t = next_t;

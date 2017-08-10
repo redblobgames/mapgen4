@@ -13,12 +13,12 @@ const SimplexNoise = require('simplex-noise');
 const Water =        require('./algorithms/water');
 const Elevation =    require('./algorithms/elevation');
 const Rivers =       require('./algorithms/rivers');
+const Moisture =     require('./algorithms/moisture');
 const {mix, clamp, smoothstep, circumcenter} = require('./algorithms/util');
 
 let noise = new SimplexNoise(makeRandFloat(SEED));
-//const mesh_10 = new TriangleMesh(createMesh(10.0, makeRandFloat(SEED)));
+const mesh_15 = new TriangleMesh(createMesh(15.0, makeRandFloat(SEED)));
 const mesh_30 = new TriangleMesh(createMesh(30.0, makeRandFloat(SEED)));
-//const mesh_40 = new TriangleMesh(createMesh(40.0, makeRandFloat(SEED)));
 const mesh_50 = new TriangleMesh(createMesh(50.0, makeRandFloat(SEED)));
 const mesh_75 = new TriangleMesh(createMesh(75.0, makeRandFloat(SEED)));
 
@@ -364,13 +364,11 @@ new Vue({
                         let v1 = mesh.e_end_v(e);
                         let t0 = TriangleMesh.e_to_t(e);
                         let t1 = TriangleMesh.e_to_t(mesh.opposites[e]);
-                        if (t0 > t1) {
-                            ctx.beginPath();
-                            ctx.moveTo(mesh.centers[t0][0], mesh.centers[t0][1]);
-                            ctx.lineTo(mesh.centers[t1][0], mesh.centers[t1][1]);
-                            ctx.stroke();
-                            }
-                        }
+                        ctx.beginPath();
+                        ctx.moveTo(mesh.centers[t0][0], mesh.centers[t0][1]);
+                        ctx.lineTo(mesh.centers[t1][0], mesh.centers[t1][1]);
+                        ctx.stroke();
+                    }
                 }
                 ctx.lineWidth = 1.0;
                 ctx.fillStyle = "white";
@@ -403,7 +401,76 @@ new Vue({
                 layers.polygonColors({}, polygonColoring),
                 river_t.length > 0? drawRivers : drawDrainage,
                 layers.polygonEdgesColored({lineWidth: 1.5}, (_, v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "white" : null),
-                //layers.triangleCentersColored({radius: 5}, (t) => coasts_t.indexOf(t) >= 0? "white" : null)
+            ]);
+        }
+    }
+});
+
+
+new Vue({
+    el: "#diagram-moisture-assignment",
+    data: {
+        mesh: Object.freeze(mesh_15),
+        show: null,
+        river_t: []
+    },
+    computed: {
+        v_water:       function() { return Water.assign_v_water(this.mesh, noise, {round: 0.5, inflate: 0.5}); },
+        v_ocean:       function() { return Water.assign_v_ocean(this.mesh, this.v_water); },
+        t_elevation:   function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water); },
+        v_elevation:   function() { return Elevation.assign_v_elevation(this.mesh, this.t_elevation, this.v_ocean); },
+        t_downslope_e: function() { return Rivers.assign_t_downslope_e(this.mesh, this.t_elevation); },
+        e_flow:        function() { return Rivers.assign_e_flow(this.mesh, this.t_downslope_e, this.river_t, this.t_elevation); },
+        v_moisture:    function() { return Moisture.assign_v_moisture(this.mesh, this.v_ocean, this.v_water, Moisture.find_riverbanks_v(this.mesh, this.e_flow)); }
+    },
+    methods: {
+        addRiver:      function() { this.river_t.push(Rivers.next_river_t(this.mesh, this.river_t, this.t_elevation)); },
+        addRiver10:    function() { for (let i = 0; i < 10; i++) { this.addRiver(); } },
+        reset:         function() { this.river_t = []; }
+    },
+    directives: {
+        draw: function(canvas, {value: {show, mesh, v_water, v_ocean, v_moisture, t_downslope_e, river_t, e_flow}}) {
+            let coasts_t = Elevation.find_coasts_t(mesh, v_ocean);
+            
+            function polygonColoring(v) {
+                if (v_ocean[v]) {
+                    return `hsl(240,25%,25%)`;
+                } else {
+                    return `hsl(${30+120*v_moisture[v]},15%,${75-25*v_moisture[v]}%)`;
+                }
+            }
+            
+            function drawRivers(ctx, mesh) {
+                setCanvasStyle(ctx, {}, {strokeStyle: "hsl(240,50%,50%)"});
+                for (let e = 0; e < mesh.numEdges; e++) {
+                    if (e_flow[e] > 0) {
+                        ctx.lineWidth = 2.5 * Math.sqrt(e_flow[e]);
+                        let v0 = mesh.e_begin_v(e);
+                        let v1 = mesh.e_end_v(e);
+                        let t0 = TriangleMesh.e_to_t(e);
+                        let t1 = TriangleMesh.e_to_t(mesh.opposites[e]);
+                        ctx.beginPath();
+                        ctx.moveTo(mesh.centers[t0][0], mesh.centers[t0][1]);
+                        ctx.lineTo(mesh.centers[t1][0], mesh.centers[t1][1]);
+                        ctx.stroke();
+                    }
+                }
+                ctx.lineWidth = 1.0;
+                ctx.fillStyle = "white";
+                ctx.strokeStyle = "hsl(240,50%,50%)";
+                for (let t of river_t) {
+                    ctx.beginPath();
+                    ctx.arc(mesh.centers[t][0], mesh.centers[t][1], 3, 0, 2*Math.PI);
+                    ctx.fill();
+                    ctx.stroke();
+                }
+            }
+            
+            let config = null;
+            diagram(canvas, mesh, {}, [
+                layers.polygonColors({}, polygonColoring),
+                drawRivers,
+                layers.polygonEdgesColored({lineWidth: 1.5}, (_, v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "white" : null),
             ]);
         }
     }

@@ -27,13 +27,14 @@ exports.assign_t_elevation = function(mesh, v_ocean, v_water) {
     let out_t = [];
     let queue_t = exports.find_coasts_t(mesh, v_ocean);
     let t_distance = new Array(mesh.numTriangles);
-    let minDistance = 0, maxDistance = 0;
+    t_distance.fill(null);
+    let minDistance = 1, maxDistance = 1;
     queue_t.forEach((t) => { t_distance[t] = 0; });
     while (queue_t.length > 0) {
         let current_t = queue_t.shift();
         mesh.t_circulate_t(out_t, current_t);
         for (let neighbor_t of out_t) {
-            if (t_distance[neighbor_t] === undefined) {
+            if (t_distance[neighbor_t] === null) {
                 let newDistance = 1 + t_distance[current_t];
                 t_distance[neighbor_t] = newDistance;
                 if (t_ocean(neighbor_t) && newDistance > minDistance) { minDistance = newDistance; }

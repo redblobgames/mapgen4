@@ -90,7 +90,11 @@ For this project I set elevation based on the /distance from the coast/. It's no
 
 ** TODO Elevation from noise
 
-** TODO Redistribution
+Elevation based on distance to coastline produces simplistic symmetric volcanic-style islands. It's what we wanted in our game. There are lots of other ways to set elevation.
+
+** TODO Controlling the distribution
+
+If we have a desired distribution of elevations, we can reshape the distribution. I'm using a linear mapping from distance to elevation but that mapping can be anything.
 
 * Rivers
 
@@ -108,7 +112,7 @@ The algorithm I'm using here produces poor results in the oceans. That's ok for 
     <figcaption>Drainage patterns</figcaption>
     <canvas width="600" height="600" v-draw="{show,mesh,v_water,v_ocean,v_elevation,t_downslope_e,river_t,e_flow}"/>
   </figure>
-  <button v-on:click="addRiver">Add River</button>
+  <button v-on:click="addRiver">Add river</button>
   <button v-on:click="addRiver25">Add 25</button>
   <button v-on:click="reset">Reset</button>
 </div>
@@ -122,9 +126,32 @@ Drainage can be used for both watersheds and rivers, and both of those often for
 
 * Moisture
 
-I use “moisture” to assign biomes in the next section. I set moisture to the /distance/ from a river. The start points are the polygons adjacent to a river; they will have distance 0.
+I use a “moisture” value to assign biomes in the next section. I set moisture to the /distance/ from a river. The start points are the polygons adjacent to a river; they will have distance 0.
+
+#+begin_export html
+<div id="diagram-moisture-assignment">
+  <figure>
+    <figcaption>Drainage patterns</figcaption>
+    <canvas width="600" height="600" v-draw="{show,mesh,v_water,v_ocean,v_moisture,t_downslope_e,river_t,e_flow}"/>
+  </figure>
+  <button v-on:click="addRiver10">Add rivers</button>
+  <button v-on:click="reset">Reset</button>
+</div>
+#+end_export
+
+If the river density is too low or too high the distribution isn't even.
+
+There are many other ways to assign moisture/humidity/rainfall. I used this one because it was simple and worked well for the game these maps were for, but also consider using noise (Perlin, Simplex, etc.) or wind simulation (rain shadows, evapotranspiration, etc.).
+
+** TODO Controlling the distribution
+
+If we have a desired distribution of moisture, we can reshape the distribution. I'm using a sqrt mapping from distance to moisture but that mapping can be anything.
 
 * Biomes
+
+** TODO Controlling the distribution
+
+See also http://worldengine-ecs.readthedocs.io/en/latest/biomes.html -- it seems useful to draw the scatter plot or a density plot, and then provide parameters for tuning that to make an ice world or a forest world etc.
 
 * Noisy rendering
 
@@ -145,6 +172,6 @@ I use “moisture” to assign biomes in the next section. I set moisture to the
     <script src="_bundle.js"/>
 
     Created 3 Aug 2017 with <a href="https://vue.org/">Vue.js</a> and Emacs org-mode (<a href="index.org">source of this page</a>); &#160;
-    <!-- hhmts start -->Last modified: 09 Aug 2017<!-- hhmts end -->
+    <!-- hhmts start -->Last modified: 10 Aug 2017<!-- hhmts end -->
   </x:footer>
 #+end_export
