@@ -385,9 +385,8 @@ new Vue({
                 const alpha = 1.0;
                 ctx.lineWidth = 4.0;
                 for (let t1 = 0; t1 < mesh.numSolidTriangles; t1++) {
-                    let v = mesh.e_begin_v(3*t1);
-                    ctx.fillStyle = v_ocean[v]? "black" : "hsl(240,50%,50%)";
                     let e = t_downslope_e[t1];
+                    ctx.fillStyle = v_ocean[mesh.e_begin_v(e)] ? "black" : "hsl(240,50%,50%)";
                     let t2 = e === -1? t1 : TriangleMesh.e_to_t(mesh.opposites[e]);
                     ctx.beginPath();
                     if (t1 !== t2) {
