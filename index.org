@@ -131,7 +131,7 @@ I use a “moisture” value to assign biomes in the next section. I set moistur
 #+begin_export html
 <div id="diagram-moisture-assignment">
   <figure>
-    <figcaption>Drainage patterns</figcaption>
+    <figcaption>Moisture</figcaption>
     <canvas width="600" height="600" v-draw="{show,mesh,v_water,v_ocean,v_moisture,t_downslope_e,river_t,e_flow}"/>
   </figure>
   <button v-on:click="addRiver10">Add rivers</button>
@@ -148,6 +148,17 @@ There are many other ways to assign moisture/humidity/rainfall. I used this one 
 If we have a desired distribution of moisture, we can reshape the distribution. I'm using a sqrt mapping from distance to moisture but that mapping can be anything.
 
 * Biomes
+
+#+begin_export html
+<div id="diagram-biome-assignment">
+  <figure>
+    <figcaption>Biomes</figcaption>
+    <canvas width="600" height="600" v-draw="{show,mesh,river_t,e_flow,v_biome}"/>
+  </figure>
+  <button v-on:click="addRiver10">Add rivers</button>
+  <button v-on:click="reset">Reset</button>
+</div>
+#+end_export
 
 ** TODO Controlling the distribution
 

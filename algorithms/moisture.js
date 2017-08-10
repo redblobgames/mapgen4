@@ -29,7 +29,7 @@ exports.assign_v_moisture = function(mesh, v_ocean, v_water, seed_v) {
         let current_v = queue_v.shift();
         mesh.v_circulate_v(out_v, current_v);
         for (let neighbor_v of out_v) {
-            if (v_distance[neighbor_v] === null) {
+            if (!v_ocean[neighbor_v] && v_distance[neighbor_v] === null) {
                 let newDistance = 1 + v_distance[current_v];
                 v_distance[neighbor_v] = newDistance;
                 if (newDistance > maxDistance) { maxDistance = newDistance; }
