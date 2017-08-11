@@ -5,6 +5,7 @@
 'use strict';
 const TriangleMesh = require('@redblobgames/triangle-mesh');
 
+const MIN_SPRING_ELEVATION = 0.05;
 
 exports.assign_t_downslope_e = function(mesh, t_elevation) {
     let t_downslope_e = new Array(mesh.numTriangles);
@@ -21,6 +22,22 @@ exports.assign_t_downslope_e = function(mesh, t_elevation) {
         t_downslope_e[t] = lowest_e;
     }
     return t_downslope_e;
+};
+
+
+exports.find_spring_t = function(mesh, t_elevation, t_downslope_e) {
+    let spring_t = new Set();
+    // Add everything above some elevation
+    for (let t = 0; t < mesh.numSolidTriangles; t++) {
+        if (t_elevation[t] >= MIN_SPRING_ELEVATION) {
+            spring_t.add(t);
+        }
+    }
+    // and then remove everything that's not a leaf in the drainage tree
+    for (let t = 0; t < mesh.numSolidTriangles; t++) {
+        spring_t.delete(TriangleMesh.e_to_t(mesh.opposites[t_downslope_e[t]]));
+    }
+    return Array.from(spring_t);
 };
 
 

@@ -110,11 +110,12 @@ The algorithm I'm using here produces poor results in the oceans. That's ok for 
 <div id="diagram-drainage-assignment">
   <figure>
     <figcaption>Drainage patterns</figcaption>
-    <canvas width="600" height="600" v-draw="{show,mesh,v_water,v_ocean,v_elevation,t_downslope_e,river_t,e_flow}"/>
+    <canvas width="600" height="600" v-draw="{mesh,v_water,v_ocean,v_elevation,t_downslope_e,river_t,e_flow}"/>
   </figure>
+  <button v-on:click="reset">Reset</button>
+  <input type="range" min="0" :max="spring_t.length" v-model.number="numRivers"/> rivers
   <button v-on:click="addRiver">Add river</button>
   <button v-on:click="addRiver25">Add 25</button>
-  <button v-on:click="reset">Reset</button>
 </div>
 #+end_export
 
@@ -132,8 +133,10 @@ I use a “moisture” value to assign biomes in the next section. I set moistur
 <div id="diagram-moisture-assignment">
   <figure>
     <figcaption>Moisture</figcaption>
-    <canvas width="600" height="600" v-draw="{show,mesh,v_water,v_ocean,v_moisture,t_downslope_e,river_t,e_flow}"/>
+    <canvas width="600" height="600" v-draw="{mesh,v_water,v_ocean,v_moisture,t_downslope_e,river_t,e_flow}"/>
   </figure>
+  <button v-on:click="reset">Reset</button>
+  <input type="range" min="0" :max="spring_t.length" v-model.number="numRivers"/> rivers
   <button v-on:click="addRiver10">Add rivers</button>
   <button v-on:click="reset">Reset</button>
 </div>
@@ -149,12 +152,16 @@ If we have a desired distribution of moisture, we can reshape the distribution. 
 
 * Biomes
 
+(explanation about whittaker diagrams)
+
 #+begin_export html
 <div id="diagram-biome-assignment">
   <figure>
     <figcaption>Biomes</figcaption>
-    <canvas width="600" height="600" v-draw="{show,mesh,river_t,e_flow,v_biome}"/>
+    <canvas width="600" height="600" v-draw="{mesh,river_t,e_flow,v_biome}"/>
   </figure>
+  <button v-on:click="reset">Reset</button>
+  <input type="range" min="0" :max="spring_t.length" v-model.number="numRivers"/> rivers
   <button v-on:click="addRiver10">Add rivers</button>
   <button v-on:click="reset">Reset</button>
 </div>

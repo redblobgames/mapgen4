@@ -37,3 +37,16 @@ exports.circumcenter = function(a, b, c) {
     let Uy = 1/D * (ad * (c[0] - b[0]) + bd * (a[0] - c[0]) + cd * (b[0] - a[0]));
     return [Ux, Uy];
 };
+
+/**
+ * in-place shuffle of an array - Fisher-Yates 
+ * https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle#The_modern_algorithm
+ */
+exports.random_shuffle = function(array, randInt) {
+    for (let i = array.length-1; i > 0; i--) {
+        let j = randInt(i+1);
+        let swap = array[i];
+        array[i] = array[j];
+        array[j] = swap;
+    }
+};
