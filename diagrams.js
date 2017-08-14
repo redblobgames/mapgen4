@@ -24,7 +24,6 @@ const mesh_30 = new TriangleMesh(createMesh(30.0, makeRandFloat(SEED)));
 const mesh_50 = new TriangleMesh(createMesh(50.0, makeRandFloat(SEED)));
 const mesh_75 = new TriangleMesh(createMesh(75.0, makeRandFloat(SEED)));
 
-
 function drawArrow(ctx, p, q) {
     const stemLength = 0.5;
     const headLength = 0.5;
@@ -234,41 +233,32 @@ function createCircumcenterMesh(mesh, mixture) {
 let diagramMeshConstruction = new Vue({
     el: "#diagram-mesh-construction",
     data: {
-        time: 0.0,
-        timeGoal: 0.0,
+        show: null,
         centroidCircumcenterMix: 0.0,
         mesh: Object.freeze(mesh_75)
     },
     directives: {
-        draw: function(canvas, {value: {mesh, time, centroidCircumcenterMix}}) {
+        draw: function(canvas, {value: {show, mesh, centroidCircumcenterMix}}) {
             diagram(canvas,
                     createCircumcenterMesh(mesh, centroidCircumcenterMix),
                     {scale: 0.9},
                     [
-                        layers.triangleEdges({globalAlpha: smoothstep(0.1, 1.0, time) - 0.75 * smoothstep(1.1, 3.0, time), lineWidth: 3.0}),
-                        layers.polygonEdges({globalAlpha: smoothstep(2.1, 3.0, time), strokeStyle: "hsl(0,0%,90%)", lineWidth: 4.0}),
-                        layers.polygonCenters({radius: 7}),
-                        layers.triangleCenters({globalAlpha: smoothstep(1.1, 2.0, time)})
+                        layers.triangleEdges({globalAlpha: show===null||show==='delaunay'?1.0:show==='centroids'?0.3:0.1, lineWidth: 1.0}),
+                        layers.polygonEdges({globalAlpha: show===null||show==='polygons'?1.0:0.1, strokeStyle: "hsl(0,0%,95%)", lineWidth: 4.0}),
+                        layers.polygonCenters({globalAlpha: show===null||show==='delaunay'||show==='points'?1.0:0.2, radius: 7}),
+                        layers.triangleCenters({globalAlpha: show===null||show==='polygons'||show==='centroids'?1.0:0.2})
                     ]);
         }
     }
 });
 
-setInterval(() => {
-    const speed = 1.0;
-    const dt = 20/1000;
-    let step = clamp(speed * (diagramMeshConstruction.timeGoal - diagramMeshConstruction.time), -dt, +dt);
-    diagramMeshConstruction.time += step;
-}, 20);
-
 
 new Vue({
     el: "#diagram-water-assignment",
     data: {
+        show: null,
         round: 0.5,
         inflate: 0.5,
-        showLakes: false,
-        showCoast: false,
         mesh: Object.freeze(mesh_30)
     },
     computed: {
@@ -289,13 +279,12 @@ new Vue({
         }
     },
     directives: {
-        draw: function(canvas, {value: {mesh, v_water, v_ocean, showLakes, showCoast}}) {
-            if (showCoast) { showLakes = true; }
-            if (!showLakes) { v_ocean = v_water; }
+        draw: function(canvas, {value: {show, mesh, v_water, v_ocean}}) {
+            if (show === 'landwater' ) { v_ocean = v_water; }
             diagram(canvas, mesh, {}, [
-                layers.polygonColors({}, (v) => v_ocean[v]? "hsl(230,30%,30%)" : v_water[v]? "hsl(200,30%,50%)" : "hsl(30,15%,60%)"),
+                layers.polygonColors({}, (v) => v_ocean[v]? "hsl(230,30%,30%)" : v_water[v]? (show === 'lakes'? "hsl(200,100%,50%)" : "hsl(200,30%,50%)") : "hsl(30,15%,60%)"),
                 layers.polygonEdges({strokeStyle: "black"}),
-                layers.polygonEdgesColored({lineWidth: 4.0, globalAlpha: showCoast? 1.0 : 0.0}, (_, v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "white" : null),
+                layers.polygonEdgesColored({lineWidth: 4.0, globalAlpha: show === null? 1.0 : 0.0}, (_, v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "white" : null),
                 layers.polygonCenters({radius: 1.5, fillStyle: "black", strokeStyle: "black"})
             ]);
         }
@@ -418,7 +407,7 @@ new Vue({
     el: "#diagram-moisture-assignment",
     data: {
         mesh: Object.freeze(mesh_15),
-        numRivers: 0
+        numRivers: 5
     },
     computed: {
         v_water:       function() { return Water.assign_v_water(this.mesh, noise, {round: 0.5, inflate: 0.5}); },
@@ -455,14 +444,14 @@ new Vue({
             ]);
         }
     }
-}).addRiver();
+});
 
 
 new Vue({
     el: "#diagram-biome-assignment",
     data: {
         mesh: Object.freeze(mesh_10),
-        numRivers: 0
+        numRivers: 5,
     },
     computed: {
         v_water:       function() { return Water.assign_v_water(this.mesh, noise, {round: 0.5, inflate: 0.5}); },
@@ -519,4 +508,4 @@ new Vue({
             ]);
         }
     }
-}).addRiver10();
+});
