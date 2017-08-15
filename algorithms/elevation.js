@@ -45,7 +45,7 @@ exports.assign_t_elevation = function(mesh, v_ocean, v_water) {
     }
 
     let t_elevation = t_distance.map((d, t) => t_ocean(t) ? (-d / minDistance) : (d / maxDistance));
-    return t_elevation;
+    return {t_distance, t_elevation};
 };
 
 /** v elevation is the MIN of the t elevations;

@@ -83,6 +83,8 @@ I'm generating islands, so the boundary of the map will always be water. In the 
 </div>
 #+end_export
 
+{ should I explain the game's needs, so that the reader can pick different algorithms that match their own needs? }
+
 { implementation notes could include the noise function -- maybe the noisy/deflate parameters could move to a separate diagram to avoid having to explain the lack of lakes in the main list; connectivity is depth first or breadth first search }
 
 * Elevation
@@ -95,11 +97,12 @@ For this project I set elevation based on the /distance from the coast/. It's no
     <figcaption v-if="show==='coast_t'">Coastline</figcaption>
     <figcaption v-else-if="show==='v_elevation'">Distance from coastline, corners</figcaption>
     <figcaption v-else="">Distance from coastline, polygons</figcaption>
-    <canvas width="600" height="600" v-draw="{show,mesh,v_water,v_ocean,t_elevation,v_elevation}"/>
+    <canvas width="600" height="600" v-draw="{show,mesh,v_water,v_ocean,t_elevation,t_coastdistance,v_elevation}"/>
   </figure>
   <ol>
     <li>Find <span class="hover-term" v-on:mouseover="show='coast_t'">corners along coastline edges</span>. As above, coastline edges have an ocean on one side and land on the other side.</li>
-    <li>Use Breadth First Search to calculate <span class="hover-term" v-on:mouseover="show='v_elevation'">distance from the coastline</span> along the corner graph.</li>
+    <li>Calculate corner <span class="hover-term" v-on:mouseover="show='t_coastdistance'">distance from the coastline</span> using Breadth First Search.</li>
+    <li>Set <span class="hover-term" v-on:mouseover="show='t_elevation'">corner elevation</span> by rescaling ocean distances from -1 to 0 and land distances from 0 to +1.</li>
     <li>Set the <span class="hover-term" v-on:mouseover="show=null">polygon elevation</span> to the lowest elevation of the polygon's corners.</li>
   </ol>
 </div>
@@ -107,7 +110,6 @@ For this project I set elevation based on the /distance from the coast/. It's no
 
 { implementation notes: . The average or max of the corners would work as well.  Rescale the elevations from 0.0 to 1.0. }
 
-{ should the diagram show distances as numbers? mouseover to show the path back to the coastline }
 
 ** TODO Handle lakes
 
@@ -159,7 +161,7 @@ Not all locations produce equally good rivers. Some filters to consider:
 
 * Moisture
 
-I use a “moisture” value to assign biomes in the next section. I set moisture to the /distance/ from a river. The start points are the polygons adjacent to a river; they will have distance 0.
+I use a “moisture” value to assign biomes in the next section. I set moisture to the /distance/ from a river. The start points are the polygons adjacent to a river; they will have distance 0. Similar to elevation, I use Breadth First Search to calculate the distances, then rescale them to a 0–1 range.
 
 #+begin_export html
 <div id="diagram-moisture-assignment">
@@ -170,7 +172,6 @@ I use a “moisture” value to assign biomes in the next section. I set moistur
   <button v-on:click="reset">Reset</button>
   <input type="range" min="0" :max="spring_t.length" v-model.number="numRivers"/> rivers
   <button v-on:click="addRiver10">Add rivers</button>
-  <button v-on:click="reset">Reset</button>
 </div>
 #+end_export
 
@@ -195,7 +196,6 @@ If we have a desired distribution of moisture, we can reshape the distribution. 
   <button v-on:click="reset">Reset</button>
   <input type="range" min="0" :max="spring_t.length" v-model.number="numRivers"/> rivers
   <button v-on:click="addRiver10">Add rivers</button>
-  <button v-on:click="reset">Reset</button>
 </div>
 #+end_export
 
@@ -230,6 +230,6 @@ http://www.giantitp.com/articles/xO3dVM8EDKJPlKxmVoG.html
     <script src="_bundle.js"/>
 
     Created 3 Aug 2017 with <a href="https://vue.org/">Vue.js</a> and Emacs org-mode (<a href="index.org">source of this page</a>); &#160;
-    <!-- hhmts start -->Last modified: 13 Aug 2017<!-- hhmts end -->
+    <!-- hhmts start -->Last modified: 15 Aug 2017<!-- hhmts end -->
   </x:footer>
 #+end_export

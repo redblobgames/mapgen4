@@ -74,6 +74,22 @@ layers.triangleEdges = (style) => (ctx, mesh) => {
     }
 };
 
+layers.triangleEdgesColored = (style, coloring) => (ctx, mesh) => {
+    setCanvasStyle(ctx, style, {strokeStyle: "black", lineWidth: 1.0});
+    for (let e = 0; e < mesh.numSolidEdges; e++) {
+        let v0 = mesh.e_begin_v(e);
+        let v1 = mesh.e_end_v(e);
+        let color = coloring(e, v0, v1);
+        if (color) {
+            ctx.strokeStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(mesh.vertices[v0][0], mesh.vertices[v0][1]);
+            ctx.lineTo(mesh.vertices[v1][0], mesh.vertices[v1][1]);
+            ctx.stroke();
+        }
+    }
+};
+
 layers.polygonEdges = (style) => (ctx, mesh) => {
     setCanvasStyle(ctx, style, {strokeStyle: "white", lineWidth: 1.5});
     for (let e = 0; e < mesh.numEdges; e++) {
@@ -112,12 +128,25 @@ layers.polygonEdgesColored = (style, coloring) => (ctx, mesh) => {
 
 layers.triangleCenters = (style) => (ctx, mesh) => {
     const radius = style.radius || 5;
-    setCanvasStyle(ctx, style, {fillStyle: "hsl(240,50%,50%)", strokeStyle: "white", lineWidth: 1.0});
+    setCanvasStyle(ctx, style, {fillStyle: "hsl(230,50%,50%)", strokeStyle: "white", lineWidth: 1.0});
     for (let t = 0; t < mesh.numSolidTriangles; t++) {
         ctx.beginPath();
         ctx.arc(mesh.centers[t][0], mesh.centers[t][1], radius, 0, 2*Math.PI);
         ctx.stroke();
         ctx.fill();
+    }
+};
+
+layers.triangleCentersLabeled = (style, labeling) => (ctx, mesh) => {
+    const fontheight = 18;
+    setCanvasStyle(ctx, style, {fillStyle: "black"});
+    ctx.font = `${fontheight}px sans-serif`;
+    ctx.textAlign = "center";
+    for (let t = 0; t < mesh.numSolidTriangles; t++) {
+        let label = labeling(t);
+        if (label) {
+            ctx.fillText(label, mesh.centers[t][0], mesh.centers[t][1] + fontheight*0.4);
+        }
     }
 };
 
@@ -165,7 +194,7 @@ layers.polygonColors = (style, coloring) => (ctx, mesh) => {
 };
 
 layers.drawRivers = (style, e_flow) => (ctx, mesh) => {
-    setCanvasStyle(ctx, {}, {lineWidth: 2.5, strokeStyle: "hsl(240,50%,50%)"});
+    setCanvasStyle(ctx, {}, {lineWidth: 2.5, strokeStyle: "hsl(230,50%,50%)"});
     let baseLineWidth = ctx.lineWidth;
     for (let e = 0; e < mesh.numEdges; e++) {
         if (e_flow[e] > 0) {
@@ -183,7 +212,7 @@ layers.drawRivers = (style, e_flow) => (ctx, mesh) => {
 };
 
 layers.drawSprings = (style, river_t) => (ctx, mesh) => {
-    setCanvasStyle(ctx, {}, {lineWidth: 1.0, fillStyle: "white", strokeStyle: "hsl(240,50%,50%)"});
+    setCanvasStyle(ctx, {}, {lineWidth: 1.0, fillStyle: "white", strokeStyle: "hsl(230,50%,50%)"});
     for (let t of river_t) {
         ctx.beginPath();
         ctx.arc(mesh.centers[t][0], mesh.centers[t][1], 3, 0, 2*Math.PI);
@@ -282,10 +311,10 @@ new Vue({
         draw: function(canvas, {value: {show, mesh, v_water, v_ocean}}) {
             if (show === 'landwater' ) { v_ocean = v_water; }
             diagram(canvas, mesh, {}, [
-                layers.polygonColors({}, (v) => v_ocean[v]? "hsl(230,30%,30%)" : v_water[v]? (show === 'lakes'? "hsl(200,100%,50%)" : "hsl(200,30%,50%)") : "hsl(30,15%,60%)"),
+                layers.polygonColors({}, (v) => v_ocean[v]? "hsl(230,30%,50%)" : v_water[v]? (show === 'lakes'? "hsl(200,100%,50%)" : "hsl(200,30%,50%)") : "hsl(30,15%,60%)"),
                 layers.polygonEdges({strokeStyle: "black"}),
-                layers.polygonEdgesColored({lineWidth: 4.0, globalAlpha: show === null? 1.0 : 0.0}, (_, v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "white" : null),
-                layers.polygonCenters({radius: 1.5, fillStyle: "black", strokeStyle: "black"})
+                layers.polygonEdgesColored({lineWidth: 6.0, globalAlpha: show === null? 1.0 : 0.0}, (_, v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "black" : null),
+                layers.polygonCenters({radius: 1.0, fillStyle: "hsl(0,0%,50%)", strokeStyle: "hsl(0,0%,50%)"})
             ]);
         }
     }
@@ -301,34 +330,48 @@ new Vue({
     computed: {
         v_water: function() { return Water.assign_v_water(this.mesh, noise, {round: 0.5, inflate: 0.5}); },
         v_ocean: function() { return Water.assign_v_ocean(this.mesh, this.v_water); },
-        t_elevation: function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water); },
+        t_coastdistance: function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water).t_distance; },
+        t_elevation: function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water).t_elevation; },
         v_elevation: function() { return Elevation.assign_v_elevation(this.mesh, this.t_elevation, this.v_ocean); }
     },
     directives: {
-        draw: function(canvas, {value: {show, mesh, v_water, v_ocean, t_elevation, v_elevation}}) {
+        draw: function(canvas, {value: {show, mesh, v_water, v_ocean, t_elevation, t_coastdistance, v_elevation}}) {
             let coasts_t = Elevation.find_coasts_t(mesh, v_ocean);
             function polygonColoring(v) {
                 if (v_ocean[v]) {
-                    return `hsl(240,25%,${50+30*v_elevation[v]}%)`;
+                    return `hsl(230,25%,${50+30*v_elevation[v]}%)`;
                 } else {
-                    return `hsl(105,${25-10*v_elevation[v]}%,${50+50*v_elevation[v]}%)`;
+                    return `hsl(30,${25-10*v_elevation[v]}%,${50+50*v_elevation[v]}%)`;
                 }
             }
             let config = null;
             switch (show) {
             case 'coast_t': config = [
-                layers.polygonColors({}, (v) => v_ocean[v]? "hsl(230,30%,30%)" : "hsl(30,15%,60%)"),
-                layers.polygonEdgesColored({lineWidth: 1.5}, (_, v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "white" : null),
-                layers.triangleCentersColored({radius: 5}, (t) => coasts_t.indexOf(t) >= 0? "white" : null)
+                layers.polygonColors({}, (v) => v_ocean[v]? "hsl(230,30%,60%)" : "hsl(30,15%,60%)"),
+                layers.polygonEdgesColored({lineWidth: 1.5}, (_, v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "black" : null),
+                layers.triangleCentersColored({radius: 5, strokeStyle: "white"}, (t) => coasts_t.indexOf(t) >= 0? "black" : null)
             ];
                 break;
-            case 'v_elevation': config = [
-                layers.polygonColors({}, (v) => v_ocean[v]? "hsl(230,30%,30%)" : "hsl(30,15%,60%)"),
-                layers.polygonEdges({strokeStyle: "black", lineWidth: 1.0}),
-                layers.triangleCentersColored({radius: 5}, (t) =>
-                                                t_elevation[t] == 0? "white"
-                                                : t_elevation[t] < 0? `hsl(240,25%,${100+100*t_elevation[t]}%)`
-                                                : `hsl(60,25%,${100-100*t_elevation[t]}%)`)
+            case 't_coastdistance': config = [
+                layers.polygonColors({}, (v) => v_ocean[v]? "hsl(230,30%,60%)" : "hsl(30,20%,60%)"),
+                layers.polygonEdges({strokeStyle: "black", lineWidth: 1.0, globalAlpha: 0.4}),
+                layers.triangleCentersLabeled({}, (t) => ""+t_coastdistance[t])
+            ];
+                break;
+            case 't_elevation': config = [
+                layers.polygonColors({}, (v) => v_ocean[v]? "hsl(230,30%,60%)" : "hsl(30,20%,60%)"),
+                layers.triangleEdgesColored(
+                    {globalAlpha: 0.3}, (e) => {
+                        let t0 = TriangleMesh.e_to_t(e);
+                        let t1 = TriangleMesh.e_to_t(mesh.opposites[e]);
+                        return (Math.round(3*t_elevation[t0]) != Math.round(3*t_elevation[t1]))? "black" : null;
+                    }
+                ),
+                layers.triangleCentersColored(
+                    {radius: 5, strokeStyle: "white"}, (t) =>
+                        t_elevation[t] == 0? "black"
+                        : t_elevation[t] < 0? `hsl(230,50%,${-100*t_elevation[t]}%)`
+                        : `hsl(60,25%,${100*t_elevation[t]}%)`)
             ];
                 break;
             default: config = [
@@ -352,7 +395,7 @@ new Vue({
     computed: {
         v_water:       function() { return Water.assign_v_water(this.mesh, noise, {round: 0.5, inflate: 0.5}); },
         v_ocean:       function() { return Water.assign_v_ocean(this.mesh, this.v_water); },
-        t_elevation:   function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water); },
+        t_elevation:   function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water).t_elevation; },
         v_elevation:   function() { return Elevation.assign_v_elevation(this.mesh, this.t_elevation, this.v_ocean); },
         t_downslope_e: function() { return Rivers.assign_t_downslope_e(this.mesh, this.t_elevation); },
         spring_t:      function() { let spring_t = Rivers.find_spring_t(this.mesh, this.t_elevation, this.t_downslope_e); random_shuffle(spring_t, makeRandInt(SEED)); return spring_t; },
@@ -368,9 +411,9 @@ new Vue({
         draw: function(canvas, {value: {mesh, v_water, v_ocean, v_elevation, t_downslope_e, river_t, e_flow}}) {
             function polygonColoring(v) {
                 if (v_ocean[v]) {
-                    return `hsl(240,25%,${50+30*v_elevation[v]}%)`;
+                    return `hsl(230,25%,${50+30*v_elevation[v]}%)`;
                 } else {
-                    return `hsl(105,${25-10*v_elevation[v]}%,${50+50*v_elevation[v]}%)`;
+                    return `hsl(30,${25-10*v_elevation[v]}%,${50+50*v_elevation[v]}%)`;
                 }
             }
             
@@ -380,7 +423,7 @@ new Vue({
                 ctx.lineWidth = 4.0;
                 for (let t1 = 0; t1 < mesh.numSolidTriangles; t1++) {
                     let e = t_downslope_e[t1];
-                    ctx.fillStyle = v_ocean[mesh.e_begin_v(e)] ? "black" : "hsl(240,50%,50%)";
+                    ctx.fillStyle = v_ocean[mesh.e_begin_v(e)] ? "black" : "hsl(230,50%,50%)";
                     let t2 = e === -1? t1 : TriangleMesh.e_to_t(mesh.opposites[e]);
                     ctx.beginPath();
                     if (t1 !== t2) {
@@ -396,7 +439,7 @@ new Vue({
                 drawDrainage,
                 layers.drawRivers({}, e_flow),
                 layers.drawSprings({}, river_t),
-                layers.polygonEdgesColored({lineWidth: 1.5}, (_, v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "white" : null),
+                layers.polygonEdgesColored({lineWidth: 1.5}, (_, v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "black" : null),
             ]);
         }
     }
@@ -412,7 +455,7 @@ new Vue({
     computed: {
         v_water:       function() { return Water.assign_v_water(this.mesh, noise, {round: 0.5, inflate: 0.5}); },
         v_ocean:       function() { return Water.assign_v_ocean(this.mesh, this.v_water); },
-        t_elevation:   function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water); },
+        t_elevation:   function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water).t_elevation; },
         v_elevation:   function() { return Elevation.assign_v_elevation(this.mesh, this.t_elevation, this.v_ocean); },
         t_downslope_e: function() { return Rivers.assign_t_downslope_e(this.mesh, this.t_elevation); },
         spring_t:      function() { let spring_t = Rivers.find_spring_t(this.mesh, this.t_elevation, this.t_downslope_e); random_shuffle(spring_t, makeRandInt(SEED)); return spring_t; },
@@ -429,7 +472,7 @@ new Vue({
         draw: function(canvas, {value: {mesh, v_water, v_ocean, v_moisture, t_downslope_e, river_t, e_flow}}) {
             function polygonColoring(v) {
                 if (v_ocean[v]) {
-                    return `hsl(240,25%,25%)`;
+                    return `hsl(230,25%,25%)`;
                 } else {
                     return `hsl(${30+120*v_moisture[v]},15%,${75-25*v_moisture[v]}%)`;
                 }
@@ -440,7 +483,7 @@ new Vue({
                 layers.polygonColors({}, polygonColoring),
                 layers.drawRivers({}, e_flow),
                 layers.drawSprings({}, river_t),
-                layers.polygonEdgesColored({lineWidth: 1.5}, (_, v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "white" : null),
+                layers.polygonEdgesColored({lineWidth: 1.5}, (_, v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "black" : null),
             ]);
         }
     }
@@ -456,7 +499,7 @@ new Vue({
     computed: {
         v_water:       function() { return Water.assign_v_water(this.mesh, noise, {round: 0.5, inflate: 0.5}); },
         v_ocean:       function() { return Water.assign_v_ocean(this.mesh, this.v_water); },
-        t_elevation:   function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water); },
+        t_elevation:   function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water).t_elevation; },
         v_elevation:   function() { return Elevation.assign_v_elevation(this.mesh, this.t_elevation, this.v_ocean); },
         t_downslope_e: function() { return Rivers.assign_t_downslope_e(this.mesh, this.t_elevation); },
         spring_t:      function() { let spring_t = Rivers.find_spring_t(this.mesh, this.t_elevation, this.t_downslope_e); random_shuffle(spring_t, makeRandInt(SEED)); return spring_t; },
