@@ -431,7 +431,7 @@ new Vue({
                 ctx.lineWidth = 30.0;
                 for (let t1 = 0; t1 < mesh.numSolidTriangles; t1++) {
                     let e = t_downslope_e[t1];
-                    if (v_ocean[mesh.e_begin_v(e)]) { continue; }
+                    if (e !== -1 && v_ocean[mesh.e_begin_v(e)]) { continue; }
                     let t2 = e === -1? t1 : mesh.e_outer_t(e);
                     if (t1 !== t2) {
                         drawArrow(ctx, mesh.centers[t1], mesh.centers[t2]);

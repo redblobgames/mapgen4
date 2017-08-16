@@ -16,7 +16,10 @@ exports.find_spring_t = function(mesh, t_elevation, t_downslope_e) {
     }
     // and then remove everything that's not a leaf in the drainage tree
     for (let t = 0; t < mesh.numSolidTriangles; t++) {
-        spring_t.delete(mesh.e_outer_t(t_downslope_e[t]));
+        let e = t_downslope_e[t];
+        if (e !== -1) {
+            spring_t.delete(mesh.e_outer_t(e));
+        }
     }
     return Array.from(spring_t);
 };
