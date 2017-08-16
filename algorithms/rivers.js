@@ -6,11 +6,13 @@
 
 const MIN_SPRING_ELEVATION = 0.05;
 
-exports.find_spring_t = function(mesh, t_elevation, t_downslope_e) {
+exports.find_spring_t = function(mesh, v_water, t_elevation, t_downslope_e) {
+    const t_water = (t) => v_water[mesh.e_begin_v(3*t)] || v_water[mesh.e_begin_v(3*t+1)] || v_water[mesh.e_begin_v(3*t+2)];
+
     let spring_t = new Set();
-    // Add everything above some elevation
+    // Add everything above some elevation, but not lakes
     for (let t = 0; t < mesh.numSolidTriangles; t++) {
-        if (t_elevation[t] >= MIN_SPRING_ELEVATION) {
+        if (t_elevation[t] >= MIN_SPRING_ELEVATION && !t_water(t)) {
             spring_t.add(t);
         }
     }
@@ -34,7 +36,8 @@ exports.next_river_t = function(mesh, river_t, t_elevation) {
         }
     }
     throw "could not find a new river";
-}
+};
+
 
 exports.assign_e_flow = function(mesh, t_downslope_e, river_t) {
     // Each river in river_t contributes 1 flow down to the coastline

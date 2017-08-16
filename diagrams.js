@@ -344,6 +344,8 @@ new Vue({
             function polygonColoring(v) {
                 if (v_ocean[v]) {
                     return `hsl(230,25%,${50+30*v_elevation[v]}%)`;
+                } else if (v_water[v]) {
+                    return `hsl(230,${15-10*v_elevation[v]}%,${60+30*v_elevation[v]}%)`;
                 } else {
                     return `hsl(30,${25-10*v_elevation[v]}%,${50+50*v_elevation[v]}%)`;
                 }
@@ -351,13 +353,13 @@ new Vue({
             let config = null;
             switch (show) {
             case 'coast_t': config = [
-                layers.polygonColors({}, (v) => v_ocean[v]? "hsl(230,30%,60%)" : "hsl(30,15%,60%)"),
+                layers.polygonColors({}, (v) => v_ocean[v]? "hsl(230,30%,60%)" : v_water[v]? "hsl(230,30%,60%)" : "hsl(30,15%,60%)"),
                 layers.polygonEdgesColored({lineWidth: 1.5}, (_, v0, v1) => v_ocean[v0] !== v_ocean[v1]? "black" : null),
                 layers.triangleCentersColored({radius: 5, strokeStyle: "white"}, (t) => coasts_t.indexOf(t) >= 0? "black" : null)
             ];
                 break;
             case 't_coastdistance': config = [
-                layers.polygonColors({}, (v) => v_ocean[v]? "hsl(230,30%,60%)" : "hsl(30,20%,60%)"),
+                layers.polygonColors({}, (v) => v_ocean[v]? "hsl(230,30%,60%)" : v_water[v]? "hsl(230,30%,60%)" : "hsl(30,20%,60%)"),
                 layers.polygonEdges({strokeStyle: "black", lineWidth: 1.0, globalAlpha: 0.4}),
                 layers.triangleCentersLabeled({}, (t) => ""+t_coastdistance[t])
             ];
@@ -405,7 +407,7 @@ new Vue({
         t_elevation:   function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water).t_elevation; },
         v_elevation:   function() { return Elevation.assign_v_elevation(this.mesh, this.t_elevation, this.v_ocean); },
         t_downslope_e: function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water).t_downslope_e; },
-        spring_t:      function() { let spring_t = Rivers.find_spring_t(this.mesh, this.t_elevation, this.t_downslope_e); random_shuffle(spring_t, makeRandInt(SEED)); return spring_t; },
+        spring_t:      function() { let spring_t = Rivers.find_spring_t(this.mesh, this.v_water, this.t_elevation, this.t_downslope_e); random_shuffle(spring_t, makeRandInt(SEED)); return spring_t; },
         river_t:       function() { return this.spring_t.slice(0, this.numRivers); },
         e_flow:        function() { return Rivers.assign_e_flow(this.mesh, this.t_downslope_e, this.river_t, this.t_elevation); }
     },
@@ -419,6 +421,8 @@ new Vue({
             function polygonColoring(v) {
                 if (v_ocean[v]) {
                     return `hsl(230,25%,${50+30*v_elevation[v]}%)`;
+                } else if (v_water[v]) {
+                    return `hsl(230,${15-10*v_elevation[v]}%,${60+30*v_elevation[v]}%)`;
                 } else {
                     return `hsl(30,${25-10*v_elevation[v]}%,${50+50*v_elevation[v]}%)`;
                 }
@@ -446,7 +450,7 @@ new Vue({
                 drawDrainage,
                 layers.drawRivers({}, e_flow),
                 layers.drawSprings({}, river_t),
-                layers.polygonEdgesColored({lineWidth: 2.0}, (_, v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "black" : null),
+                layers.polygonEdgesColored({lineWidth: 2.0}, (_, v0, v1) => v_ocean[v0] !== v_ocean[v1]? "black" : null),
             ]);
         }
     }
@@ -457,7 +461,7 @@ new Vue({
     el: "#diagram-moisture-assignment",
     data: {
         mesh: Object.freeze(mesh_15),
-        numRivers: 5
+        numRivers: 1
     },
     computed: {
         v_water:       function() { return Water.assign_v_water(this.mesh, noise, {round: 0.5, inflate: 0.5}); },
@@ -465,21 +469,22 @@ new Vue({
         t_elevation:   function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water).t_elevation; },
         v_elevation:   function() { return Elevation.assign_v_elevation(this.mesh, this.t_elevation, this.v_ocean); },
         t_downslope_e: function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water).t_downslope_e; },
-        spring_t:      function() { let spring_t = Rivers.find_spring_t(this.mesh, this.t_elevation, this.t_downslope_e); random_shuffle(spring_t, makeRandInt(SEED)); return spring_t; },
+        spring_t:      function() { let spring_t = Rivers.find_spring_t(this.mesh, this.v_water, this.t_elevation, this.t_downslope_e); random_shuffle(spring_t, makeRandInt(SEED)); return spring_t; },
         river_t:       function() { return this.spring_t.slice(0, this.numRivers); },
         e_flow:        function() { return Rivers.assign_e_flow(this.mesh, this.t_downslope_e, this.river_t, this.t_elevation); },
-        v_moisture:    function() { return Moisture.assign_v_moisture(this.mesh, this.v_ocean, this.v_water, Moisture.find_riverbanks_v(this.mesh, this.e_flow)); }
+        v_moisture:    function() { return Moisture.assign_v_moisture(this.mesh, this.v_ocean, Moisture.find_moisture_seeds_v(this.mesh, this.e_flow, this.v_ocean, this.v_water)); }
     },
     methods: {
-        addRiver:      function() { this.numRivers++; },
-        addRiver10:    function() { this.numRivers += 10; },
-        reset:         function() { this.numRivers = 0; }
+        addRivers:     function() { this.numRivers += 5; },
+        reset:         function() { this.numRivers  = 0; }
     },
     directives: {
         draw: function(canvas, {value: {mesh, v_water, v_ocean, v_moisture, t_downslope_e, river_t, e_flow}}) {
             function polygonColoring(v) {
                 if (v_ocean[v]) {
-                    return `hsl(230,25%,25%)`;
+                    return "hsl(230,25%,25%)";
+                } else if (v_water[v]) {
+                    return "hsl(230,50%,50%)";
                 } else {
                     return `hsl(${30+120*v_moisture[v]},15%,${75-25*v_moisture[v]}%)`;
                 }
@@ -490,12 +495,8 @@ new Vue({
                 layers.polygonColors({}, polygonColoring),
                 layers.drawRivers({}, e_flow),
                 layers.drawSprings({}, river_t),
-                layers.polygonEdgesColored(
-                    {lineWidth: 1.5},
-                    (_, v0, v1) =>
-                        v_ocean[v0] !== v_ocean[v1]? "black"
-                        : Math.round(5*v_moisture[v0]) != Math.round(5*v_moisture[v1]) ? `hsl(${30+24*Math.round(5*Math.min(v_moisture[v0],v_moisture[v1]))},20%,40%)`
-                        : null),
+                layers.polygonEdgesColored({lineWidth: 1.5}, (_, v0, v1) => v_ocean[v0] !== v_ocean[v1]? "black" : null),
+                layers.polygonEdgesColored({lineWidth: 0.3}, (_, v0, v1) => Math.round(5*v_moisture[v0]) != Math.round(5*v_moisture[v1]) ? "black" : null),
             ]);
         }
     }
@@ -514,16 +515,15 @@ new Vue({
         t_elevation:   function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water).t_elevation; },
         v_elevation:   function() { return Elevation.assign_v_elevation(this.mesh, this.t_elevation, this.v_ocean); },
         t_downslope_e: function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water).t_downslope_e; },
-        spring_t:      function() { let spring_t = Rivers.find_spring_t(this.mesh, this.t_elevation, this.t_downslope_e); random_shuffle(spring_t, makeRandInt(SEED)); return spring_t; },
+        spring_t:      function() { let spring_t = Rivers.find_spring_t(this.mesh, this.v_water, this.t_elevation, this.t_downslope_e); random_shuffle(spring_t, makeRandInt(SEED)); return spring_t; },
         river_t:       function() { return this.spring_t.slice(0, this.numRivers); },
         e_flow:        function() { return Rivers.assign_e_flow(this.mesh, this.t_downslope_e, this.river_t, this.t_elevation); },
-        v_moisture:    function() { return Moisture.assign_v_moisture(this.mesh, this.v_ocean, this.v_water, Moisture.find_riverbanks_v(this.mesh, this.e_flow)); },
+        v_moisture:    function() { return Moisture.assign_v_moisture(this.mesh, this.v_ocean, Moisture.find_moisture_seeds_v(this.mesh, this.e_flow, this.v_ocean, this.v_water)); },
         v_biome:       function() { return Biomes.assign_v_biome(this.mesh, this.v_ocean, this.v_water, this.v_elevation, this.v_moisture); }
     },
     methods: {
-        addRiver:      function() { this.numRivers++; },
-        addRiver10:    function() { this.numRivers += 10; },
-        reset:         function() { this.numRivers = 0; }
+        addRivers:     function() { this.numRivers += 10; },
+        reset:         function() { this.numRivers  = 0; }
     },
     directives: {
         draw: function(canvas, {value: {show, mesh, river_t, e_flow, v_biome}}) {
@@ -558,7 +558,8 @@ new Vue({
             let config = null;
             diagram(canvas, mesh, {}, [
                 layers.polygonColors({}, polygonColoring),
-                layers.polygonEdgesColored({lineWidth: 0.5}, (_, v0, v1) => v_biome[v0] !== v_biome[v1]? "black" : null),
+                layers.polygonEdgesColored({lineWidth: 1.5}, (_, v0, v1) => (v_biome[v0] === 'OCEAN') !== (v_biome[v1] === 'OCEAN')? "black" : null),
+                layers.polygonEdgesColored({lineWidth: 0.3}, (_, v0, v1) => v_biome[v0] !== v_biome[v1]? "black" : null),
                 layers.drawRivers({lineWidth: 0.5}, e_flow),
             ]);
         }
