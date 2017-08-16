@@ -103,12 +103,12 @@ For this project I set elevation based on the /distance from the coast/. It's no
     <li>Find <span class="hover-term" v-on:mouseover="show='coast_t'">corners along coastline edges</span>. As above, coastline edges have an ocean on one side and land on the other side.</li>
     <li>Calculate corner <span class="hover-term" v-on:mouseover="show='t_coastdistance'">distance from the coastline</span> using Breadth First Search.</li>
     <li>Set <span class="hover-term" v-on:mouseover="show='t_elevation'">corner elevation</span> by rescaling ocean distances from -1 to 0 and land distances from 0 to +1.</li>
-    <li>Set the <span class="hover-term" v-on:mouseover="show=null">polygon elevation</span> to the lowest elevation of the polygon's corners.</li>
+    <li>Set the <span class="hover-term" v-on:mouseover="show=null">polygon elevation</span> to the average elevation of the polygon's corners.</li>
   </ol>
 </div>
 #+end_export
 
-{ implementation notes: . The average or max of the corners would work as well.  Rescale the elevations from 0.0 to 1.0. }
+{ implementation notes: Rescale the elevations from 0.0 to 1.0. }
 
 
 ** TODO Handle lakes
@@ -123,7 +123,7 @@ If we have a desired distribution of elevations, we can reshape the distribution
 
 * Rivers
 
-At each corner, I can point to the corner that has the lowest elevation. This forms a drainage map, sometimes called a watershed map. Note that it follows some basic rules of rivers:
+At each corner, I point to the corner that has the lowest elevation. This forms a drainage map, sometimes called a watershed map. Note that it follows some basic rules of rivers:
 
 1. Rivers join together (tributaries) but don't fork (distributaries).
 2. Rivers eventually reach the ocean.
@@ -144,7 +144,13 @@ The algorithm I'm using here produces poor results in the oceans. That's ok for 
 </div>
 #+end_export
 
-Drainage can be used for both watersheds and rivers, and both of those often form political boundaries. In this project I need rivers but not watersheds.
+Rivers follow the drainage map, but for this project, not all drainage channels become rivers. I pick them randomly.
+
+** TODO Watersheds
+
+Drainage can also be used to define watersheds, which can be useful as political and cultural boundaries. Rivers are also useful as political (but not cultural) boundaries.
+
+{ diagram or layer showing watershed boundaries }
 
 ** TODO Lakes
 

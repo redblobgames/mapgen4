@@ -376,7 +376,10 @@ new Vue({
                 break;
             default: config = [
                 layers.polygonColors({}, polygonColoring),
-                layers.polygonEdges({strokeStyle: "black", lineWidth: 1.0}),
+                layers.polygonEdgesColored({lineWidth: 1.0},
+                                           (e, v0, v1) => Math.round(3*v_elevation[v0]) != Math.round(3*v_elevation[v1])? "black" : null),
+                layers.polygonEdgesColored({lineWidth: 2.0},
+                                           (e, v0, v1) => v_ocean[v0] != v_ocean[v1]? "black" : null),
                 layers.polygonCenters({radius: 0.5, fillStyle: "black", strokeStyle: "black"})
             ];
             }
@@ -483,7 +486,7 @@ new Vue({
                 layers.polygonColors({}, polygonColoring),
                 layers.drawRivers({}, e_flow),
                 layers.drawSprings({}, river_t),
-                layers.polygonEdgesColored({lineWidth: 1.5}, (_, v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "black" : null),
+                layers.polygonEdgesColored({lineWidth: 1.5}, (_, v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "black" : Math.round(5*v_moisture[v0]) != Math.round(5*v_moisture[v1]) ? `hsl(${30+24*Math.round(5*Math.min(v_moisture[v0],v_moisture[v1]))},20%,40%)` : null),
             ]);
         }
     }

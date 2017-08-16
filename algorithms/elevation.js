@@ -48,22 +48,25 @@ exports.assign_t_elevation = function(mesh, v_ocean, v_water) {
     return {t_distance, t_elevation};
 };
 
-/** v elevation is the MIN of the t elevations;
- * average and max would work too */
+/** Set v elevation to the average of the t elevations. There's a
+ * corner case though: it is possible for an ocean polygon (v) to be
+ * surrounded by coastline corners (t), and coastlines are set to 0
+ * elevation. This means the polygon elevation would be 0. To avoid
+ * this, I subtract a small amount for ocean polygons. */
 exports.assign_v_elevation = function(mesh, t_elevation, v_ocean) {
+    const max_ocean_elevation = -0.01;
     let out_t = [];
     let v_elevation = new Array(mesh.numVertices);
     for (let v = 0; v < mesh.numVertices; v++) {
         mesh.v_circulate_t(out_t, v);
-        let elevation = Infinity;
-        for (let t of out_t) {
-            if (t_elevation[t] < elevation) { elevation = t_elevation[t]; }
-        }
-        elevation = 0;
+        let elevation = 0.0;
         for (let t of out_t) {
             elevation += t_elevation[t];
         }
         v_elevation[v] = elevation/out_t.length;
+        if (v_ocean[v] && v_elevation[v] > max_ocean_elevation) {
+            v_elevation[v] = max_ocean_elevation;
+        }
     }
     return v_elevation;
 };
