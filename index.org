@@ -66,6 +66,7 @@ I'm generating islands, so the boundary of the map will always be water. In the 
 <div id="diagram-water-assignment">
   <figure>
     <figcaption v-if="show==='landwater'">Choose polygons that are water vs land</figcaption>
+    <figcaption v-else-if="show==='connectivity'">Connectivity from the boundary identifies oceans vs lakes</figcaption>
     <figcaption v-else-if="show==='lakes'">Lakes are water polygons not connected to the boundary</figcaption>
     <figcaption v-else="">Coastline separates oceans from land</figcaption>
     <canvas width="600" height="600" v-draw="{mesh,show,v_water,v_ocean}"/>
@@ -77,7 +78,8 @@ I'm generating islands, so the boundary of the map will always be water. In the 
   </p>
   <ol>
     <li>Use noise to determine <span class="hover-term" v-on:mouseover="show='landwater'">land vs. water</span>.</li>
-    <li>Use connectivity to mark <span class="hover-term" v-on:mouseover="show='lakes'">lakes</span> as the polygons not connected to the boundary of the map. <em v-if="counts.lake === 0">Try changing the parameters until lakes form.</em></li>
+    <li>Use <span class="hover-term" v-on:mouseover="show='connectivity'">connectivity</span> to determine which water polygons are ocean.</li>
+    <li><span class="hover-term" v-on:mouseover="show='lakes'">Lakes</span> are the water polygons not connected to the boundary of the map. <em v-if="counts.lake === 0">Try changing the parameters until lakes form.</em></li>
     <li>Define <span class="hover-term" v-on:mouseover="show=null">coastlines</span> to be edges connected to an ocean polygon on one side and a land polygon on the other.</li>
   </ol>
 </div>
@@ -107,9 +109,6 @@ For this project I set elevation based on the /distance from the coast/. It's no
   </ol>
 </div>
 #+end_export
-
-{ implementation notes: Rescale the elevations from 0.0 to 1.0. }
-
 
 ** TODO Handle lakes
 

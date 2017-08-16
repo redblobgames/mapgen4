@@ -222,6 +222,8 @@ layers.drawSprings = (style, river_t) => (ctx, mesh) => {
 };
             
 
+/* layers should be a list of functions that take (ctx, mesh) and draw the layer;
+ * or null to skip that layer */
 function diagram(canvas, mesh, options, layers) {
     const scale = fallback(options.scale, 1.0);
     let ctx = canvas.getContext('2d');
@@ -233,7 +235,7 @@ function diagram(canvas, mesh, options, layers) {
     ctx.fillRect(0, 0, 1000, 1000);
 
     for (let layer of layers) {
-        layer(ctx, mesh);
+        if (layer) { layer(ctx, mesh); }
     }
     
     ctx.restore();
@@ -310,12 +312,14 @@ new Vue({
     directives: {
         draw: function(canvas, {value: {show, mesh, v_water, v_ocean}}) {
             if (show === 'landwater' ) { v_ocean = v_water; }
-            diagram(canvas, mesh, {}, [
+            let config = [
                 layers.polygonColors({}, (v) => v_ocean[v]? "hsl(230,30%,50%)" : v_water[v]? (show === 'lakes'? "hsl(200,100%,50%)" : "hsl(200,30%,50%)") : "hsl(30,15%,60%)"),
                 layers.polygonEdges({strokeStyle: "black"}),
-                layers.polygonEdgesColored({lineWidth: 6.0, globalAlpha: show === null? 1.0 : 0.0}, (_, v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "black" : null),
+                (show === 'connectivity' || show === 'lakes') && layers.triangleEdgesColored({globalAlpha: show === 'lakes'? 0.3 : 1.0}, (_, v0, v1) => v_ocean[v0] && v_ocean[v1]? "white" : null),
+                show === null && layers.polygonEdgesColored({lineWidth: 6.0}, (_, v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "black" : null),
                 layers.polygonCenters({radius: 1.0, fillStyle: "hsl(0,0%,50%)", strokeStyle: "hsl(0,0%,50%)"})
-            ]);
+            ];
+            diagram(canvas, mesh, {}, config);
         }
     }
 });
@@ -348,7 +352,7 @@ new Vue({
             switch (show) {
             case 'coast_t': config = [
                 layers.polygonColors({}, (v) => v_ocean[v]? "hsl(230,30%,60%)" : "hsl(30,15%,60%)"),
-                layers.polygonEdgesColored({lineWidth: 1.5}, (_, v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "black" : null),
+                layers.polygonEdgesColored({lineWidth: 1.5}, (_, v0, v1) => v_ocean[v0] !== v_ocean[v1]? "black" : null),
                 layers.triangleCentersColored({radius: 5, strokeStyle: "white"}, (t) => coasts_t.indexOf(t) >= 0? "black" : null)
             ];
                 break;
@@ -360,6 +364,7 @@ new Vue({
                 break;
             case 't_elevation': config = [
                 layers.polygonColors({}, (v) => v_ocean[v]? "hsl(230,30%,60%)" : "hsl(30,20%,60%)"),
+                layers.polygonEdgesColored({lineWidth: 1.5}, (_, v0, v1) => v_ocean[v0] !== v_ocean[v1]? "black" : null),
                 layers.triangleEdgesColored(
                     {globalAlpha: 0.3}, (e) => {
                         let t0 = TriangleMesh.e_to_t(e);
@@ -378,8 +383,7 @@ new Vue({
                 layers.polygonColors({}, polygonColoring),
                 layers.polygonEdgesColored({lineWidth: 1.0},
                                            (e, v0, v1) => Math.round(3*v_elevation[v0]) != Math.round(3*v_elevation[v1])? "black" : null),
-                layers.polygonEdgesColored({lineWidth: 2.0},
-                                           (e, v0, v1) => v_ocean[v0] != v_ocean[v1]? "black" : null),
+                layers.polygonEdgesColored({lineWidth: 2.5}, (e, v0, v1) => v_ocean[v0] != v_ocean[v1]? "black" : null),
                 layers.polygonCenters({radius: 0.5, fillStyle: "black", strokeStyle: "black"})
             ];
             }
@@ -442,7 +446,7 @@ new Vue({
                 drawDrainage,
                 layers.drawRivers({}, e_flow),
                 layers.drawSprings({}, river_t),
-                layers.polygonEdgesColored({lineWidth: 1.5}, (_, v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "black" : null),
+                layers.polygonEdgesColored({lineWidth: 2.0}, (_, v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "black" : null),
             ]);
         }
     }
@@ -486,7 +490,12 @@ new Vue({
                 layers.polygonColors({}, polygonColoring),
                 layers.drawRivers({}, e_flow),
                 layers.drawSprings({}, river_t),
-                layers.polygonEdgesColored({lineWidth: 1.5}, (_, v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "black" : Math.round(5*v_moisture[v0]) != Math.round(5*v_moisture[v1]) ? `hsl(${30+24*Math.round(5*Math.min(v_moisture[v0],v_moisture[v1]))},20%,40%)` : null),
+                layers.polygonEdgesColored(
+                    {lineWidth: 1.5},
+                    (_, v0, v1) =>
+                        v_ocean[v0] !== v_ocean[v1]? "black"
+                        : Math.round(5*v_moisture[v0]) != Math.round(5*v_moisture[v1]) ? `hsl(${30+24*Math.round(5*Math.min(v_moisture[v0],v_moisture[v1]))},20%,40%)`
+                        : null),
             ]);
         }
     }
@@ -549,7 +558,7 @@ new Vue({
             let config = null;
             diagram(canvas, mesh, {}, [
                 layers.polygonColors({}, polygonColoring),
-                layers.polygonEdgesColored({lineWidth: 0.5}, (_, v0, v1, t0, t1) => v_biome[v0] !== v_biome[v1]? "black" : null),
+                layers.polygonEdgesColored({lineWidth: 0.5}, (_, v0, v1) => v_biome[v0] !== v_biome[v1]? "black" : null),
                 layers.drawRivers({lineWidth: 0.5}, e_flow),
             ]);
         }
