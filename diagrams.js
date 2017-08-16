@@ -263,7 +263,7 @@ function createCircumcenterMesh(mesh, mixture) {
 
 /** Will get used for computed properties in Vue */
 let MapCalculations = {
-    v_water:         function() { return Water.assign_v_water(this.mesh, noise, {round: this.round || 0.5, inflate: this.inflate || 0.5}); },
+    v_water:         function() { return Water.assign_v_water(this.mesh, noise, {round: fallback(this.round, 0.5), inflate: fallback(this.inflate, 0.5)}); },
     v_ocean:         function() { return Water.assign_v_ocean(this.mesh, this.v_water); },
     elevationdata:   function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water); },
     t_coastdistance: function() { return this.elevationdata.t_distance; },
@@ -271,7 +271,7 @@ let MapCalculations = {
     t_downslope_e:   function() { return this.elevationdata.t_downslope_e; },
     v_elevation:     function() { return Elevation.assign_v_elevation(this.mesh, this.t_elevation, this.v_ocean); },
     spring_t:        function() { return random_shuffle(Rivers.find_spring_t(this.mesh, this.v_water, this.t_elevation, this.t_downslope_e), makeRandInt(SEED)); },
-    river_t:         function() { return this.spring_t.slice(0, this.numRivers); },
+    river_t:         function() { return this.spring_t.slice(0, fallback(this.numRivers, 5)); },
     e_flow:          function() { return Rivers.assign_e_flow(this.mesh, this.t_downslope_e, this.river_t, this.t_elevation); },
     v_moisture:      function() { return Moisture.assign_v_moisture(this.mesh, this.v_ocean, Moisture.find_moisture_seeds_v(this.mesh, this.e_flow, this.v_ocean, this.v_water)); },
     v_biome:         function() { return Biomes.assign_v_biome(this.mesh, this.v_ocean, this.v_water, this.v_elevation, this.v_moisture); },
