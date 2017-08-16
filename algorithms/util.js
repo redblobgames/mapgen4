@@ -39,7 +39,7 @@ exports.circumcenter = function(a, b, c) {
 };
 
 /**
- * in-place shuffle of an array - Fisher-Yates 
+ * in-place shuffle of an array - Fisher-Yates
  * https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle#The_modern_algorithm
  */
 exports.random_shuffle = function(array, randInt) {
@@ -49,4 +49,5 @@ exports.random_shuffle = function(array, randInt) {
         array[i] = array[j];
         array[j] = swap;
     }
+    return array;
 };

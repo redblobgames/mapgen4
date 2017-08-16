@@ -261,7 +261,31 @@ function createCircumcenterMesh(mesh, mixture) {
 }
 
 
-let diagramMeshConstruction = new Vue({
+/** Will get used for computed properties in Vue */
+let MapCalculations = {
+    v_water:         function() { return Water.assign_v_water(this.mesh, noise, {round: this.round || 0.5, inflate: this.inflate || 0.5}); },
+    v_ocean:         function() { return Water.assign_v_ocean(this.mesh, this.v_water); },
+    elevationdata:   function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water); },
+    t_coastdistance: function() { return this.elevationdata.t_distance; },
+    t_elevation:     function() { return this.elevationdata.t_elevation; },
+    t_downslope_e:   function() { return this.elevationdata.t_downslope_e; },
+    v_elevation:     function() { return Elevation.assign_v_elevation(this.mesh, this.t_elevation, this.v_ocean); },
+    spring_t:        function() { return random_shuffle(Rivers.find_spring_t(this.mesh, this.v_water, this.t_elevation, this.t_downslope_e), makeRandInt(SEED)); },
+    river_t:         function() { return this.spring_t.slice(0, this.numRivers); },
+    e_flow:          function() { return Rivers.assign_e_flow(this.mesh, this.t_downslope_e, this.river_t, this.t_elevation); },
+    v_moisture:      function() { return Moisture.assign_v_moisture(this.mesh, this.v_ocean, Moisture.find_moisture_seeds_v(this.mesh, this.e_flow, this.v_ocean, this.v_water)); },
+    v_biome:         function() { return Biomes.assign_v_biome(this.mesh, this.v_ocean, this.v_water, this.v_elevation, this.v_moisture); },
+    lakecount:       function() {
+        let count = 0;
+        for (let v = 0; v < this.mesh.numVertices; v++) {
+            if (this.v_water[v] && !this.v_ocean[v]) { count++; }
+        }
+        return count;
+    }
+};
+
+
+new Vue({
     el: "#diagram-mesh-construction",
     data: {
         show: null,
@@ -292,23 +316,7 @@ new Vue({
         inflate: 0.5,
         mesh: Object.freeze(mesh_30)
     },
-    computed: {
-        v_water: function() {
-            return Water.assign_v_water(this.mesh, noise,
-                                        {round: this.round, inflate: this.inflate});
-        },
-        v_ocean: function() { return Water.assign_v_ocean(this.mesh, this.v_water); },
-        counts: function() {
-            let ocean = 0, lake = 0;
-            for (let v = 0; v < this.mesh.numVertices; v++) {
-                if (this.v_water[v]) {
-                    if (this.v_ocean[v]) { ocean++; }
-                    else                 { lake++; }
-                }
-            }
-            return {ocean, lake};
-        }
-    },
+    computed: MapCalculations,
     directives: {
         draw: function(canvas, {value: {show, mesh, v_water, v_ocean}}) {
             if (show === 'landwater' ) { v_ocean = v_water; }
@@ -331,13 +339,7 @@ new Vue({
         mesh: Object.freeze(mesh_30),
         show: null
     },
-    computed: {
-        v_water: function() { return Water.assign_v_water(this.mesh, noise, {round: 0.5, inflate: 0.5}); },
-        v_ocean: function() { return Water.assign_v_ocean(this.mesh, this.v_water); },
-        t_coastdistance: function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water).t_distance; },
-        t_elevation: function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water).t_elevation; },
-        v_elevation: function() { return Elevation.assign_v_elevation(this.mesh, this.t_elevation, this.v_ocean); }
-    },
+    computed: MapCalculations,
     directives: {
         draw: function(canvas, {value: {show, mesh, v_water, v_ocean, t_elevation, t_coastdistance, v_elevation}}) {
             let coasts_t = Elevation.find_coasts_t(mesh, v_ocean);
@@ -401,16 +403,7 @@ new Vue({
         mesh: Object.freeze(mesh_30),
         numRivers: 0
     },
-    computed: {
-        v_water:       function() { return Water.assign_v_water(this.mesh, noise, {round: 0.5, inflate: 0.5}); },
-        v_ocean:       function() { return Water.assign_v_ocean(this.mesh, this.v_water); },
-        t_elevation:   function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water).t_elevation; },
-        v_elevation:   function() { return Elevation.assign_v_elevation(this.mesh, this.t_elevation, this.v_ocean); },
-        t_downslope_e: function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water).t_downslope_e; },
-        spring_t:      function() { let spring_t = Rivers.find_spring_t(this.mesh, this.v_water, this.t_elevation, this.t_downslope_e); random_shuffle(spring_t, makeRandInt(SEED)); return spring_t; },
-        river_t:       function() { return this.spring_t.slice(0, this.numRivers); },
-        e_flow:        function() { return Rivers.assign_e_flow(this.mesh, this.t_downslope_e, this.river_t, this.t_elevation); }
-    },
+    computed: MapCalculations,
     methods: {
         addRiver:      function() { this.numRivers++; },
         addRiver25:    function() { this.numRivers += 25; },
@@ -463,17 +456,7 @@ new Vue({
         mesh: Object.freeze(mesh_15),
         numRivers: 1
     },
-    computed: {
-        v_water:       function() { return Water.assign_v_water(this.mesh, noise, {round: 0.5, inflate: 0.5}); },
-        v_ocean:       function() { return Water.assign_v_ocean(this.mesh, this.v_water); },
-        t_elevation:   function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water).t_elevation; },
-        v_elevation:   function() { return Elevation.assign_v_elevation(this.mesh, this.t_elevation, this.v_ocean); },
-        t_downslope_e: function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water).t_downslope_e; },
-        spring_t:      function() { let spring_t = Rivers.find_spring_t(this.mesh, this.v_water, this.t_elevation, this.t_downslope_e); random_shuffle(spring_t, makeRandInt(SEED)); return spring_t; },
-        river_t:       function() { return this.spring_t.slice(0, this.numRivers); },
-        e_flow:        function() { return Rivers.assign_e_flow(this.mesh, this.t_downslope_e, this.river_t, this.t_elevation); },
-        v_moisture:    function() { return Moisture.assign_v_moisture(this.mesh, this.v_ocean, Moisture.find_moisture_seeds_v(this.mesh, this.e_flow, this.v_ocean, this.v_water)); }
-    },
+    computed: MapCalculations,
     methods: {
         addRivers:     function() { this.numRivers += 5; },
         reset:         function() { this.numRivers  = 0; }
@@ -509,18 +492,7 @@ new Vue({
         mesh: Object.freeze(mesh_10),
         numRivers: 5,
     },
-    computed: {
-        v_water:       function() { return Water.assign_v_water(this.mesh, noise, {round: 0.5, inflate: 0.5}); },
-        v_ocean:       function() { return Water.assign_v_ocean(this.mesh, this.v_water); },
-        t_elevation:   function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water).t_elevation; },
-        v_elevation:   function() { return Elevation.assign_v_elevation(this.mesh, this.t_elevation, this.v_ocean); },
-        t_downslope_e: function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water).t_downslope_e; },
-        spring_t:      function() { let spring_t = Rivers.find_spring_t(this.mesh, this.v_water, this.t_elevation, this.t_downslope_e); random_shuffle(spring_t, makeRandInt(SEED)); return spring_t; },
-        river_t:       function() { return this.spring_t.slice(0, this.numRivers); },
-        e_flow:        function() { return Rivers.assign_e_flow(this.mesh, this.t_downslope_e, this.river_t, this.t_elevation); },
-        v_moisture:    function() { return Moisture.assign_v_moisture(this.mesh, this.v_ocean, Moisture.find_moisture_seeds_v(this.mesh, this.e_flow, this.v_ocean, this.v_water)); },
-        v_biome:       function() { return Biomes.assign_v_biome(this.mesh, this.v_ocean, this.v_water, this.v_elevation, this.v_moisture); }
-    },
+    computed: MapCalculations,
     methods: {
         addRivers:     function() { this.numRivers += 10; },
         reset:         function() { this.numRivers  = 0; }

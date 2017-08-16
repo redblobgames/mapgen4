@@ -79,7 +79,7 @@ I'm generating islands, so the boundary of the map will always be water. In the 
   <ol>
     <li>Use noise to determine <span class="hover-term" v-on:mouseover="show='landwater'">land vs. water</span>.</li>
     <li>Use <span class="hover-term" v-on:mouseover="show='connectivity'">connectivity</span> to determine which water polygons are ocean.</li>
-    <li><span class="hover-term" v-on:mouseover="show='lakes'">Lakes</span> are the water polygons not connected to the boundary of the map. <em v-if="counts.lake === 0">Try changing the parameters until lakes form.</em></li>
+    <li><span class="hover-term" v-on:mouseover="show='lakes'">Lakes</span> are the water polygons not connected to the boundary of the map. <em v-if="lakecount === 0">Try changing the parameters until lakes form.</em></li>
     <li><span class="hover-term" v-on:mouseover="show=null">Coastlines</span> are the edges connected to an ocean polygon on one side and a land polygon on the other.</li>
   </ol>
 </div>
