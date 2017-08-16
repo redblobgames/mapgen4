@@ -80,7 +80,7 @@ I'm generating islands, so the boundary of the map will always be water. In the 
     <li>Use noise to determine <span class="hover-term" v-on:mouseover="show='landwater'">land vs. water</span>.</li>
     <li>Use <span class="hover-term" v-on:mouseover="show='connectivity'">connectivity</span> to determine which water polygons are ocean.</li>
     <li><span class="hover-term" v-on:mouseover="show='lakes'">Lakes</span> are the water polygons not connected to the boundary of the map. <em v-if="counts.lake === 0">Try changing the parameters until lakes form.</em></li>
-    <li>Define <span class="hover-term" v-on:mouseover="show=null">coastlines</span> to be edges connected to an ocean polygon on one side and a land polygon on the other.</li>
+    <li><span class="hover-term" v-on:mouseover="show=null">Coastlines</span> are the edges connected to an ocean polygon on one side and a land polygon on the other.</li>
   </ol>
 </div>
 #+end_export
@@ -122,13 +122,11 @@ If we have a desired distribution of elevations, we can reshape the distribution
 
 * Rivers
 
-At each corner, I point to the corner that has the lowest elevation. This forms a drainage map, sometimes called a watershed map. Note that it follows some basic rules of rivers:
+At each corner, I point to the corner that has the lowest elevation. This forms a drainage map, sometimes called a watershed map.
 
+1. Rivers start on land and flow down to the coastline.
 1. Rivers join together (tributaries) but don't fork (distributaries).
-2. Rivers eventually reach the ocean.
-3. There are no cycles.
-
-The algorithm I'm using here produces poor results in the oceans. That's ok for now; I'm not using the values in the ocean in this project.
+1. There are no cycles.
 
 #+begin_export html
 <div id="diagram-drainage-assignment">
@@ -144,6 +142,8 @@ The algorithm I'm using here produces poor results in the oceans. That's ok for 
 #+end_export
 
 Rivers follow the drainage map, but for this project, not all drainage channels become rivers. I pick them randomly.
+
+{ implementation: because elevations are based on distances, there are /many/ possible downslope graphs for the same elevations, and which one we calculate depends a lot on the graph traversal order, ick }
 
 ** TODO Watersheds
 

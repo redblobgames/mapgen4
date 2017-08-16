@@ -404,7 +404,7 @@ new Vue({
         v_ocean:       function() { return Water.assign_v_ocean(this.mesh, this.v_water); },
         t_elevation:   function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water).t_elevation; },
         v_elevation:   function() { return Elevation.assign_v_elevation(this.mesh, this.t_elevation, this.v_ocean); },
-        t_downslope_e: function() { return Rivers.assign_t_downslope_e(this.mesh, this.t_elevation); },
+        t_downslope_e: function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water).t_downslope_e; },
         spring_t:      function() { let spring_t = Rivers.find_spring_t(this.mesh, this.t_elevation, this.t_downslope_e); random_shuffle(spring_t, makeRandInt(SEED)); return spring_t; },
         river_t:       function() { return this.spring_t.slice(0, this.numRivers); },
         e_flow:        function() { return Rivers.assign_e_flow(this.mesh, this.t_downslope_e, this.river_t, this.t_elevation); }
@@ -427,12 +427,12 @@ new Vue({
             function drawDrainage(ctx, mesh) {
                 const alpha = 1.0;
                 ctx.globalAlpha = river_t.length > 0? 0.2 : 1.0;
-                ctx.lineWidth = 4.0;
+                ctx.fillStyle = "hsl(230,50%,50%)";
+                ctx.lineWidth = 30.0;
                 for (let t1 = 0; t1 < mesh.numSolidTriangles; t1++) {
                     let e = t_downslope_e[t1];
-                    ctx.fillStyle = v_ocean[mesh.e_begin_v(e)] ? "black" : "hsl(230,50%,50%)";
+                    if (v_ocean[mesh.e_begin_v(e)]) { continue; }
                     let t2 = e === -1? t1 : mesh.e_outer_t(e);
-                    ctx.beginPath();
                     if (t1 !== t2) {
                         drawArrow(ctx, mesh.centers[t1], mesh.centers[t2]);
                     }
@@ -464,7 +464,7 @@ new Vue({
         v_ocean:       function() { return Water.assign_v_ocean(this.mesh, this.v_water); },
         t_elevation:   function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water).t_elevation; },
         v_elevation:   function() { return Elevation.assign_v_elevation(this.mesh, this.t_elevation, this.v_ocean); },
-        t_downslope_e: function() { return Rivers.assign_t_downslope_e(this.mesh, this.t_elevation); },
+        t_downslope_e: function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water).t_downslope_e; },
         spring_t:      function() { let spring_t = Rivers.find_spring_t(this.mesh, this.t_elevation, this.t_downslope_e); random_shuffle(spring_t, makeRandInt(SEED)); return spring_t; },
         river_t:       function() { return this.spring_t.slice(0, this.numRivers); },
         e_flow:        function() { return Rivers.assign_e_flow(this.mesh, this.t_downslope_e, this.river_t, this.t_elevation); },
@@ -513,7 +513,7 @@ new Vue({
         v_ocean:       function() { return Water.assign_v_ocean(this.mesh, this.v_water); },
         t_elevation:   function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water).t_elevation; },
         v_elevation:   function() { return Elevation.assign_v_elevation(this.mesh, this.t_elevation, this.v_ocean); },
-        t_downslope_e: function() { return Rivers.assign_t_downslope_e(this.mesh, this.t_elevation); },
+        t_downslope_e: function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water).t_downslope_e; },
         spring_t:      function() { let spring_t = Rivers.find_spring_t(this.mesh, this.t_elevation, this.t_downslope_e); random_shuffle(spring_t, makeRandInt(SEED)); return spring_t; },
         river_t:       function() { return this.spring_t.slice(0, this.numRivers); },
         e_flow:        function() { return Rivers.assign_e_flow(this.mesh, this.t_downslope_e, this.river_t, this.t_elevation); },

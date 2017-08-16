@@ -6,24 +6,6 @@
 
 const MIN_SPRING_ELEVATION = 0.05;
 
-exports.assign_t_downslope_e = function(mesh, t_elevation) {
-    let t_downslope_e = new Array(mesh.numTriangles);
-    let e_out = [];
-    for (let t = 0; t < mesh.numTriangles; t++) {
-        mesh.t_circulate_e(e_out, t);
-        let lowest_e = -1;
-        let bestElevation = t_elevation[t];
-        for (let e of e_out) {
-            if (t_elevation[mesh.e_outer_t(e)] < bestElevation) {
-                lowest_e = e;
-            }
-        }
-        t_downslope_e[t] = lowest_e;
-    }
-    return t_downslope_e;
-};
-
-
 exports.find_spring_t = function(mesh, t_elevation, t_downslope_e) {
     let spring_t = new Set();
     // Add everything above some elevation
