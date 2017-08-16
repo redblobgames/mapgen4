@@ -3,7 +3,6 @@
 // License: Apache v2.0 <http://www.apache.org/licenses/LICENSE-2.0.html>
 
 'use strict';
-const TriangleMesh = require('@redblobgames/triangle-mesh');
 
 const MIN_SPRING_ELEVATION = 0.05;
 
@@ -15,7 +14,7 @@ exports.assign_t_downslope_e = function(mesh, t_elevation) {
         let lowest_e = -1;
         let bestElevation = t_elevation[t];
         for (let e of e_out) {
-            if (t_elevation[TriangleMesh.e_to_t(mesh.opposites[e])] < bestElevation) {
+            if (t_elevation[mesh.e_outer_t(e)] < bestElevation) {
                 lowest_e = e;
             }
         }
@@ -35,7 +34,7 @@ exports.find_spring_t = function(mesh, t_elevation, t_downslope_e) {
     }
     // and then remove everything that's not a leaf in the drainage tree
     for (let t = 0; t < mesh.numSolidTriangles; t++) {
-        spring_t.delete(TriangleMesh.e_to_t(mesh.opposites[t_downslope_e[t]]));
+        spring_t.delete(mesh.e_outer_t(t_downslope_e[t]));
     }
     return Array.from(spring_t);
 };
@@ -61,7 +60,7 @@ exports.assign_e_flow = function(mesh, t_downslope_e, river_t) {
             let e = t_downslope_e[t];
             if (e === -1) { break; }
             e_flow[e]++;
-            let next_t = TriangleMesh.e_to_t(mesh.opposites[e]);
+            let next_t = mesh.e_outer_t(e);
             if (next_t === t) { break; }
             t = next_t;
         }

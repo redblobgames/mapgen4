@@ -3,14 +3,13 @@
 // License: Apache v2.0 <http://www.apache.org/licenses/LICENSE-2.0.html>
 
 'use strict';
-const TriangleMesh = require('@redblobgames/triangle-mesh');
 
 exports.find_coasts_t = function(mesh, v_ocean) {
     let coasts_t = [];
     for (let e = 0; e < mesh.numEdges; e++) {
         let v0 = mesh.e_begin_v(e);
         let v1 = mesh.e_end_v(e);
-        let t = TriangleMesh.e_to_t(e);
+        let t = mesh.e_inner_t(e);
         if (v_ocean[v0] && !v_ocean[v1]) {
             // It might seem that we also need to check !v_ocean[v0] && v_ocean[v1]
             // and it might seem that we have to add both t and its opposite but

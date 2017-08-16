@@ -95,8 +95,8 @@ layers.polygonEdges = (style) => (ctx, mesh) => {
     for (let e = 0; e < mesh.numEdges; e++) {
         let v0 = mesh.e_begin_v(e);
         let v1 = mesh.e_end_v(e);
-        let t0 = TriangleMesh.e_to_t(e);
-        let t1 = TriangleMesh.e_to_t(mesh.opposites[e]);
+        let t0 = mesh.e_inner_t(e);
+        let t1 = mesh.e_outer_t(e);
         if (t0 > t1) {
             ctx.beginPath();
             ctx.moveTo(mesh.centers[t0][0], mesh.centers[t0][1]);
@@ -111,8 +111,8 @@ layers.polygonEdgesColored = (style, coloring) => (ctx, mesh) => {
     for (let e = 0; e < mesh.numEdges; e++) {
         let v0 = mesh.e_begin_v(e);
         let v1 = mesh.e_end_v(e);
-        let t0 = TriangleMesh.e_to_t(e);
-        let t1 = TriangleMesh.e_to_t(mesh.opposites[e]);
+        let t0 = mesh.e_inner_t(e);
+        let t1 = mesh.e_outer_t(e);
         if (t0 > t1) {
             let color = coloring(e, v0, v1, t0, t1);
             if (color) {
@@ -201,8 +201,8 @@ layers.drawRivers = (style, e_flow) => (ctx, mesh) => {
             ctx.lineWidth = baseLineWidth * Math.sqrt(e_flow[e]);
             let v0 = mesh.e_begin_v(e);
             let v1 = mesh.e_end_v(e);
-            let t0 = TriangleMesh.e_to_t(e);
-            let t1 = TriangleMesh.e_to_t(mesh.opposites[e]);
+            let t0 = mesh.e_inner_t(e);
+            let t1 = mesh.e_outer_t(e);
             ctx.beginPath();
             ctx.moveTo(mesh.centers[t0][0], mesh.centers[t0][1]);
             ctx.lineTo(mesh.centers[t1][0], mesh.centers[t1][1]);
@@ -367,8 +367,8 @@ new Vue({
                 layers.polygonEdgesColored({lineWidth: 1.5}, (_, v0, v1) => v_ocean[v0] !== v_ocean[v1]? "black" : null),
                 layers.triangleEdgesColored(
                     {globalAlpha: 0.3}, (e) => {
-                        let t0 = TriangleMesh.e_to_t(e);
-                        let t1 = TriangleMesh.e_to_t(mesh.opposites[e]);
+                        let t0 = mesh.e_inner_t(e);
+                        let t1 = mesh.e_outer_t(e);
                         return (Math.round(3*t_elevation[t0]) != Math.round(3*t_elevation[t1]))? "black" : null;
                     }
                 ),
@@ -431,7 +431,7 @@ new Vue({
                 for (let t1 = 0; t1 < mesh.numSolidTriangles; t1++) {
                     let e = t_downslope_e[t1];
                     ctx.fillStyle = v_ocean[mesh.e_begin_v(e)] ? "black" : "hsl(230,50%,50%)";
-                    let t2 = e === -1? t1 : TriangleMesh.e_to_t(mesh.opposites[e]);
+                    let t2 = e === -1? t1 : mesh.e_outer_t(e);
                     ctx.beginPath();
                     if (t1 !== t2) {
                         drawArrow(ctx, mesh.centers[t1], mesh.centers[t2]);
