@@ -275,13 +275,14 @@ let MapCalculations = {
     e_flow:          function() { return Rivers.assign_e_flow(this.mesh, this.t_downslope_e, this.river_t, this.t_elevation); },
     v_moisture:      function() { return Moisture.assign_v_moisture(this.mesh, this.v_ocean, Moisture.find_moisture_seeds_v(this.mesh, this.e_flow, this.v_ocean, this.v_water)); },
     v_biome:         function() { return Biomes.assign_v_biome(this.mesh, this.v_ocean, this.v_water, this.v_elevation, this.v_moisture); },
-    lakecount:       function() {
+    
+    lakecount: function() {
         let count = 0;
         for (let v = 0; v < this.mesh.numVertices; v++) {
             if (this.v_water[v] && !this.v_ocean[v]) { count++; }
         }
         return count;
-    }
+    },
 };
 
 
@@ -535,5 +536,32 @@ new Vue({
                 layers.drawRivers({lineWidth: 0.5}, e_flow),
             ]);
         }
+    }
+});
+
+
+new Vue({
+    el: "#map-export",
+    data: {
+        mesh: Object.freeze(mesh_75),
+        output: "",
+    },
+    computed: MapCalculations,
+    methods: {
+        calculate: function() {
+            let mesh = this.mesh;
+            let t_points = mesh.centers.map((p) => p.map(Math.round));
+            let v_points = mesh.vertices.map((p) => p.map(Math.round));
+            let v_biomes = this.v_biome;
+            let t_triangles_v = [];
+            let v_polygons_t = [];
+            for (let t = 0; t < mesh.numSolidTriangles; t++) {
+                t_triangles_v.push(mesh.t_circulate_v([], t));
+            }
+            for (let v = 0; v < mesh.numSolidVertices; v++) {
+                v_polygons_t.push(mesh.v_circulate_t([], v));
+            }
+            this.output = JSON.stringify({v_biomes, t_triangles_v, v_polygons_t, t_points, v_points}, null, " ");
+        },
     }
 });

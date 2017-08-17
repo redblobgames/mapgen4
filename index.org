@@ -147,7 +147,7 @@ At each corner, I point to the corner that has the lowest elevation. This forms 
 
 Rivers follow the drainage map, but for this project, not all drainage channels become rivers. I pick them randomly.
 
-{ implementation: because elevations are based on distances, there are /many/ possible downslope graphs for the same elevations, and which one we calculate depends a lot on the graph traversal order, ick }
+{ implementation: because elevations are based on distances, there are /many/ possible downslope graphs for the same elevations, and which one we calculate depends a lot on the graph traversal order, ick -- this needs to be part of the random seed, maybe using noise or some location based hash }
 
 ** Lakes
 
@@ -196,7 +196,7 @@ If we have a desired distribution of moisture, we can reshape the distribution. 
 
 * Biomes
 
-(explanation about whittaker diagrams)
+(explanation about whittaker diagrams, indexed with temperature and rainfall -- temperature is based on elevation and latitude, but on a small island the latitude is constant; rainfall is based on evaporation and wind but I'm just using moisture=evaporation here)
 
 #+begin_export html
 <div id="diagram-biome-assignment">
@@ -215,6 +215,16 @@ If we have a desired distribution of moisture, we can reshape the distribution. 
 { show the distribution }
 
 See also http://worldengine-ecs.readthedocs.io/en/latest/biomes.html -- it seems useful to draw the scatter plot or a density plot, and then provide parameters for tuning that to make an ice world or a forest world etc.
+
+* Export
+
+#+begin_export html
+<div id="map-export">
+  <textarea style="width: 100%; height: 10em; border: 3px solid #ccc; padding: 5px; font-family: monospace; overflow: scroll" onclick="this.setSelectionRange(0, this.value.length)" v-model="output"/>
+  <button v-on:click="calculate">Export</button>
+</div>
+#+end_export
+
 
 * Noisy rendering
 
@@ -243,6 +253,6 @@ http://www.giantitp.com/articles/xO3dVM8EDKJPlKxmVoG.html
     <script src="_bundle.js"/>
 
     Created 3 Aug 2017 with <a href="https://vue.org/">Vue.js</a> and Emacs org-mode (<a href="index.org">source of this page</a>); &#160;
-    <!-- hhmts start -->Last modified: 16 Aug 2017<!-- hhmts end -->
+    <!-- hhmts start -->Last modified: 17 Aug 2017<!-- hhmts end -->
   </x:footer>
 #+end_export
