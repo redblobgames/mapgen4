@@ -285,7 +285,7 @@ let MapCalculations = {
     spring_t:        function() { return random_shuffle(Rivers.find_spring_t(this.mesh, this.v_water, this.t_elevation, this.t_downslope_e), makeRandInt(fallback(this.riverSeed, SEED))); },
     river_t:         function() { return this.spring_t.slice(0, fallback(this.numRivers, 5)); },
     e_flow:          function() { return Rivers.assign_e_flow(this.mesh, this.t_downslope_e, this.river_t, this.t_elevation); },
-    v_moisture:      function() { return Moisture.assign_v_moisture(this.mesh, this.v_ocean, Moisture.find_moisture_seeds_v(this.mesh, this.e_flow, this.v_ocean, this.v_water)); },
+    v_moisture:      function() { return Moisture.assign_v_moisture(this.mesh, this.v_water, Moisture.find_moisture_seeds_v(this.mesh, this.e_flow, this.v_ocean, this.v_water)); },
     v_biome:         function() { return Biomes.assign_v_biome(this.mesh, this.v_ocean, this.v_water, this.v_elevation, this.v_moisture); },
     
     lakecount: function() {

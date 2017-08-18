@@ -202,7 +202,7 @@ Not all locations produce equally good rivers. Some filters to consider:
 
 * Moisture
 
-I use a “moisture” value to assign biomes in the next section. I set moisture to the /distance/ from a lake or river. The start points are lake polygons and the the polygons adjacent to a river. Similar to elevation, I use Breadth First Search to calculate the distances, then rescale them. Zero distance will have moisture 1.0 and high distance will have moisture 0.0.
+I use a “moisture” value to assign biomes in the next section. I set moisture on land to the /distance/ from a lakeshore or riverbank. The start points are polygons adjacent to lakes or rivers. Similar to elevation, I use Breadth First Search to calculate the distances, then rescale them. Zero distance will have moisture 1.0 and high distance will have moisture 0.0. Water polygons will have moisture 1.0.
 
 #+begin_export html
 <div id="diagram-moisture-assignment">
@@ -216,7 +216,7 @@ I use a “moisture” value to assign biomes in the next section. I set moistur
 </div>
 #+end_export
 
-There are many other ways to assign moisture/humidity/rainfall. I used this one because it was simple and worked well for the game these maps were for. Consider instead using noise (Perlin, Simplex, etc.) or wind simulation (rain shadows, evapotranspiration, etc.).
+There are many other ways to assign moisture/humidity/rainfall. I used this one (based on groundwater) because it was simple and worked well for the game these maps were for. It's unable to produce effects like the Nile going through a desert. Other ways to assign moisture include noise (Perlin, Simplex, etc.) and wind simulation (rain shadows, evapotranspiration, etc.).
 
 ** TODO Controlling the distribution
 
