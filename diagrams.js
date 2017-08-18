@@ -6,7 +6,7 @@
 
 'use strict';
 
-const SEED = 123456789;
+const SEED = 123456788;
 const TriangleMesh = require('@redblobgames/triangle-mesh');
 const createMesh =   require('@redblobgames/triangle-mesh/create');
 const SimplexNoise = require('simplex-noise');
@@ -193,6 +193,18 @@ layers.polygonColors = (style, coloring) => (ctx, mesh) => {
     }
 };
 
+layers.drawDrainage = (style, v_ocean, t_downslope_e) => (ctx, mesh) => {
+    setCanvasStyle(ctx, style, {fillStyle: "hsl(230,50%,50%)", lineWidth: 30});
+    for (let t1 = 0; t1 < mesh.numSolidTriangles; t1++) {
+        let e = t_downslope_e[t1];
+        if (e !== -1 && v_ocean[mesh.e_begin_v(e)]) { continue; }
+        let t2 = e === -1? t1 : mesh.e_outer_t(e);
+        if (t1 !== t2) {
+            drawArrow(ctx, mesh.centers[t1], mesh.centers[t2]);
+        }
+    }
+};
+    
 layers.drawRivers = (style, e_flow) => (ctx, mesh) => {
     setCanvasStyle(ctx, {}, {lineWidth: 2.5, strokeStyle: "hsl(230,50%,50%)"});
     let baseLineWidth = ctx.lineWidth;
@@ -265,12 +277,12 @@ function createCircumcenterMesh(mesh, mixture) {
 let MapCalculations = {
     v_water:         function() { return Water.assign_v_water(this.mesh, noise, {round: fallback(this.round, 0.5), inflate: fallback(this.inflate, 0.5)}); },
     v_ocean:         function() { return Water.assign_v_ocean(this.mesh, this.v_water); },
-    elevationdata:   function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water); },
+    elevationdata:   function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water, makeRandInt(fallback(this.drainageSeed, SEED))); },
     t_coastdistance: function() { return this.elevationdata.t_distance; },
     t_elevation:     function() { return this.elevationdata.t_elevation; },
     t_downslope_e:   function() { return this.elevationdata.t_downslope_e; },
     v_elevation:     function() { return Elevation.assign_v_elevation(this.mesh, this.t_elevation, this.v_ocean); },
-    spring_t:        function() { return random_shuffle(Rivers.find_spring_t(this.mesh, this.v_water, this.t_elevation, this.t_downslope_e), makeRandInt(SEED)); },
+    spring_t:        function() { return random_shuffle(Rivers.find_spring_t(this.mesh, this.v_water, this.t_elevation, this.t_downslope_e), makeRandInt(fallback(this.riverSeed, SEED))); },
     river_t:         function() { return this.spring_t.slice(0, fallback(this.numRivers, 5)); },
     e_flow:          function() { return Rivers.assign_e_flow(this.mesh, this.t_downslope_e, this.river_t, this.t_elevation); },
     v_moisture:      function() { return Moisture.assign_v_moisture(this.mesh, this.v_ocean, Moisture.find_moisture_seeds_v(this.mesh, this.e_flow, this.v_ocean, this.v_water)); },
@@ -402,13 +414,11 @@ new Vue({
     el: "#diagram-drainage-assignment",
     data: {
         mesh: Object.freeze(mesh_30),
-        numRivers: 0
+        drainageSeed: 1,
     },
     computed: MapCalculations,
     methods: {
-        addRiver:      function() { this.numRivers++; },
-        addRiver25:    function() { this.numRivers += 25; },
-        reset:         function() { this.numRivers = 0; }
+        changeDrainageSeed: function() { this.drainageSeed = makeRandInt(this.drainageSeed)(100000); },
     },
     directives: {
         draw: function(canvas, {value: {mesh, v_water, v_ocean, v_elevation, t_downslope_e, river_t, e_flow}}) {
@@ -422,28 +432,46 @@ new Vue({
                 }
             }
             
-            function drawDrainage(ctx, mesh) {
-                const alpha = 1.0;
-                ctx.globalAlpha = river_t.length > 0? 0.2 : 1.0;
-                ctx.fillStyle = "hsl(230,50%,50%)";
-                ctx.lineWidth = 30.0;
-                for (let t1 = 0; t1 < mesh.numSolidTriangles; t1++) {
-                    let e = t_downslope_e[t1];
-                    if (e !== -1 && v_ocean[mesh.e_begin_v(e)]) { continue; }
-                    let t2 = e === -1? t1 : mesh.e_outer_t(e);
-                    if (t1 !== t2) {
-                        drawArrow(ctx, mesh.centers[t1], mesh.centers[t2]);
-                    }
-                }
-                ctx.globalAlpha = 1.0;
-            }
-            
-            let config = null;
             diagram(canvas, mesh, {}, [
                 layers.polygonColors({}, polygonColoring),
-                drawDrainage,
+                layers.drawDrainage({}, v_ocean, t_downslope_e),
+                layers.polygonEdgesColored({lineWidth: 2.0}, (_, v0, v1) => v_ocean[v0] !== v_ocean[v1]? "black" : null),
+            ]);
+        }
+    }
+});
+
+
+new Vue({
+    el: "#diagram-rivers",
+    data: {
+        mesh: Object.freeze(mesh_30),
+        numRivers: 5,
+        riverSeed: 1,
+    },
+    computed: MapCalculations,
+    methods: {
+        addRivers:       function() { this.numRivers += 10; },
+        reset:           function() { this.numRivers = 0; },
+        changeRiverSeed: function() { this.riverSeed = makeRandInt(this.riverSeed)(100000); },
+    },
+    directives: {
+        draw: function(canvas, {value: {mesh, v_water, v_ocean, v_elevation, t_downslope_e, spring_t, river_t, e_flow}}) {
+            function polygonColoring(v) {
+                if (v_ocean[v]) {
+                    return `hsl(230,25%,${50+30*v_elevation[v]}%)`;
+                } else if (v_water[v]) {
+                    return `hsl(230,${15-10*v_elevation[v]}%,${60+30*v_elevation[v]}%)`;
+                } else {
+                    return `hsl(30,${25-10*v_elevation[v]}%,${50+50*v_elevation[v]}%)`;
+                }
+            }
+            
+            diagram(canvas, mesh, {}, [
+                layers.polygonColors({}, polygonColoring),
+                layers.drawDrainage({globalAlpha: 0.2}, v_ocean, t_downslope_e),
                 layers.drawRivers({}, e_flow),
-                layers.drawSprings({}, river_t),
+                layers.drawSprings({}, spring_t),
                 layers.polygonEdgesColored({lineWidth: 2.0}, (_, v0, v1) => v_ocean[v0] !== v_ocean[v1]? "black" : null),
             ]);
         }

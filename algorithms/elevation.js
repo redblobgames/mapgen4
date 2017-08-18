@@ -36,7 +36,7 @@ exports.find_coasts_t = function(mesh, v_ocean) {
  *    was reached with distance 2 and another with distance 3, and we need
  *    to revisit that node and make sure it's set to 2.
  */
-exports.assign_t_elevation = function(mesh, v_ocean, v_water) {
+exports.assign_t_elevation = function(mesh, v_ocean, v_water, randInt) {
     const t_ocean = (t) => v_ocean[mesh.e_begin_v(3*t)];
     const v_lake = (v) => v_water[v] && !v_ocean[v];
     const e_lake = (e) => v_lake(mesh.e_begin_v(e)) || v_lake(mesh.e_end_v(e));
@@ -51,7 +51,9 @@ exports.assign_t_elevation = function(mesh, v_ocean, v_water) {
     while (queue_t.length > 0) {
         let current_t = queue_t.shift();
         mesh.t_circulate_e(out_e, current_t);
-        for (let e of out_e) {
+        let iOffset = randInt(out_e.length);
+        for (let i = 0; i < out_e.length; i++) {
+            let e = out_e[(i + iOffset) % out_e.length];
             let lake = e_lake(e);
             let neighbor_t = mesh.e_outer_t(e);
             let newDistance = (lake? 0 : 1) + t_distance[current_t];
