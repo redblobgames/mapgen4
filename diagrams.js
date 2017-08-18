@@ -550,9 +550,10 @@ new Vue({
     methods: {
         calculate: function() {
             let mesh = this.mesh;
-            let t_points = mesh.centers.map((p) => p.map(Math.round));
-            let v_points = mesh.vertices.map((p) => p.map(Math.round));
+            let t_points = mesh.centers.map((p, t) => [Math.round(p[0]), Math.round(p[1]), this.t_elevation[t]]);
+            let v_points = mesh.vertices.map((p, v) => [Math.round(p[0]), Math.round(p[1]), this.v_elevation[v]]);
             let v_biomes = this.v_biome;
+            let v_moisture = this.v_moisture;
             let t_triangles_v = [];
             let v_polygons_t = [];
             for (let t = 0; t < mesh.numSolidTriangles; t++) {
@@ -561,7 +562,7 @@ new Vue({
             for (let v = 0; v < mesh.numSolidVertices; v++) {
                 v_polygons_t.push(mesh.v_circulate_t([], v));
             }
-            this.output = JSON.stringify({v_biomes, t_triangles_v, v_polygons_t, t_points, v_points}, null, " ");
+            this.output = JSON.stringify({v_biomes, t_triangles_v, v_polygons_t, t_points, v_points, v_moisture}, null, " ");
         },
     }
 });
