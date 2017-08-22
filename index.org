@@ -44,7 +44,7 @@ There are four steps to constructing the polygon mesh we need:
     <li>Construct <span class="hover-term" data-show="polygons">polygons from those points</span>.</li>
   </ol>
   <p>
-  Putting it all together, I have a <span class="hover-term" data-show="all">dual mesh</span>. The same steps work for Voronoi instead of centroid polygons; compare: Centroid&nbsp;<input name="centroidCircumcenterMix" type="range" min="0" max="1" step="0.01" value="0.0"/>&nbsp;Voronoi.
+  Putting it all together, I have a <span class="hover-term" data-show="all">dual mesh</span>. The same steps work for Voronoi instead of centroid polygons; compare: Centroid&nbsp;<input name="centroidCircumcenterMix" type="range" min="0" max="1" step="0.01"/>&nbsp;Voronoi.
   </p>
 </div>
 #+end_export
@@ -68,22 +68,19 @@ I'm generating islands, so the boundary of the map will always be water. In the 
 #+begin_export html
 <div id="diagram-water-assignment">
   <figure>
-    <figcaption v-if="show==='landwater'">Choose polygons that are water vs land</figcaption>
-    <figcaption v-else-if="show==='connectivity'">Connectivity from the boundary identifies oceans vs lakes</figcaption>
-    <figcaption v-else-if="show==='lakes'">Lakes are water polygons not connected to the boundary</figcaption>
-    <figcaption v-else="">Coastline separates oceans from land</figcaption>
-    <canvas width="600" height="600" v-draw="{mesh,show,v_water,v_ocean}"/>
-    parameters: noisy<input type="range" min="0" max="1" step="0.01" v-model.number="round"/>round ;  
-    deflate<input type="range" min="0" max="1" step="0.01" v-model.number="inflate"/>inflate
+    <figcaption>Water, ocean, lake, coastlines</figcaption>
+    <canvas width="600" height="600"/>
+    parameters: noisy<input name="round" type="range" min="0" max="1" step="0.01"/>round ;  
+    deflate<input name="inflate" type="range" min="0" max="1" step="0.01"/>inflate
   </figure>
   <p>
     There are two things we need once we've assigned water vs land:
   </p>
   <ol>
-    <li>Use noise to determine <span class="hover-term" v-on:mouseover="show='landwater'">land vs. water</span>.</li>
-    <li>Use <span class="hover-term" v-on:mouseover="show='connectivity'">connectivity</span> to determine which water polygons are ocean.</li>
-    <li><span class="hover-term" v-on:mouseover="show='lakes'">Lakes</span> are the water polygons not connected to the boundary of the map. <em v-if="lakecount === 0">Try changing the parameters until lakes form.</em></li>
-    <li><span class="hover-term" v-on:mouseover="show=null">Coastlines</span> are the edges connected to an ocean polygon on one side and a land polygon on the other.</li>
+    <li>Use noise to determine <span class="hover-term" data-show="landwater">land vs. water</span>.</li>
+    <li>Use <span class="hover-term" data-show="connectivity">connectivity</span> to determine which water polygons are ocean.</li>
+    <li><span class="hover-term" data-show="lakes">Lakes</span> are the water polygons not connected to the boundary of the map.</li>
+    <li><span class="hover-term" data-show="all">Coastlines</span> are the edges connected to an ocean polygon on one side and a land polygon on the other.</li>
   </ol>
 </div>
 #+end_export
@@ -92,6 +89,16 @@ I'm generating islands, so the boundary of the map will always be water. In the 
 
 { implementation notes could include the noise function -- maybe the noisy/deflate parameters could move to a separate diagram to avoid having to explain the lack of lakes in the main list; connectivity is depth first or breadth first search }
 
+** TODO Noise map
+
+- Display the noise values and the land/water map side by side
+- Control noisy/deflate parameters here
+- Control octaves/etc parameters here
+
+** TODO Lakes
+
+- Highlight some lakes on the map using my svg arrow-out-of-the-box; it doesn't have to be a separate diagram
+
 * Elevation
 
 For this project I set elevation based on the /distance from the coast/. It's not the right choice for most maps, but it was the right thing for the project I made this for. To calculate it, I'll run Breadth First Search from the coastline. I tried distances on the polygons and distances on the corners, and I found corners worked better for this map generator. 
@@ -99,16 +106,14 @@ For this project I set elevation based on the /distance from the coast/. It's no
 #+begin_export html
 <div id="diagram-elevation-assignment">
   <figure>
-    <figcaption v-if="show==='coast_t'">Coastline</figcaption>
-    <figcaption v-else-if="show==='v_elevation'">Distance from coastline, corners</figcaption>
-    <figcaption v-else="">Distance from coastline, polygons</figcaption>
-    <canvas width="600" height="600" v-draw="{show,mesh,v_water,v_ocean,t_elevation,t_coastdistance,v_elevation}"/>
+    <figcaption>Elevation</figcaption>
+    <canvas width="600" height="600"/>
   </figure>
   <ol>
-    <li>Find <span class="hover-term" v-on:mouseover="show='coast_t'">corners along coastline edges</span>. As above, coastline edges have an ocean on one side and land on the other side.</li>
-    <li>Calculate corner <span class="hover-term" v-on:mouseover="show='t_coastdistance'">distance from the coastline</span> using Breadth First Search.</li>
-    <li>Set <span class="hover-term" v-on:mouseover="show='t_elevation'">corner elevation</span> by rescaling ocean distances from -1 to 0 and land distances from 0 to +1.</li>
-    <li>Set the <span class="hover-term" v-on:mouseover="show=null">polygon elevation</span> to the average elevation of the polygon's corners.</li>
+    <li>Find <span class="hover-term" data-show="coast_t">corners along coastline edges</span>. As above, coastline edges have an ocean on one side and land on the other side.</li>
+    <li>Calculate corner <span class="hover-term" data-show="t_coastdistance">distance from the coastline</span> using Breadth First Search.</li>
+    <li>Set <span class="hover-term" data-show="t_elevation">corner elevation</span> by rescaling ocean distances from -1 to 0 and land distances from 0 to +1.</li>
+    <li>Set the <span class="hover-term" data-show="all">polygon elevation</span> to the average elevation of the polygon's corners.</li>
   </ol>
 </div>
 #+end_export
@@ -141,7 +146,7 @@ At each corner, I point to the corner that has the lowest elevation. This forms 
 <div id="diagram-drainage-assignment">
   <figure>
     <figcaption>Drainage patterns</figcaption>
-    <canvas width="600" height="600" v-draw="{mesh,v_water,v_ocean,v_elevation,t_downslope_e,river_t,e_flow}"/>
+    <canvas width="600" height="600"/>
   </figure>
   <p>
     Because elevations are based on distances, there are <em>many</em>
@@ -149,7 +154,7 @@ At each corner, I point to the corner that has the lowest elevation. This forms 
     calculate depends on the graph traversal order. This is an opportunity
     to use a random seed to choose which of the many drainage graphs
     we generate:
-    <button v-on:click="changeDrainageSeed">Change random seed</button>
+    <button name="changeDrainageSeed">Change random seed</button>
   </p>
 </div>
 #+end_export
@@ -167,18 +172,21 @@ Drainage can also be used to define watersheds, which can be useful as political
 
 * Rivers
 
-Rivers follow the drainage map, but for this project, not all drainage streams become rivers. I pick them randomly.
+Rivers are a subset of the streams in the drainage map.
+
+1. Choose a subset of points to be potential river sources. {constraint}
+2. Choose a subset of those points to be rivers. {random}
 
 #+begin_export html
 <div id="diagram-rivers">
   <figure>
     <figcaption>River creation</figcaption>
-    <canvas width="600" height="600" v-draw="{mesh,v_water,v_ocean,v_elevation,t_downslope_e,spring_t,river_t,e_flow}"/>
+    <canvas width="600" height="600"/>
   </figure>
-  <button v-on:click="reset">Reset</button>
-  <input type="range" min="0" :max="spring_t.length" v-model.number="numRivers"/> rivers
-  <button v-on:click="addRivers">Add rivers</button>
-  <button v-on:click="changeRiverSeed">Change random subset</button>
+  <button name="reset">Reset</button>
+  <input name="numRivers" type="range" min="0" max="1"/> rivers
+  <button name="addRivers">Add rivers</button>
+  <button name="changeRiverSeed">Change random subset</button>
 </div>
 #+end_export
 
@@ -194,6 +202,8 @@ Not all locations produce equally good rivers. Some filters to consider:
 5. Only locations with wind carrying moisture from bodies of water.
 6. Only land that's on a peak not a valley.
 
+{should this be an interactive diagram?}
+
 * Moisture
 
 I use a “moisture” value to assign biomes in the next section. I set moisture on land to the /distance/ from a lakeshore or riverbank. The start points are polygons adjacent to lakes or rivers. Similar to elevation, I use Breadth First Search to calculate the distances, then rescale them. Zero distance will have moisture 1.0 and high distance will have moisture 0.0. Water polygons will have moisture 1.0.
@@ -202,15 +212,15 @@ I use a “moisture” value to assign biomes in the next section. I set moistur
 <div id="diagram-moisture-assignment">
   <figure>
     <figcaption>Moisture</figcaption>
-    <canvas width="600" height="600" v-draw="{mesh,v_water,v_ocean,v_moisture,t_downslope_e,river_t,e_flow}"/>
+    <canvas width="600" height="600"/>
   </figure>
-  <button v-on:click="reset">Reset</button>
-  <input type="range" min="0" :max="spring_t.length" v-model.number="numRivers"/> rivers
-  <button v-on:click="addRivers">Add rivers</button>
+  <button name="reset">Reset</button>
+  <input name="numRivers" type="range" min="0" max="0"/> rivers
+  <button name="addRivers">Add rivers</button>
 </div>
 #+end_export
 
-There are many other ways to assign moisture/humidity/rainfall. I used this one (based on groundwater) because it was simple and worked well for the game these maps were for. It's unable to produce effects like the Nile going through a desert. Other ways to assign moisture include noise (Perlin, Simplex, etc.) and wind simulation (rain shadows, evapotranspiration, etc.).
+There are many other ways to assign moisture/humidity/rainfall. I used this one because it was simple and worked well for the game these maps were for. It's unable to produce effects like the Nile going through a desert. Other ways to assign moisture include noise (Perlin, Simplex, etc.) and wind simulation (rain shadows, evapotranspiration, etc.).
 
 ** TODO Controlling the distribution
 
@@ -226,13 +236,18 @@ If we have a desired distribution of moisture, we can reshape the distribution. 
 <div id="diagram-biome-assignment">
   <figure>
     <figcaption>Biomes</figcaption>
-    <canvas width="600" height="600" v-draw="{mesh,river_t,e_flow,v_biome}"/>
+    <canvas width="600" height="600"/>
   </figure>
-  <button v-on:click="reset">Reset</button>
-  <input type="range" min="0" :max="spring_t.length" v-model.number="numRivers"/> rivers
-  <button v-on:click="addRivers">Add rivers</button>
+  <button name="reset">Reset</button>
+  <input name="numRivers" type="range" min="0" :max="spring_t.length"/> rivers
+  <button name="addRivers">Add rivers</button>
 </div>
 #+end_export
+
+** TODO Noisy boundaries
+
+1. Add random number to elevation/moisture
+2. Add random noise to elevation/moisture
 
 ** TODO Controlling the distribution
 
@@ -244,8 +259,10 @@ See also http://worldengine-ecs.readthedocs.io/en/latest/biomes.html -- it seems
 
 #+begin_export html
 <div id="map-export">
-  <textarea style="width: 100%; height: 10em; border: 3px solid #ccc; padding: 5px; font-family: monospace; overflow: scroll" onclick="this.setSelectionRange(0, this.value.length)" v-model="output"/>
-  <button v-on:click="calculate">Export</button>
+  <textarea placeholder="JSON output here"
+            style="width: 100%; height: 10em; border: 3px solid #ccc; padding: 5px; font-family: monospace; overflow: scroll" 
+            onclick="this.setSelectionRange(0, this.value.length)"/>
+  <button name="export">Export</button>
 </div>
 #+end_export
 
@@ -272,11 +289,10 @@ http://www.giantitp.com/articles/xO3dVM8EDKJPlKxmVoG.html
 
 #+begin_export html
   <x:footer>
-    <script src="/js/vue.js"/>
     <script src="/js/prng.js"/>
     <script src="_bundle.js"/>
 
-    Created 3 Aug 2017 with <a href="https://vue.org/">Vue.js</a> and Emacs org-mode (<a href="index.org">source of this page</a>); &#160;
+    Created 3 Aug 2017 with Emacs org-mode (<a href="index.org">source of this page</a>); &#160;
     <!-- hhmts start -->Last modified: 22 Aug 2017<!-- hhmts end -->
   </x:footer>
 #+end_export

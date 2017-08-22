@@ -24,6 +24,30 @@ const mesh_30 = new TriangleMesh(createMesh(30.0, makeRandFloat(SEED)));
 const mesh_50 = new TriangleMesh(createMesh(50.0, makeRandFloat(SEED)));
 const mesh_75 = new TriangleMesh(createMesh(75.0, makeRandFloat(SEED)));
 
+const biomeColors = {
+    OCEAN: "#44447a",
+    COAST: "#33335a",
+    LAKESHORE: "#225588",
+    LAKE: "#336699",
+    RIVER: "#225588",
+    MARSH: "#2f6666",
+    ICE: "#99ffff",
+    BEACH: "#a09077",
+    SNOW: "#ffffff",
+    TUNDRA: "#bbbbaa",
+    BARE: "#888888",
+    SCORCHED: "#555555",
+    TAIGA: "#99aa77",
+    SHRUBLAND: "#889977",
+    TEMPERATE_DESERT: "#c9d29b",
+    TEMPERATE_RAIN_FOREST: "#448855",
+    TEMPERATE_DECIDUOUS_FOREST: "#679459",
+    GRASSLAND: "#88aa55",
+    SUBTROPICAL_DESERT: "#d2b98b",
+    TROPICAL_RAIN_FOREST: "#337755",
+    TROPICAL_SEASONAL_FOREST: "#559944",
+};
+
 function drawArrow(ctx, p, q) {
     const stemLength = 0.5;
     const headLength = 0.5;
@@ -274,109 +298,114 @@ function createCircumcenterMesh(mesh, mixture) {
 }
 
 
-/** Will get used for computed properties in Vue */
-let MapCalculations = {
-    v_water:         function() { return Water.assign_v_water(this.mesh, noise, {round: util.fallback(this.round, 0.5), inflate: util.fallback(this.inflate, 0.5)}); },
-    v_ocean:         function() { return Water.assign_v_ocean(this.mesh, this.v_water); },
-    elevationdata:   function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water, makeRandInt(util.fallback(this.drainageSeed, SEED))); },
-    t_coastdistance: function() { return this.elevationdata.t_distance; },
-    t_elevation:     function() { return this.elevationdata.t_elevation; },
-    t_downslope_e:   function() { return this.elevationdata.t_downslope_e; },
-    v_elevation:     function() { return Elevation.assign_v_elevation(this.mesh, this.t_elevation, this.v_ocean); },
-    spring_t:        function() { return util.randomShuffle(Rivers.find_spring_t(this.mesh, this.v_water, this.t_elevation, this.t_downslope_e), makeRandInt(util.fallback(this.riverSeed, SEED))); },
-    river_t:         function() { return this.spring_t.slice(0, util.fallback(this.numRivers, 5)); },
-    e_flow:          function() { return Rivers.assign_e_flow(this.mesh, this.t_downslope_e, this.river_t, this.t_elevation); },
-    v_moisture:      function() { return Moisture.assign_v_moisture(this.mesh, this.v_water, Moisture.find_moisture_seeds_v(this.mesh, this.e_flow, this.v_ocean, this.v_water)); },
-    v_biome:         function() { return Biomes.assign_v_biome(this.mesh, this.v_ocean, this.v_water, this.v_elevation, this.v_moisture); },
+function makeDiagram(selector, object) {
+    object.container = document.querySelector(selector);
+    object.canvas = object.container.querySelector("canvas");
     
-    lakecount: function() {
-        let count = 0;
-        for (let v = 0; v < this.mesh.numVertices; v++) {
-            if (this.v_water[v] && !this.v_ocean[v]) { count++; }
-        }
-        return count;
-    },
-};
+    object.show = 'all';
+    object.setShow = function(value) {
+        object.show = value;
+        object.redraw();
+    };
+
+    let spans = object.container.querySelectorAll(".hover-term");
+    for (let span of spans) {
+        span.addEventListener('mouseover', () => {
+            object.setShow(span.getAttribute('data-show'));
+        });
+    }
+
+    object.buttons = object.container.querySelectorAll("button");
+    for (let button of object.buttons) {
+        let name = button.getAttribute('name');
+        object.buttons[name] = button;
+        button.addEventListener('click', () => {
+            object[name].apply(object);
+            object.redraw();
+        });
+    }
+    
+    object.sliders = object.container.querySelectorAll("input[type='range']");
+    for (let slider of object.sliders) {
+        let name = slider.getAttribute('name');
+        object.sliders[name] = slider;
+        slider.value = object[name];
+        slider.addEventListener('input', () => {
+            object[name] = slider.valueAsNumber;
+            object.redraw();
+        });
+    }
+
+    object.recalculate = function() {
+        this.v_water = Water.assign_v_water(this.mesh, noise, {round: util.fallback(this.round, 0.5), inflate: util.fallback(this.inflate, 0.5)});
+        this.v_ocean = Water.assign_v_ocean(this.mesh, this.v_water);
+        this.elevationdata = Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water, makeRandInt(util.fallback(this.drainageSeed, SEED)));
+        this.t_coastdistance = this.elevationdata.t_distance;
+        this.t_elevation = this.elevationdata.t_elevation;
+        this.t_downslope_e = this.elevationdata.t_downslope_e;
+        this.v_elevation = Elevation.assign_v_elevation(this.mesh, this.t_elevation, this.v_ocean);
+        this.spring_t = util.randomShuffle(Rivers.find_spring_t(this.mesh, this.v_water, this.t_elevation, this.t_downslope_e), makeRandInt(util.fallback(this.riverSeed, SEED)));
+        this.river_t = this.spring_t.slice(0, util.fallback(this.numRivers, 5));
+        this.e_flow = Rivers.assign_e_flow(this.mesh, this.t_downslope_e, this.river_t, this.t_elevation);
+        this.v_moisture = Moisture.assign_v_moisture(this.mesh, this.v_water, Moisture.find_moisture_seeds_v(this.mesh, this.e_flow, this.v_ocean, this.v_water));
+        this.v_biome = Biomes.assign_v_biome(this.mesh, this.v_ocean, this.v_water, this.v_elevation, this.v_moisture);
+    };
+    
+    object.redraw();
+    return object;
+}
 
 
-
-let diagramMeshConstruction = {
-    canvas: document.querySelector("#diagram-mesh-construction canvas"),
-    show: 'all',
-    centroidCircumcenterMix: 0.0,
-    mesh: mesh_75,
-    init() {
-        let spans = document.querySelectorAll("#diagram-mesh-construction .hover-term");
-        for (let span of spans) {
-            span.addEventListener('mouseover', () => {
-                this.setShow(span.getAttribute('data-show'));
-            });
-        }
-        let sliders = document.querySelectorAll("#diagram-mesh-construction input[type='range']");
-        for (let slider of sliders) {
-            slider.addEventListener('input', () => {
-                this[slider.getAttribute('name')] = slider.valueAsNumber;
-                this.redraw();
-            });
-        }
-        this.redraw();
-    },
-    setShow(value) {
-        this.show = value;
-        this.redraw();
-    },
-    redraw() {
-        let show = this.show;
-        
-        diagram(this.canvas,
-            createCircumcenterMesh(this.mesh, this.centroidCircumcenterMix),
-            {scale: 0.9},
-            [
-                layers.triangleEdges({globalAlpha: show==='all'||show==='delaunay'?1.0:show==='centroids'?0.3:0.1, lineWidth: 1.0}),
-                layers.polygonEdges({globalAlpha: show==='all'||show==='polygons'?1.0:0.1, strokeStyle: "hsl(0,0%,95%)", lineWidth: 4.0}),
-                layers.polygonCenters({globalAlpha: show==='all'||show==='delaunay'||show==='points'?1.0:0.2, radius: 7}),
-                layers.triangleCenters({globalAlpha: show==='all'||show==='polygons'||show==='centroids'?1.0:0.2})
-            ]);
-    },
-};
-diagramMeshConstruction.init();
+let diagramMeshConstruction = makeDiagram(
+    "#diagram-mesh-construction", {
+        centroidCircumcenterMix: 0.0,
+        mesh: mesh_75,
+        redraw() {
+            let show = this.show;
+            diagram(this.canvas,
+                    createCircumcenterMesh(this.mesh, this.centroidCircumcenterMix),
+                    {scale: 0.9},
+                    [
+                        layers.triangleEdges({globalAlpha: show==='all'||show==='delaunay'?1.0:show==='centroids'?0.3:0.1, lineWidth: 1.0}),
+                        layers.polygonEdges({globalAlpha: show==='all'||show==='polygons'?1.0:0.1, strokeStyle: "hsl(0,0%,95%)", lineWidth: 4.0}),
+                        layers.polygonCenters({globalAlpha: show==='all'||show==='delaunay'||show==='points'?1.0:0.2, radius: 7}),
+                        layers.triangleCenters({globalAlpha: show==='all'||show==='polygons'||show==='centroids'?1.0:0.2})
+                    ]);
+        },
+    });
 
 
-new Vue({
-    el: "#diagram-water-assignment",
-    data: {
-        show: null,
+let diagramWaterAssignment = makeDiagram(
+    "#diagram-water-assignment", {
         round: 0.5,
         inflate: 0.5,
-        mesh: Object.freeze(mesh_30)
-    },
-    computed: MapCalculations,
-    directives: {
-        draw: function(canvas, {value: {show, mesh, v_water, v_ocean}}) {
-            if (show === 'landwater' ) { v_ocean = v_water; }
-            let config = [
-                layers.polygonColors({}, (v) => v_ocean[v]? "hsl(230,30%,50%)" : v_water[v]? (show === 'lakes'? "hsl(200,100%,50%)" : "hsl(200,30%,50%)") : "hsl(30,15%,60%)"),
-                layers.polygonEdges({strokeStyle: "black"}),
-                (show === 'connectivity' || show === 'lakes') && layers.triangleEdgesColored({globalAlpha: show === 'lakes'? 0.3 : 1.0}, (_, v0, v1) => v_ocean[v0] && v_ocean[v1]? "white" : null),
-                show === null && layers.polygonEdgesColored({lineWidth: 6.0}, (_, v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "black" : null),
-                layers.polygonCenters({radius: 1.0, fillStyle: "hsl(0,0%,50%)", strokeStyle: "hsl(0,0%,50%)"})
-            ];
-            diagram(canvas, mesh, {}, config);
-        }
-    }
-});
+        mesh: mesh_30,
+        redraw() {
+            this.recalculate();
+            let show = this.show;
+            let {v_water, v_ocean} = this;
+            if (show === 'landwater') { v_ocean = v_water; }
+            diagram(
+                this.canvas, this.mesh, {},
+                [
+                    layers.polygonColors({}, (v) => v_ocean[v]? "hsl(230,30%,50%)" : v_water[v]? (show === 'lakes'? "hsl(200,100%,50%)" : "hsl(200,30%,50%)") : "hsl(30,15%,60%)"),
+                    layers.polygonEdges({strokeStyle: "black"}),
+                    (show === 'connectivity' || show === 'lakes') && layers.triangleEdgesColored({globalAlpha: show === 'lakes'? 0.3 : 1.0}, (_, v0, v1) => v_ocean[v0] && v_ocean[v1]? "white" : null),
+                    show === 'all' && layers.polygonEdgesColored({lineWidth: 6.0}, (_, v0, v1, t0, t1) => v_ocean[v0] !== v_ocean[v1]? "black" : null),
+                    layers.polygonCenters({radius: 1.0, fillStyle: "hsl(0,0%,50%)", strokeStyle: "hsl(0,0%,50%)"})
+                ]);
+        },
+    });
 
 
-new Vue({
-    el: "#diagram-elevation-assignment",
-    data: {
-        mesh: Object.freeze(mesh_30),
-        show: null
-    },
-    computed: MapCalculations,
-    directives: {
-        draw: function(canvas, {value: {show, mesh, v_water, v_ocean, t_elevation, t_coastdistance, v_elevation}}) {
-            let coasts_t = Elevation.find_coasts_t(mesh, v_ocean);
+let diagramElevationAssignment = makeDiagram(
+    "#diagram-elevation-assignment", {
+        mesh: mesh_30,
+        redraw() {
+            this.recalculate();
+            let {show, mesh, v_water, v_ocean, v_elevation, t_elevation, t_coastdistance} = this;
+            let coasts_t = Elevation.find_coasts_t(this.mesh, v_ocean);
+
             function polygonColoring(v) {
                 if (v_ocean[v]) {
                     return `hsl(230,25%,${50+30*v_elevation[v]}%)`;
@@ -425,24 +454,22 @@ new Vue({
                 layers.polygonCenters({radius: 0.5, fillStyle: "black", strokeStyle: "black"})
             ];
             }
-            diagram(canvas, mesh, {}, config);
-        }
-    }
-});
+            diagram(this.canvas, this.mesh, {}, config);
+        },
+    });
 
 
-new Vue({
-    el: "#diagram-drainage-assignment",
-    data: {
-        mesh: Object.freeze(mesh_30),
+let diagramDrainageAssignment = makeDiagram(
+    "#diagram-drainage-assignment", {
+        mesh: mesh_30,
         drainageSeed: 1,
-    },
-    computed: MapCalculations,
-    methods: {
-        changeDrainageSeed: function() { this.drainageSeed = makeRandInt(this.drainageSeed)(100000); },
-    },
-    directives: {
-        draw: function(canvas, {value: {mesh, v_water, v_ocean, v_elevation, t_downslope_e, river_t, e_flow}}) {
+        changeDrainageSeed() {
+            this.drainageSeed = makeRandInt(this.drainageSeed)(100000);
+        },
+        redraw() {
+            this.recalculate();
+            let {show, mesh, v_water, v_ocean, v_elevation, t_elevation, t_downslope_e, t_coastdistance} = this;
+            
             function polygonColoring(v) {
                 if (v_ocean[v]) {
                     return `hsl(230,25%,${50+30*v_elevation[v]}%)`;
@@ -453,31 +480,28 @@ new Vue({
                 }
             }
             
-            diagram(canvas, mesh, {}, [
+            diagram(this.canvas, mesh, {}, [
                 layers.polygonColors({}, polygonColoring),
                 layers.drawDrainage({}, v_ocean, t_downslope_e),
                 layers.polygonEdgesColored({lineWidth: 2.0}, (_, v0, v1) => v_ocean[v0] !== v_ocean[v1]? "black" : null),
             ]);
-        }
-    }
-});
+        },
+    });
 
 
-new Vue({
-    el: "#diagram-rivers",
-    data: {
-        mesh: Object.freeze(mesh_30),
+let diagramRivers = makeDiagram(
+    "#diagram-rivers", {
+        mesh: mesh_30,
         numRivers: 5,
         riverSeed: 1,
-    },
-    computed: MapCalculations,
-    methods: {
-        addRivers:       function() { this.numRivers += 10; },
-        reset:           function() { this.numRivers = 0; },
-        changeRiverSeed: function() { this.riverSeed = makeRandInt(this.riverSeed)(100000); },
-    },
-    directives: {
-        draw: function(canvas, {value: {mesh, v_water, v_ocean, v_elevation, t_downslope_e, spring_t, river_t, e_flow}}) {
+        addRivers()       { this.numRivers += 10; },
+        reset()           { this.numRivers = 0; },
+        changeRiverSeed() { this.riverSeed = makeRandInt(this.riverSeed)(100000); },
+        redraw() {
+            this.recalculate();
+            let {show, mesh, v_water, v_ocean, v_elevation, t_downslope_e, spring_t, e_flow} = this;
+            this.sliders.numRivers.setAttribute('max', spring_t.length);
+
             function polygonColoring(v) {
                 if (v_ocean[v]) {
                     return `hsl(230,25%,${50+30*v_elevation[v]}%)`;
@@ -488,7 +512,7 @@ new Vue({
                 }
             }
             
-            diagram(canvas, mesh, {}, [
+            diagram(this.canvas, mesh, {}, [
                 layers.polygonColors({}, polygonColoring),
                 layers.drawDrainage({globalAlpha: 0.2}, v_ocean, t_downslope_e),
                 layers.drawRivers({}, e_flow),
@@ -496,23 +520,19 @@ new Vue({
                 layers.polygonEdgesColored({lineWidth: 2.0}, (_, v0, v1) => v_ocean[v0] !== v_ocean[v1]? "black" : null),
             ]);
         }
-    }
-});
+    });
 
 
-new Vue({
-    el: "#diagram-moisture-assignment",
-    data: {
-        mesh: Object.freeze(mesh_15),
-        numRivers: 1
-    },
-    computed: MapCalculations,
-    methods: {
-        addRivers:     function() { this.numRivers += 5; },
-        reset:         function() { this.numRivers  = 0; }
-    },
-    directives: {
-        draw: function(canvas, {value: {mesh, v_water, v_ocean, v_moisture, t_downslope_e, river_t, e_flow}}) {
+let diagramMoistureAssignment = makeDiagram(
+    "#diagram-moisture-assignment", {
+        mesh: mesh_15,
+        numRivers: 1,
+        addRivers() { this.numRivers += 5; },
+        reset() { this.numRivers  = 0; },
+        redraw() {
+            this.recalculate();
+            let {show, mesh, v_water, v_ocean, v_elevation, t_downslope_e, e_flow, spring_t, river_t, v_moisture} = this;
+            this.sliders.numRivers.setAttribute('max', spring_t.length);
             function polygonColoring(v) {
                 if (v_ocean[v]) {
                     return "hsl(230,25%,25%)";
@@ -524,7 +544,7 @@ new Vue({
             }
             
             let config = null;
-            diagram(canvas, mesh, {}, [
+            diagram(this.canvas, mesh, {}, [
                 layers.polygonColors({}, polygonColoring),
                 layers.drawRivers({}, e_flow),
                 layers.drawSprings({}, river_t),
@@ -532,72 +552,36 @@ new Vue({
                 layers.polygonEdgesColored({lineWidth: 0.3}, (_, v0, v1) => Math.round(5*v_moisture[v0]) != Math.round(5*v_moisture[v1]) ? "black" : null),
             ]);
         }
-    }
-});
+    });
 
 
-new Vue({
-    el: "#diagram-biome-assignment",
-    data: {
-        mesh: Object.freeze(mesh_10),
+let diagramBiomeAssignment = makeDiagram(
+    "#diagram-biome-assignment", {
+        mesh: mesh_10,
         numRivers: 5,
-    },
-    computed: MapCalculations,
-    methods: {
-        addRivers:     function() { this.numRivers += 10; },
-        reset:         function() { this.numRivers  = 0; }
-    },
-    directives: {
-        draw: function(canvas, {value: {show, mesh, river_t, e_flow, v_biome}}) {
-            const biomeColors = {
-                OCEAN: "#44447a",
-                COAST: "#33335a",
-                LAKESHORE: "#225588",
-                LAKE: "#336699",
-                RIVER: "#225588",
-                MARSH: "#2f6666",
-                ICE: "#99ffff",
-                BEACH: "#a09077",
-                SNOW: "#ffffff",
-                TUNDRA: "#bbbbaa",
-                BARE: "#888888",
-                SCORCHED: "#555555",
-                TAIGA: "#99aa77",
-                SHRUBLAND: "#889977",
-                TEMPERATE_DESERT: "#c9d29b",
-                TEMPERATE_RAIN_FOREST: "#448855",
-                TEMPERATE_DECIDUOUS_FOREST: "#679459",
-                GRASSLAND: "#88aa55",
-                SUBTROPICAL_DESERT: "#d2b98b",
-                TROPICAL_RAIN_FOREST: "#337755",
-                TROPICAL_SEASONAL_FOREST: "#559944",
-            };
-                
-            function polygonColoring(v) {
-                return biomeColors[v_biome[v] || "red"];
-            }
+        addRivers() { this.numRivers += 10; },
+        reset() { this.numRivers  = 0; },
+        redraw() {
+            this.recalculate();
+            this.sliders.numRivers.setAttribute('max', this.spring_t.length);
             
-            let config = null;
-            diagram(canvas, mesh, {}, [
-                layers.polygonColors({}, polygonColoring),
+            let v_biome = this.v_biome;
+            diagram(this.canvas, this.mesh, {}, [
+                layers.polygonColors({}, (v) => biomeColors[v_biome[v]] || "red"),
                 layers.polygonEdgesColored({lineWidth: 1.5}, (_, v0, v1) => (v_biome[v0] === 'OCEAN') !== (v_biome[v1] === 'OCEAN')? "black" : null),
                 layers.polygonEdgesColored({lineWidth: 0.3}, (_, v0, v1) => v_biome[v0] !== v_biome[v1]? "black" : null),
-                layers.drawRivers({lineWidth: 0.5}, e_flow),
+                layers.drawRivers({lineWidth: 0.5}, this.e_flow),
             ]);
         }
-    }
-});
+    });
 
 
-new Vue({
-    el: "#map-export",
-    data: {
-        mesh: Object.freeze(mesh_75),
-        output: "",
-    },
-    computed: MapCalculations,
-    methods: {
-        calculate: function() {
+let mapExport = makeDiagram(
+    "#map-export", {
+        mesh: mesh_75,
+        redraw() { },
+        export() {
+            this.recalculate();
             let mesh = this.mesh;
             let t_points = mesh.centers.map((p, t) => [Math.round(p[0]), Math.round(p[1]), this.t_elevation[t]]);
             let v_points = mesh.vertices.map((p, v) => [Math.round(p[0]), Math.round(p[1]), this.v_elevation[v]]);
@@ -611,7 +595,6 @@ new Vue({
             for (let v = 0; v < mesh.numSolidVertices; v++) {
                 v_polygons_t.push(mesh.v_circulate_t([], v));
             }
-            this.output = JSON.stringify({v_biomes, t_triangles_v, v_polygons_t, t_points, v_points, v_moisture}, null, " ");
+            this.container.querySelector("textarea").value = JSON.stringify({v_biomes, t_triangles_v, v_polygons_t, t_points, v_points, v_moisture}, null, " ");
         },
-    }
-});
+    });
