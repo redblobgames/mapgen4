@@ -10,12 +10,12 @@ const SEED = 123456788;
 const TriangleMesh = require('@redblobgames/triangle-mesh');
 const createMesh =   require('@redblobgames/triangle-mesh/create');
 const SimplexNoise = require('simplex-noise');
+const util =         require('./algorithms/util');
 const Water =        require('./algorithms/water');
 const Elevation =    require('./algorithms/elevation');
 const Rivers =       require('./algorithms/rivers');
 const Moisture =     require('./algorithms/moisture');
 const Biomes =       require('./algorithms/biomes');
-const {mix, clamp, smoothstep, circumcenter, random_shuffle} = require('./algorithms/util');
 
 let noise = new SimplexNoise(makeRandFloat(SEED));
 const mesh_10 = new TriangleMesh(createMesh(10.0, makeRandFloat(SEED)));
@@ -31,7 +31,7 @@ function drawArrow(ctx, p, q) {
     const headWidth = 0.4;
     const tailLength = 0.1;
     
-    let s = [mix(p[0], q[0], 0.2), mix(p[1], q[1], 0.2)];
+    let s = [util.mix(p[0], q[0], 0.2), util.mix(p[1], q[1], 0.2)];
     let dx = (q[0] - p[0]) * 0.7;
     let dy = (q[1] - p[1]) * 0.7;
 
@@ -49,15 +49,16 @@ function drawArrow(ctx, p, q) {
 }
 
 
-function fallback(value, orElse) {
-    return (value !== undefined)? value : orElse;
-}
-
 function setCanvasStyle(ctx, style, defaults) {
-    ctx.globalAlpha = fallback(style.globalAlpha, fallback(defaults.globalAlpha, 1.0));
-    ctx.lineWidth =   fallback(style.lineWidth,   fallback(defaults.lineWidth,   1.0));
-    ctx.fillStyle =   fallback(style.fillStyle,   fallback(defaults.fillStyle,   "black"));
-    ctx.strokeStyle = fallback(style.strokeStyle, fallback(defaults.strokeStyle, "black"));
+    const globalCanvasStyle = {
+        globalAlpha: 1.0,
+        lineWidth: 1.0,
+        fillStyle: "black",
+        strokeStyle: "black"
+    };
+    Object.assign(ctx, globalCanvasStyle);
+    Object.assign(ctx, defaults);
+    Object.assign(ctx, style);
 }
 
 let layers = {};
@@ -237,7 +238,7 @@ layers.drawSprings = (style, river_t) => (ctx, mesh) => {
 /* layers should be a list of functions that take (ctx, mesh) and draw the layer;
  * or null to skip that layer */
 function diagram(canvas, mesh, options, layers) {
-    const scale = fallback(options.scale, 1.0);
+    const scale = util.fallback(options.scale, 1.0);
     let ctx = canvas.getContext('2d');
     ctx.save();
     ctx.scale(canvas.width/1000, canvas.height/1000);
@@ -260,9 +261,9 @@ function createCircumcenterMesh(mesh, mixture) {
         let a = mesh.vertices[out_v[0]],
             b = mesh.vertices[out_v[1]],
             c = mesh.vertices[out_v[2]];
-        let center = circumcenter(a, b, c);
-        centers.push([mix(mesh.centers[t][0], center[0], mixture),
-                      mix(mesh.centers[t][1], center[1], mixture)]);
+        let center = util.circumcenter(a, b, c);
+        centers.push([util.mix(mesh.centers[t][0], center[0], mixture),
+                      util.mix(mesh.centers[t][1], center[1], mixture)]);
     }
     for (; t < mesh.numTriangles; t++) {
         centers.push(mesh.centers[t]);
@@ -275,15 +276,15 @@ function createCircumcenterMesh(mesh, mixture) {
 
 /** Will get used for computed properties in Vue */
 let MapCalculations = {
-    v_water:         function() { return Water.assign_v_water(this.mesh, noise, {round: fallback(this.round, 0.5), inflate: fallback(this.inflate, 0.5)}); },
+    v_water:         function() { return Water.assign_v_water(this.mesh, noise, {round: util.fallback(this.round, 0.5), inflate: util.fallback(this.inflate, 0.5)}); },
     v_ocean:         function() { return Water.assign_v_ocean(this.mesh, this.v_water); },
-    elevationdata:   function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water, makeRandInt(fallback(this.drainageSeed, SEED))); },
+    elevationdata:   function() { return Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water, makeRandInt(util.fallback(this.drainageSeed, SEED))); },
     t_coastdistance: function() { return this.elevationdata.t_distance; },
     t_elevation:     function() { return this.elevationdata.t_elevation; },
     t_downslope_e:   function() { return this.elevationdata.t_downslope_e; },
     v_elevation:     function() { return Elevation.assign_v_elevation(this.mesh, this.t_elevation, this.v_ocean); },
-    spring_t:        function() { return random_shuffle(Rivers.find_spring_t(this.mesh, this.v_water, this.t_elevation, this.t_downslope_e), makeRandInt(fallback(this.riverSeed, SEED))); },
-    river_t:         function() { return this.spring_t.slice(0, fallback(this.numRivers, 5)); },
+    spring_t:        function() { return util.randomShuffle(Rivers.find_spring_t(this.mesh, this.v_water, this.t_elevation, this.t_downslope_e), makeRandInt(util.fallback(this.riverSeed, SEED))); },
+    river_t:         function() { return this.spring_t.slice(0, util.fallback(this.numRivers, 5)); },
     e_flow:          function() { return Rivers.assign_e_flow(this.mesh, this.t_downslope_e, this.river_t, this.t_elevation); },
     v_moisture:      function() { return Moisture.assign_v_moisture(this.mesh, this.v_water, Moisture.find_moisture_seeds_v(this.mesh, this.e_flow, this.v_ocean, this.v_water)); },
     v_biome:         function() { return Biomes.assign_v_biome(this.mesh, this.v_ocean, this.v_water, this.v_elevation, this.v_moisture); },
@@ -298,27 +299,47 @@ let MapCalculations = {
 };
 
 
-new Vue({
-    el: "#diagram-mesh-construction",
-    data: {
-        show: null,
-        centroidCircumcenterMix: 0.0,
-        mesh: Object.freeze(mesh_75)
-    },
-    directives: {
-        draw: function(canvas, {value: {show, mesh, centroidCircumcenterMix}}) {
-            diagram(canvas,
-                    createCircumcenterMesh(mesh, centroidCircumcenterMix),
-                    {scale: 0.9},
-                    [
-                        layers.triangleEdges({globalAlpha: show===null||show==='delaunay'?1.0:show==='centroids'?0.3:0.1, lineWidth: 1.0}),
-                        layers.polygonEdges({globalAlpha: show===null||show==='polygons'?1.0:0.1, strokeStyle: "hsl(0,0%,95%)", lineWidth: 4.0}),
-                        layers.polygonCenters({globalAlpha: show===null||show==='delaunay'||show==='points'?1.0:0.2, radius: 7}),
-                        layers.triangleCenters({globalAlpha: show===null||show==='polygons'||show==='centroids'?1.0:0.2})
-                    ]);
+
+let diagramMeshConstruction = {
+    canvas: document.querySelector("#diagram-mesh-construction canvas"),
+    show: 'all',
+    centroidCircumcenterMix: 0.0,
+    mesh: mesh_75,
+    init() {
+        let spans = document.querySelectorAll("#diagram-mesh-construction .hover-term");
+        for (let span of spans) {
+            span.addEventListener('mouseover', () => {
+                this.setShow(span.getAttribute('data-show'));
+            });
         }
-    }
-});
+        let sliders = document.querySelectorAll("#diagram-mesh-construction input[type='range']");
+        for (let slider of sliders) {
+            slider.addEventListener('input', () => {
+                this[slider.getAttribute('name')] = slider.valueAsNumber;
+                this.redraw();
+            });
+        }
+        this.redraw();
+    },
+    setShow(value) {
+        this.show = value;
+        this.redraw();
+    },
+    redraw() {
+        let show = this.show;
+        
+        diagram(this.canvas,
+            createCircumcenterMesh(this.mesh, this.centroidCircumcenterMix),
+            {scale: 0.9},
+            [
+                layers.triangleEdges({globalAlpha: show==='all'||show==='delaunay'?1.0:show==='centroids'?0.3:0.1, lineWidth: 1.0}),
+                layers.polygonEdges({globalAlpha: show==='all'||show==='polygons'?1.0:0.1, strokeStyle: "hsl(0,0%,95%)", lineWidth: 4.0}),
+                layers.polygonCenters({globalAlpha: show==='all'||show==='delaunay'||show==='points'?1.0:0.2, radius: 7}),
+                layers.triangleCenters({globalAlpha: show==='all'||show==='polygons'||show==='centroids'?1.0:0.2})
+            ]);
+    },
+};
+diagramMeshConstruction.init();
 
 
 new Vue({
@@ -549,7 +570,7 @@ new Vue({
                 GRASSLAND: "#88aa55",
                 SUBTROPICAL_DESERT: "#d2b98b",
                 TROPICAL_RAIN_FOREST: "#337755",
-                TROPICAL_SEASONAL_FOREST: "#559944"
+                TROPICAL_SEASONAL_FOREST: "#559944",
             };
                 
             function polygonColoring(v) {
