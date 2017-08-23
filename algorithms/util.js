@@ -10,9 +10,10 @@ exports.fallback = function(value, orElse) {
 /** Add several noise values together */
 exports.fbm_noise = function(noise, nx, ny) {
     return 0.5 * noise.noise2D(nx, ny, 0)
-        + 0.3 * noise.noise2D(nx * 2, ny * 2, 1)
-        + 0.2 * noise.noise2D(nx * 4, ny * 4, 2)
-        + 0.1 * noise.noise2D(nx * 8, ny * 8, 3);
+        + 0.4 * noise.noise2D(nx * 2, ny * 2, 1)
+        + 0.3 * noise.noise2D(nx * 4, ny * 4, 2)
+        + 0.2 * noise.noise2D(nx * 8, ny * 8, 3)
+        + 0.1 * noise.noise2D(nx * 16, ny * 16, 4);
 };
 
 /** Like GLSL. Return t clamped to the range [lo,hi] inclusive */

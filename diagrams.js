@@ -337,7 +337,7 @@ function makeDiagram(selector, object) {
     }
 
     object.recalculate = function() {
-        this.v_water = Water.assign_v_water(this.mesh, noise, {round: util.fallback(this.round, 0.5), inflate: util.fallback(this.inflate, 0.5)});
+        this.v_water = Water.assign_v_water(this.mesh, util.fallback(this.noise, noise), {round: util.fallback(this.round, 0.5), inflate: util.fallback(this.inflate, 0.5)});
         this.v_ocean = Water.assign_v_ocean(this.mesh, this.v_water);
         this.elevationdata = Elevation.assign_t_elevation(this.mesh, this.v_ocean, this.v_water, makeRandInt(util.fallback(this.drainageSeed, SEED)));
         this.t_coastdistance = this.elevationdata.t_distance;
@@ -348,7 +348,7 @@ function makeDiagram(selector, object) {
         this.river_t = this.spring_t.slice(0, util.fallback(this.numRivers, 5));
         this.e_flow = Rivers.assign_e_flow(this.mesh, this.t_downslope_e, this.river_t, this.t_elevation);
         this.v_moisture = Moisture.assign_v_moisture(this.mesh, this.v_water, Moisture.find_moisture_seeds_v(this.mesh, this.e_flow, this.v_ocean, this.v_water));
-        this.v_biome = Biomes.assign_v_biome(this.mesh, this.v_ocean, this.v_water, this.v_elevation, this.v_moisture);
+        this.v_biome = Biomes.assign_v_biome(this.mesh, this.v_ocean, this.v_water, this.v_elevation, this.v_moisture, util.fallback(this.temperatureBias, 0), util.fallback(this.moistureBias, 0));
     };
     
     object.redraw();
@@ -558,9 +558,16 @@ let diagramMoistureAssignment = makeDiagram(
 let diagramBiomeAssignment = makeDiagram(
     "#diagram-biome-assignment", {
         mesh: mesh_10,
+        seed: 1,
+        noise: noise,
         numRivers: 5,
+        temperatureBias: 0.0,
+        moistureBias: 0.0,
         addRivers() { this.numRivers += 10; },
         reset() { this.numRivers  = 0; },
+        nextSeed() { this.setSeed(this.seed+1); },
+        prevSeed() { this.setSeed(this.seed-1); },
+        setSeed(value) { this.seed = value; this.noise = new SimplexNoise(makeRandFloat(this.seed)); this.redraw(); },
         redraw() {
             this.recalculate();
             this.sliders.numRivers.setAttribute('max', this.spring_t.length);

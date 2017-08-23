@@ -35,10 +35,10 @@ function biome(ocean, water, coast, elevation, moisture) {
     }
 }
 
-exports.assign_v_biome = function(mesh, v_ocean, v_water, v_elevation, v_moisture) {
+exports.assign_v_biome = function(mesh, v_ocean, v_water, v_elevation, v_moisture, temperatureBias, moistureBias) {
     let v_biome = new Array(mesh.numVertices);
     for (let v = 0; v < mesh.numVertices; v++) {
-        v_biome[v] = biome(v_ocean[v], v_water[v], false /* TODO: */, v_elevation[v], v_moisture[v]);
+        v_biome[v] = biome(v_ocean[v], v_water[v], false /* TODO: */, v_elevation[v] - temperatureBias, v_moisture[v] + moistureBias);
     }
     return v_biome;
 };
