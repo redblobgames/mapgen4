@@ -16,6 +16,7 @@ const Elevation =    require('./algorithms/elevation');
 const Rivers =       require('./algorithms/rivers');
 const Moisture =     require('./algorithms/moisture');
 const Biomes =       require('./algorithms/biomes');
+const NoisyEdges =   require('./algorithms/noisy-edges');
 
 let noise = new SimplexNoise(makeRandFloat(SEED));
 const mesh_10 = new TriangleMesh(createMesh(10.0, makeRandFloat(SEED)));
@@ -77,6 +78,7 @@ function setCanvasStyle(ctx, style, defaults) {
     const globalCanvasStyle = {
         globalAlpha: 1.0,
         lineWidth: 1.0,
+        lineJoin: 'miter',
         fillStyle: "black",
         strokeStyle: "black"
     };
@@ -201,9 +203,68 @@ layers.polygonCenters = (style) => (ctx, mesh) => {
     }
 };
 
+layers.quadrilateralEdges = (style) => (ctx, mesh) => {
+    let t_out = [];
+    setCanvasStyle(ctx, style, {strokeStyle: "black", lineWidth: 0.5});
+    for (let v = 0; v < mesh.numSolidVertices; v++) {
+        mesh.v_circulate_t(t_out, v);
+        for (let t of t_out) {
+            ctx.beginPath();
+            ctx.moveTo(mesh.vertices[v][0], mesh.vertices[v][1]);
+            ctx.lineTo(mesh.centers[t][0], mesh.centers[t][1]);
+            ctx.stroke();
+        }
+    }
+};
+
+layers.noisyPolygons = (style, levels, amplitude, seed, coloring) => (ctx, mesh) => {
+    let out_e = [];
+    setCanvasStyle(ctx, style, {lineJoin: 'bevel'});
+
+    // TODO: calculate e_lines as part of the mesh
+    let e_lines = NoisyEdges.assign_e_segments(mesh, levels, amplitude, makeRandInt(seed));
+    
+    for (let v = 0; v < mesh.numSolidVertices; v++) {
+        mesh.v_circulate_e(out_e, v);
+        let last_t = mesh.e_inner_t(out_e[0]);
+        ctx.fillStyle = ctx.strokeStyle = coloring(v);
+        ctx.beginPath();
+        ctx.moveTo(mesh.centers[last_t][0], mesh.centers[last_t][1]);
+        for (let e of out_e) {
+            for (let p of e_lines[e]) {
+                ctx.lineTo(p[0], p[1]);
+            }
+        }
+
+        ctx.stroke();
+        ctx.fill();
+    }
+};
+
+layers.noisyPolygonEdges = (style, levels, amplitude, seed, styling) => (ctx, mesh) => {
+    let out_e = [];
+    setCanvasStyle(ctx, style, {});
+
+    // TODO: calculate e_lines as part of the mesh
+    let e_lines = NoisyEdges.assign_e_segments(mesh, levels, amplitude, makeRandInt(seed));
+
+    for (let e = 0; e < mesh.numSolidEdges; e++) {
+        let style = styling(e);
+        if (style === null) { continue; }
+        ctx.strokeStyle = style.strokeStyle;
+        ctx.lineWidth = style.lineWidth;
+        let last_t = mesh.e_inner_t(e);
+        ctx.beginPath();
+        ctx.moveTo(mesh.centers[last_t][0], mesh.centers[last_t][1]);
+        for (let p of e_lines[e]) {
+            ctx.lineTo(p[0], p[1]);
+        }
+        ctx.stroke();
+    }
+};
+
 /* coloring should be a function from v (polygon) to color string */
 layers.polygonColors = (style, coloring) => (ctx, mesh) => {
-    const radius = style.radius || 5;
     let out_t = [];
     setCanvasStyle(ctx, style, {});
     for (let v = 0; v < mesh.numSolidVertices; v++) {
@@ -557,8 +618,8 @@ let diagramMoistureAssignment = makeDiagram(
 
 let diagramBiomeAssignment = makeDiagram(
     "#diagram-biome-assignment", {
-        mesh: mesh_10,
-        seed: 1,
+        mesh: mesh_30,
+        seed: 1, // TODO: rename this seed
         noise: noise,
         numRivers: 5,
         temperatureBias: 0.0,
@@ -583,6 +644,72 @@ let diagramBiomeAssignment = makeDiagram(
     });
 
 
+let diagramQuadrilateralTiling = makeDiagram(
+    "#diagram-quadrilateral-tiling", {
+        mesh: mesh_75,
+        redraw() {
+            this.recalculate();
+            let v_biome = this.v_biome;
+            diagram(this.canvas, this.mesh,
+                    {scale: 1.2},
+                    [
+                        layers.polygonEdges({globalAlpha: 0.1}),
+                        layers.quadrilateralEdges({}),
+//                        layers.curvedPolygonEdges({globalAlpha: 0.5}, (v) => biomeColors[v_biome[v]]),
+                        layers.polygonCenters({radius: 7}),
+                        layers.triangleCenters({}),
+                    ]);
+        },
+    });
+
+let diagramNoisyEdges = makeDiagram(
+    "#diagram-noisy-edges", {
+        mesh: mesh_30,
+        noisyEdgeLevels: 1,
+        noisyEdgeAmplitude: 0.25,
+        noisyEdgeSeed: SEED,
+        redraw() {
+            this.recalculate();
+            let {mesh, e_flow, v_biome} = this;
+            function styling(e) {
+                let v0 = mesh.e_begin_v(e),
+                    v1 = mesh.e_end_v(e);
+                if (e_flow[e] > 0) {
+                    return {
+                        strokeStyle: "hsl(230,50%,50%)",
+                        lineWidth: 5.0 * Math.sqrt(e_flow[e]),
+                    };
+                }
+                if (v_biome[v0] !== v_biome[v1]) {
+                    return {
+                        lineWidth: (v_biome[v0] === 'OCEAN' || v_biome[v1] === 'OCEAN')? 3.0 : 0.2,
+                        strokeStyle: "black",
+                    };
+                }
+                return null;
+            }
+
+            diagram(this.canvas, mesh,
+                    {},
+                    [
+                        layers.noisyPolygons(
+                             {},
+                            this.noisyEdgeLevels,
+                            this.noisyEdgeAmplitude,
+                            this.noisyEdgeSeed,
+                            (v) => biomeColors[v_biome[v]]
+                        ),
+                        layers.noisyPolygonEdges(
+                            {},
+                            this.noisyEdgeLevels,
+                            this.noisyEdgeAmplitude,
+                            this.noisyEdgeSeed,
+                            styling
+                        ),
+                    ]);
+        },
+    });
+
 let mapExport = makeDiagram(
     "#map-export", {
         mesh: mesh_75,
@@ -605,3 +732,4 @@ let mapExport = makeDiagram(
             this.container.querySelector("textarea").value = JSON.stringify({v_biomes, t_triangles_v, v_polygons_t, t_points, v_points, v_moisture}, null, " ");
         },
     });
+

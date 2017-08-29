@@ -260,7 +260,36 @@ If we have a desired distribution of moisture, we can reshape the distribution. 
 
 See also http://worldengine-ecs.readthedocs.io/en/latest/biomes.html -- it seems useful to draw the scatter plot or a density plot, and then provide parameters for tuning that to make an ice world or a forest world etc.
 
-* Export
+* Noisy rendering
+
+** Noisy edges
+
+Goal: replace the straight-line boundaries of polygons (including biome borders, coastlines, and rivers) with "noisy" lines.
+
+I am following the same general technique I used in 2010.
+
+#+begin_export html
+<div id="diagram-quadrilateral-tiling">
+  <canvas width="600" height="600"/>
+</div>
+#+end_export
+
+[[./noisy-edges.html][separate page]]
+
+#+begin_export html
+<div id="diagram-noisy-edges">
+  <canvas width="600" height="600"/>
+  levels = <input name="noisyEdgeLevels" type="range" min="0" max="3"/>
+  amplitude = <input name="noisyEdgeAmplitude" type="range" min="0.0" max="1.0" step="0.05"/>
+</div>
+#+end_export
+
+
+** Noisy transitions
+
+** Noisy fills
+
+* TODO Export
 
 #+begin_export html
 <div id="map-export">
@@ -272,18 +301,12 @@ See also http://worldengine-ecs.readthedocs.io/en/latest/biomes.html -- it seems
 #+end_export
 
 
-* Noisy rendering
-
-** Noisy edges
-
-** Noisy transitions
-
-** Noisy fills
-
 * References
 
 
 https://heredragonsabound.blogspot.com/
+
+https://azgaar.wordpress.com/
 
 https://m.mythcreants.com/blog/crafting-plausible-maps/
 
@@ -298,6 +321,6 @@ http://www.giantitp.com/articles/xO3dVM8EDKJPlKxmVoG.html
     <script src="_bundle.js"/>
 
     Created 3 Aug 2017 with Emacs org-mode (<a href="index.org">source of this page</a>); &#160;
-    <!-- hhmts start -->Last modified: 22 Aug 2017<!-- hhmts end -->
+    <!-- hhmts start -->Last modified: 28 Aug 2017<!-- hhmts end -->
   </x:footer>
 #+end_export

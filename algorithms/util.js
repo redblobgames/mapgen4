@@ -29,6 +29,15 @@ exports.mix = function(a, b, t) {
     return a * (1.0-t) + b * t;
 };
 
+/** Componentwise mix for arrays of equal length; output goes in 'out' */
+exports.mixp = function(out, p, q, t) {
+    out.length = p.length;
+    for (let i = 0; i < p.length; i++) {
+        out[i] = exports.mix(p[i], q[i], t);
+    }
+    return out;
+};
+
 /** Like GLSL. */
 exports.smoothstep = function(a, b, t) {
     // https://en.wikipedia.org/wiki/Smoothstep
@@ -48,6 +57,15 @@ exports.circumcenter = function(a, b, c) {
     let Ux = 1/D * (ad * (b[1] - c[1]) + bd * (c[1] - a[1]) + cd * (a[1] - b[1]));
     let Uy = 1/D * (ad * (c[0] - b[0]) + bd * (a[0] - c[0]) + cd * (b[0] - a[0]));
     return [Ux, Uy];
+};
+
+/** Intersection of line p1--p2 and line p3--p4,
+ * between 0.0 and 1.0 if it's in the line segment */
+exports.lineIntersection = function(x1, y1, x2, y2, x3, y3, x4, y4) {
+    // from http://paulbourke.net/geometry/pointlineplane/
+    let ua = ((x4-x3)*(y1-y3) - (y4-y3)*(x1-x3)) / ((y4-y3)*(x2-x1) - (x4-x3)*(y2-y1));
+    let ub = ((x2-x1)*(y1-y3) - (y2-y1)*(x1-x3)) / ((y4-y3)*(x2-x1) - (x4-x3)*(y2-y1));
+    return {ua, ub};
 };
 
 /**
