@@ -2,11 +2,13 @@
 // Copyright 2017 Red Blob Games <redblobgames@gmail.com>
 // License: Apache v2.0 <http://www.apache.org/licenses/LICENSE-2.0.html>
 
+/* global makeRandFloat, makeRandInt */
+
 const data = {
     t0: [150, 150],
     t1: [450, 120],
-    v0: [300, 50],
-    v1: [350, 250],
+    r0: [300, 50],
+    r1: [350, 250],
     division: 0.5,
     divisionSpan: 0.5,
     levels: 2,
@@ -34,9 +36,9 @@ Vue.component('a-base', {
     props: ['data'],
     template: `
       <g>
-        <a-quad :a="data.t0" :b="data.t1" :p="data.v0" :q="data.v1"/>
-        <a-circle class="v" :at="data.v0"/>
-        <a-circle class="v" :at="data.v1"/>
+        <a-quad :a="data.t0" :b="data.t1" :p="data.r0" :q="data.r1"/>
+        <a-circle class="r" :at="data.r0"/>
+        <a-circle class="r" :at="data.r1"/>
         <a-circle class="t" :at="data.t0"/>
         <a-circle class="t" :at="data.t1"/>
      </g>
@@ -74,14 +76,14 @@ let page = new Vue({
     el: "#vue-container",
     data: data,
     computed: {
-        center: function() { return mixp(this.v0, this.v1, this.division); },
-        recursive: function() { return recursiveSubdivision(this.levels, {a: this.t0, b: this.t1, p: this.v0, q: this.v1}, makeRandFloat(this.seed)); },
+        center: function() { return mixp(this.r0, this.r1, this.division); },
+        recursive: function() { return recursiveSubdivision(this.levels, {a: this.t0, b: this.t1, p: this.r0, q: this.r1}, makeRandFloat(this.seed)); },
         quads: function() { return this.recursive.quads; },
         path: function() { return "M" + this.recursive.line.join("L"); },
-        m00: function() { return mixp(this.t0, this.v0, 0.5); },
-        m01: function() { return mixp(this.t0, this.v1, 0.5); },
-        m10: function() { return mixp(this.t1, this.v0, 0.5); },
-        m11: function() { return mixp(this.t1, this.v1, 0.5); },
+        m00: function() { return mixp(this.t0, this.r0, 0.5); },
+        m01: function() { return mixp(this.t0, this.r1, 0.5); },
+        m10: function() { return mixp(this.t1, this.r0, 0.5); },
+        m11: function() { return mixp(this.t1, this.r1, 0.5); },
     },
     methods: {
         // NOTE: the random number generator I'm using produces reasonable sequences

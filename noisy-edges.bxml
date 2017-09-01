@@ -4,10 +4,10 @@
   <address>25 Aug 2017</address>
 
   <style>
-      .v { fill: hsl(0,50%,50%); }
+      .r { fill: hsl(0,50%,50%); }
       .t { fill: hsl(240,50%,50%); }
       .c { fill: hsl(120,30%,50%); }
-      .e { fill: none; stroke: hsl(0,0%,0%); stroke-width: 2px; }
+      .s { fill: none; stroke: hsl(0,0%,0%); stroke-width: 2px; }
       .b { fill: hsl(30,10%,80%); fill-opacity: 0.2; stroke: hsl(0,0%,75%); stroke-width: 2px; }
       input[type="range"] { cursor: ew-resize; }
       .cropimage { position: relative; height: 200px; overflow: hidden; }
@@ -40,7 +40,7 @@
       </p>
 
       <p>
-        I've been using a <a href="http://www.redblobgames.com/x/1721-voronoi-alternative/">mesh structure</a>. Red points <svg width="1em" height="1em" viewBox="-10 -10 20 20"><circle class="v" r="8"/></svg> are the <strong>interiors</strong> of the polygons. Blue points <svg width="1em" height="1em" viewBox="-10 -10 20 20"><circle class="t" r="8"/></svg> are the <strong>corners</strong> of the polygons.
+        I've been using a <a href="http://www.redblobgames.com/x/1721-voronoi-alternative/">mesh structure</a>. Red points <svg width="1em" height="1em" viewBox="-10 -10 20 20"><circle class="r" r="8"/></svg> are the <strong>interiors</strong> of the polygons. Blue points <svg width="1em" height="1em" viewBox="-10 -10 20 20"><circle class="t" r="8"/></svg> are the <strong>corners</strong> of the polygons.
       </p>
 
       <div class="cropimage">
@@ -60,7 +60,7 @@
       </p>
       
       <svg width="600" height="300">
-        <a-base :data="{t0, t1, v0, v1}"/>
+        <a-base :data="{t0, t1, r0, r1}"/>
       </svg>
       
       <p>
@@ -68,8 +68,8 @@
       </p>
 
       <svg width="600" height="300">
-        <path class="e" :d="`M ${t0} L ${t1}`" style="stroke-width: 4px"/>
-        <a-base :data="{t0, t1, v0, v1}"/>
+        <path class="s" :d="`M ${t0} L ${t1}`" style="stroke-width: 4px"/>
+        <a-base :data="{t0, t1, r0, r1}"/>
       </svg>
 
       <p>
@@ -81,9 +81,9 @@
       </p>
 
       <svg width="600" height="300">
-        <path class="e" :d="`M ${t0} L ${center} L ${t1}`"/>
-        <path class="b" :d="`M ${v0} L ${v1}`"/>
-        <a-base :data="{t0, t1, v0, v1}"/>
+        <path class="s" :d="`M ${t0} L ${center} L ${t1}`"/>
+        <path class="b" :d="`M ${r0} L ${r1}`"/>
+        <a-base :data="{t0, t1, r0, r1}"/>
         <a-circle class="c" :at="center"/>
       </svg>
       <div class="controls">
@@ -97,7 +97,7 @@
       <svg width="600" height="300">
         <a-quad :a="t0" :b="center" :p="m00" :q="m01"/>
         <a-quad :a="center" :b="t1" :p="m10" :q="m11"/>
-        <a-base :data="{t0, t1, v0, v1}"/>
+        <a-base :data="{t0, t1, r0, r1}"/>
         <a-circle class="c" :at="center"/>
       </svg>
       <div class="controls">
@@ -115,7 +115,7 @@
         <circle v-for="quad in quads"
                 class="c" :cx="quad.a[0]" :cy="quad.a[1]" :r="1+quad.level"
                 stroke="black" stroke-width="1" stroke-opacity="0.2" />
-        <a-base :data="{t0, t1, v0, v1}"/>
+        <a-base :data="{t0, t1, r0, r1}"/>
       </svg>
       <div class="controls">
         levels = <input type="range" min="0" max="7" v-model.number="levels"/> {{ levels }}
@@ -130,8 +130,8 @@
         <a-quad v-for="quad in quads"
                 :a="quad.a" :b="quad.b" :p="quad.p" :q="quad.q"
                 style="stroke-width: 1px; stroke-opacity: 0.5"/>
-        <path class="e" :d="path" style="stroke-width: 1px"/>
-        <a-base :data="{t0, t1, v0, v1}"/>
+        <path class="s" :d="path" style="stroke-width: 1px"/>
+        <a-base :data="{t0, t1, r0, r1}"/>
       </svg>
       <div class="controls">
         subdivide into <input type="range" min="0" max="7" v-model.number="levels"/> 2<sup>{{ levels }}</sup> = {{ 1 &lt;&lt; levels }} segments
@@ -148,7 +148,7 @@
       </p>
 
       <p>
-        There's something weird when going from 0 levels to 1 level. Try setting amplitude to 0 and levels to 0, then levels to 1. There's a bend in the line. But from 1 to 2 or more, theres's no change. That means that at all but the top level, the intersection of the red segment and blue segment occurs at the midpoint of the red segment, but at the top level it does not. That's something I still need to investigate. There may be some geometric properties that are useful for the map generator.
+        There's something weird when going from 0 levels to 1 level. Try setting amplitude to 0 and levels to 0, then levels to 1. There's a bend in the line. But from 1 to 2 or more, theres's no change. That means that at all but the top level, the intersection of the red segment and blue segment occurs at the midpoint of the red segment, but at the top level it does not. See the comments for an explanation.
       </p>
 
       <p>
@@ -166,7 +166,7 @@
     <script src="diagrams-noisy-edges.js"/>
     
     Created 25 Aug 2017 with Vue.js; &#160;
-    <!-- hhmts start -->Last modified: 29 Aug 2017<!-- hhmts end -->
+    <!-- hhmts start -->Last modified: 31 Aug 2017<!-- hhmts end -->
   </x:footer>
   
   

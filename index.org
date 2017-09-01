@@ -27,9 +27,9 @@ This page is an update of the original page. I'm using the same algorithms (with
 #+end_export
 
 
-* Polygons
+* Polygonal Regions
 
-There are four steps to constructing the polygon mesh we need:
+There are four steps to constructing the polygon mesh:
 
 #+begin_export html
 <div id="diagram-mesh-construction">
@@ -41,7 +41,7 @@ There are four steps to constructing the polygon mesh we need:
     <li>Pick <span class="hover-term" data-show="points">evenly distributed points</span>.</li>
     <li>Construct a <span class="hover-term" data-show="delaunay">Delaunay triangulation</span>.</li>
     <li>Calculate the <span class="hover-term" data-show="centroids">centroids of the triangles</span>.</li>
-    <li>Construct <span class="hover-term" data-show="polygons">polygonal regions from those points</span>.</li>
+    <li>Construct <span class="hover-term" data-show="regions">polygonal regions from those points</span>.</li>
   </ol>
   <p>
   Putting it all together, I have a <span class="hover-term" data-show="all">dual mesh</span>, which has both polygonal regions and
@@ -64,9 +64,9 @@ For this game I'm generating islands, so the boundary of the map will always be 
  </figure>
   <ol>
     <li>Use noise to determine <span class="hover-term" data-show="landwater">land vs. water</span>.</li>
-    <li>Use <span class="hover-term" data-show="connectivity">connectivity</span> to determine which water polygons are ocean.</li>
-    <li><span class="hover-term" data-show="lakes">Lakes</span> are any water polygons not connected to the boundary of the map.</li>
-    <li><span class="hover-term" data-show="all">Coastlines</span> are the edges connected to an ocean polygon on one side and a land polygon on the other.</li>
+    <li>Use <span class="hover-term" data-show="connectivity">connectivity</span> to determine which water regions are ocean.</li>
+    <li><span class="hover-term" data-show="lakes">Lakes</span> are any water regions not connected to the boundary of the map.</li>
+    <li><span class="hover-term" data-show="all">Coastlines</span> are the edges connected to an ocean region on one side and a land region on the other.</li>
   </ol>
 </div>
 #+end_export
@@ -89,7 +89,7 @@ There are many other ways to make coastlines. A mix of sine waves in polar coord
 
 * Elevation
 
-For this project I set elevation based on the /distance from the coast/. To calculate it, run Breadth First Search from the coastline. I tried distances on the polygons and distances on the corners, and found corners worked better for this map generator. 
+For this project I set elevation based on the /distance from the coast/. To calculate it, run Breadth First Search from the coastline. I tried distances on the polygon regions and distances on the corners, and found corners worked better for this map generator. 
 
 #+begin_export html
 <div id="diagram-elevation-assignment">
@@ -101,7 +101,7 @@ For this project I set elevation based on the /distance from the coast/. To calc
     <li>Find <span class="hover-term" data-show="coast_t">corners along coastline edges</span>. As above, coastline edges have an ocean on one side and land on the other side.</li>
     <li>Calculate corner <span class="hover-term" data-show="t_coastdistance">distance from the coastline</span> using Breadth First Search.</li>
     <li>Set <span class="hover-term" data-show="t_elevation">corner elevation</span> by rescaling ocean distances from -1 to 0 and land distances from 0 to +1.</li>
-    <li>Set the <span class="hover-term" data-show="all">polygon elevation</span> to the average elevation of the polygon's corners.</li>
+    <li>Set the <span class="hover-term" data-show="all">region elevation</span> to the average elevation of the polygon's corners.</li>
   </ol>
 </div>
 #+end_export
@@ -198,7 +198,7 @@ Not all locations produce equally good rivers. Some filters to consider:
 
 * Moisture
 
-I use a “moisture” value to assign biomes in the next section. I set moisture on land to the /distance/ from a lakeshore or riverbank. The start points are polygons adjacent to lakes or rivers. Similar to elevation, I use Breadth First Search to calculate the distances, then rescale them. Zero distance will have moisture 1.0 and high distance will have moisture 0.0. Water polygons will have moisture 1.0.
+I use a “moisture” value to assign biomes in the next section. I set moisture on land to the /distance/ from a lakeshore or riverbank. The start points are polygonal regions adjacent to lakes or rivers. Similar to elevation, I use Breadth First Search to calculate the distances, then rescale them. Zero distance will have moisture 1.0 and high distance will have moisture 0.0. Water regions will have moisture 1.0.
 
 #+begin_export html
 <div id="diagram-moisture-assignment">
@@ -256,7 +256,7 @@ See also http://worldengine-ecs.readthedocs.io/en/latest/biomes.html -- it seems
 
 ** Noisy edges
 
-Goal: replace the straight-line boundaries of polygons (including biome borders, coastlines, and rivers) with "noisy" lines.
+Goal: replace the straight-line boundaries of polygonal regions (including biome borders, coastlines, and rivers) with "noisy" lines.
 
 I am following the same general technique I used in 2010.
 

@@ -6,8 +6,11 @@
 
 const MIN_SPRING_ELEVATION = 0.05;
 
-exports.find_spring_t = function(mesh, v_water, t_elevation, t_downslope_e) {
-    const t_water = (t) => v_water[mesh.e_begin_v(3*t)] || v_water[mesh.e_begin_v(3*t+1)] || v_water[mesh.e_begin_v(3*t+2)];
+exports.find_spring_t = function(mesh, r_water, t_elevation, t_downslope_s) {
+    const t_water = (t) =>
+          (  r_water[mesh.s_begin_r(3*t)]
+          || r_water[mesh.s_begin_r(3*t+1)]
+          || r_water[mesh.s_begin_r(3*t+2)] );
 
     let spring_t = new Set();
     // Add everything above some elevation, but not lakes
@@ -18,40 +21,28 @@ exports.find_spring_t = function(mesh, v_water, t_elevation, t_downslope_e) {
     }
     // and then remove everything that's not a leaf in the drainage tree
     for (let t = 0; t < mesh.numSolidTriangles; t++) {
-        let e = t_downslope_e[t];
-        if (e !== -1) {
-            spring_t.delete(mesh.e_outer_t(e));
+        let s = t_downslope_s[t];
+        if (s !== -1) {
+            spring_t.delete(mesh.s_outer_t(s));
         }
     }
     return Array.from(spring_t);
 };
 
 
-exports.next_river_t = function(mesh, river_t, t_elevation) {
-    // Pick a random point that's not already in river_t and not in the ocean
-    for (let tries = 0; tries < 100; tries++) {
-        let t = Math.floor(mesh.numSolidTriangles * Math.random());
-        if (t_elevation[t] > 0.0 && river_t.indexOf(t) < 0) {
-            return t;
-        }
-    }
-    throw "could not find a new river";
-};
-
-
-exports.assign_e_flow = function(mesh, t_downslope_e, river_t) {
+exports.assign_s_flow = function(mesh, t_downslope_s, river_t) {
     // Each river in river_t contributes 1 flow down to the coastline
-    let e_flow = new Array(mesh.numEdges);
-    e_flow.fill(0);
+    let s_flow = new Array(mesh.numSides);
+    s_flow.fill(0);
     for (let t of river_t) {
         for (;;) {
-            let e = t_downslope_e[t];
-            if (e === -1) { break; }
-            e_flow[e]++;
-            let next_t = mesh.e_outer_t(e);
+            let s = t_downslope_s[t];
+            if (s === -1) { break; }
+            s_flow[s]++;
+            let next_t = mesh.s_outer_t(s);
             if (next_t === t) { break; }
             t = next_t;
         }
     }
-    return e_flow;
+    return s_flow;
 };

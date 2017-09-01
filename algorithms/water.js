@@ -5,46 +5,46 @@
 'use strict';
 const util = require('./util');
 
-// NOTE: v_water, v_ocean, other fields are boolean valued so it
+// NOTE: r_water, r_ocean, other fields are boolean valued so it
 // could be more efficient to pack them as bit fields in Uint8Array
 
 
-/* a polygon is water if the noise value is low */
-exports.assign_v_water = function(mesh, noise, params) {
-    let v_water = new Array(mesh.numVertices);
-    v_water.fill(false);
-    for (let v = 0; v < mesh.numVertices; v++) {
-        if (mesh.v_ghost(v) || mesh.v_boundary(v)) {
-            v_water[v] = true;
+/* a region is water if the noise value is low */
+exports.assign_r_water = function(mesh, noise, params) {
+    let r_water = new Array(mesh.numRegions);
+    r_water.fill(false);
+    for (let r = 0; r < mesh.numRegions; r++) {
+        if (mesh.r_ghost(r) || mesh.r_boundary(r)) {
+            r_water[r] = true;
         } else {
-            let dx = (mesh.vertices[v][0] - 500) / 500;
-            let dy = (mesh.vertices[v][1] - 500) / 500;
-            let distance_squared = dx*dx + dy*dy;
-            let n = util.mix(util.fbm_noise(noise, dx, dy), 0.5, params.round);
-            v_water[v] = n - (1.0 - params.inflate) * distance_squared < 0;
+            let nx = (mesh.r_vertex[r][0] - 500) / 500;
+            let ny = (mesh.r_vertex[r][1] - 500) / 500;
+            let distance_squared = nx*nx + ny*ny;
+            let n = util.mix(util.fbm_noise(noise, nx, ny), 0.5, params.round);
+            r_water[r] = n - (1.0 - params.inflate) * distance_squared < 0;
         }
     }
-    return v_water;
+    return r_water;
 };
 
 
-/* a polygon is ocean if it is a water polygon connected to the ghost polygon,
+/* a region is ocean if it is a water region connected to the ghost region,
    which is outside the boundary of the map; this could be any seed set but
-   for islands, the ghost polygon is a good seed */
-exports.assign_v_ocean = function(mesh, v_water) {
-    let v_ocean = new Array(mesh.numVertices);
-    v_ocean.fill(false);
-    let stack = [mesh.ghost_v()];
-    let v_out = [];
+   for islands, the ghost region is a good seed */
+exports.assign_r_ocean = function(mesh, r_water) {
+    let r_ocean = new Array(mesh.numRegions);
+    r_ocean.fill(false);
+    let stack = [mesh.ghost_r()];
+    let r_out = [];
     while (stack.length > 0) {
-        let v1 = stack.pop();
-        mesh.v_circulate_v(v_out, v1);
-        for (let v2 of v_out) {
-            if (v_water[v2] && !v_ocean[v2]) {
-                v_ocean[v2] = true;
-                stack.push(v2);
+        let r1 = stack.pop();
+        mesh.r_circulate_r(r_out, r1);
+        for (let r2 of r_out) {
+            if (r_water[r2] && !r_ocean[r2]) {
+                r_ocean[r2] = true;
+                stack.push(r2);
             }
         }
     }
-    return v_ocean;
+    return r_ocean;
 };

@@ -3,7 +3,7 @@
     "version": "1.0.0",
     "private": true,
     "dependencies": {
-        "@redblobgames/triangle-mesh": "file:../triangle-mesh",
+        "@redblobgames/dual-mesh": "file:../dual-mesh",
         "poisson-disk-sampling": "*",
         "delaunator": "*",
         "simplex-noise": "*"
