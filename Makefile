@@ -1,0 +1,2 @@
+server:
+	npm run start

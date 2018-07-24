@@ -2,6 +2,6 @@
 /index.bxml
 node_modules/
 /js
-/_bundle.js
+/_*
 blog/
 /noisy-edges.html
