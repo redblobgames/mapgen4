@@ -25,12 +25,12 @@ const {makeRandInt, makeRandFloat} = require('@redblobgames/prng');
 
 
 let param = {
-    seed: 185,
+    seed: 180,   // 102, 181, 184, 185, 187
     variant: 0,
-    spacing: 3,
+    spacing: 5,
     temperature: 0,
     rainfall: 0,
-    canvasSize: 1000,
+    canvasSize: 2000,
 };
 
 (function readSeedFromUrl() {
@@ -89,12 +89,16 @@ function assign_flow(mesh, order_t, t_elevation, t_outflow_s) {
         }
     }
     for (let i = order_t.length-1; i >= 0; i--) {
+        // t1 is the tributary and t2 is the trunk
         let t1 = order_t[i];
         let s = t_outflow_s[t1];
         let t2 = mesh.s_outer_t(s);
         if (s >= 0 && t_elevation[t2] > 0) {
             t_flow[t2] += t_flow[t1];
             s_flow[s] += t_flow[t1];
+            if (t_elevation[t2] > t_elevation[t1]) {
+                t_elevation[t2] = t_elevation[t1];
+            }
         }
     }
     return {t_flow, s_flow};
@@ -111,11 +115,12 @@ function assign_downlength(mesh, order_t, t_outflow_s) {
 
 function draw() {
     console.time('mesh-init');
+    // TODO: this step is rather slow, and we could speed it up by pregenerating the points ahead of time and not using the Poisson Disc library
     let mesh = new MeshBuilder({boundarySpacing: param.spacing * 1.5})
         .addPoisson(Poisson, param.spacing, makeRandFloat(12345))
         .create();
     console.timeEnd('mesh-init');
-    
+
     let map = {mesh};
     let ctx = canvas.getContext('2d');
 
@@ -186,15 +191,3 @@ function draw() {
 
 
 draw();
-
-// Ugh this is yet another hack… but since ACOM is cancelled it's not
-// worth cleaning up all this code.
-let button = document.getElementById('button-export');
-button.addEventListener('change', () => {
-    if (button.checked) {
-        Lighting.datGUI.close();
-    } else {
-        Lighting.datGUI.open();
-    }
-    setTimeout(draw, 20);
-});
