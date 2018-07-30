@@ -17,6 +17,6 @@
     },
     "scripts": {
         "build": "browserify mapgen2.js -g uglifyify -o _bundle.js",
-        "start": "budo mapgen2:_bundle.js --dir . --dir ../../ --live --onupdate 'npm run build'"
+        "watch": "budo mapgen2:_bundle.js --dir . --dir ../../ --live --onupdate 'npm run build'"
     }
 }
