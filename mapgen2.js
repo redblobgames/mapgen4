@@ -27,7 +27,7 @@ const {makeRandInt, makeRandFloat} = require('@redblobgames/prng');
 let param = {
     seed: 180,   // 102, 181, 184, 185, 187
     variant: 0,
-    spacing: 5,
+    spacing: 4,
     temperature: 0,
     rainfall: 0,
     canvasSize: 2000,
@@ -153,7 +153,7 @@ function draw() {
     for (let r = 0; r < mesh.numRegions; r++) {
         let e = elevation(mesh.r_x(r), mesh.r_y(r));
         map.r_elevation[r] = e;
-        map.r_moisture[r] = 1-Math.sqrt(Math.abs(e));
+        map.r_moisture[r] = 0.8-Math.sqrt(Math.abs(e));
         map.r_water[r] = e < 0;
         map.r_ocean[r] = e < 0;
     }
@@ -168,7 +168,7 @@ function draw() {
     ctx.clearRect(0, 0, 1000, 1000);
 
     console.time('draw-lakes');
-    //DrawWater.lakes(ctx, map);
+    DrawWater.lakes(ctx, map);
     console.timeEnd('draw-lakes');
     
     console.time('draw-rivers');
@@ -183,7 +183,8 @@ function draw() {
         ctx.fillStyle = `hsl(${hue},100%,50%)`;
         ctx.fillRect(mesh.t_x(t)-1, mesh.t_y(t)-1, 3, 3);
     }
-*/
+    */
+
     ctx.restore();
     
     Lighting.draw(map, canvas);

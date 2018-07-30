@@ -16,7 +16,6 @@ let regl = require('regl')({canvas: "#lighting"});
 const param = {
     exponent: 4.0,
     em: {
-        d: 0.5,
         e: 0.0, // 0.03,
     },
     drape: {
@@ -24,12 +23,12 @@ const param = {
         slope: 5,
         flat: 5,
         c: 0.25,
-        d: 20,
+        d: 6,
         mix: 0.5,
-        rotate_x: Math.PI,
+        rotate_x: Math.PI + 0.2,
         rotate_z: 0,
         scale_z: 1.5,
-        outline_depth: 1.1,
+        outline_depth: 1.2,
         outline_strength: 20,
         outline_threshold: 0.0,
     },
@@ -50,7 +49,7 @@ precision mediump float;
 uniform sampler2D u_water;
 varying vec2 v_position;
 varying vec3 v_emn;
-uniform float u_d, u_e;
+uniform float u_e;
 void main() {
    float water = texture2D(u_water, v_position).b;
     float e = 0.5 * (1.0 + v_emn.x);
@@ -78,7 +77,6 @@ void main() {
         u_exponent: () => param.exponent,
         u_projection: regl.prop('u_projection'),
         u_water: regl.prop('u_water'),
-        u_d: () => param.em.d,
         u_e: () => param.em.e,
     },
 
@@ -226,11 +224,11 @@ exports.draw = function(map, water_bitmap) {
     
     redraw = () => {
 
-        T1('draw-emn');
+        T1(`draw-emn ${a_position.length}`);
         // Use regl scopes to bind regl.clear to the framebuffer to clear it
         regl({framebuffer: fbo_em})(() => { regl.clear({color: [0, 0, 0, 1], depth: 1}); });
         drawElevationMoisture({a_position, a_emn, u_water, u_projection: topdown, count: a_position.length});
-        T2('draw-emn');
+        T2(`draw-emn ${a_position.length}`);
 
         let projection = mat4.create();
         mat4.rotateX(projection, projection, param.drape.rotate_x);
@@ -260,7 +258,6 @@ exports.draw = function(map, water_bitmap) {
 
 let G = new dat.GUI();
 G.add(param, 'exponent', 1, 10);
-G.add(param.em, 'd', 0, 1);
 G.add(param.em, 'e', 0, 0.1);
 G.add(param.drape, 'light_angle_deg', 0, 360);
 G.add(param.drape, 'slope', 0, 10);

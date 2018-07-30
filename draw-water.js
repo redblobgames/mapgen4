@@ -39,7 +39,7 @@ exports.rivers = function(ctx, map) {
         let r0 = map.mesh.s_begin_r(s),
             r1 = map.mesh.s_end_r(s);
         if (map.s_flow[s] === 0) { continue; }
-        let bri = 30 + Math.floor(50 / map.s_flow[s]);
+        let bri = 30 + Math.floor(30 / map.s_flow[s]);
         let t1 = mesh.s_inner_t(s), t2 = mesh.s_outer_t(s);
         ctx.strokeStyle = `hsl(200,50%,${bri}%)`;
         // TODO: line width needs to depend on how much space we have, e.g. in a canyon it would have to be narrow
