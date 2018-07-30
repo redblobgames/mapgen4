@@ -15,7 +15,6 @@
 'use strict';
 
 const SimplexNoise = require('simplex-noise');
-const Poisson =      require('poisson-disk-sampling');
 const DualMesh =     require('@redblobgames/dual-mesh');
 const MeshBuilder =  require('@redblobgames/dual-mesh/create');
 const Map =          require('@redblobgames/mapgen2');
@@ -25,7 +24,7 @@ const {makeRandInt, makeRandFloat} = require('@redblobgames/prng');
 
 
 let param = {
-    seed: 180,   // 102, 181, 184, 185, 187
+    seed: 180,   // 102, 181, 184, 185, 187, 505, 507
     variant: 0,
     spacing: 4,
     temperature: 0,
@@ -113,12 +112,31 @@ function assign_downlength(mesh, order_t, t_outflow_s) {
     return t_downlength;
 }
 
+function jitteredHexagonGrid(spacing, discardFraction, randFloat) {
+    const dr = spacing/1.5;
+    let points = [];
+    let offset = 0;
+    for (let y = spacing/2; y < 1000-spacing/2; y += spacing * 3/4) {
+        offset = (offset === 0)? spacing/2 : 0;
+        for (let x = offset + spacing/2; x < 1000-spacing/2; x += spacing) {
+            if (randFloat() < discardFraction) continue;
+            let r = dr * Math.sqrt(Math.abs(randFloat()));
+            let a = Math.PI * randFloat();
+            let dx = r * Math.cos(a);
+            let dy = r * Math.sin(a);
+            points.push([x + dx, y + dy]);
+        }
+    }
+    return points;
+}
+
 function draw() {
     console.time('mesh-init');
-    // TODO: this step is rather slow, and we could speed it up by pregenerating the points ahead of time and not using the Poisson Disc library
-    let mesh = new MeshBuilder({boundarySpacing: param.spacing * 1.5})
-        .addPoisson(Poisson, param.spacing, makeRandFloat(12345))
-        .create();
+    let meshb = new MeshBuilder({boundarySpacing: param.spacing * 1.5});
+    console.time('points');
+    meshb.addPoints(jitteredHexagonGrid(1.5 * param.spacing * Math.sqrt(1 - 0.3), 0.3, makeRandFloat(12345)));
+    console.timeEnd('points');
+    let mesh = meshb.create();
     console.timeEnd('mesh-init');
 
     let map = {mesh};

@@ -9,7 +9,6 @@
         "regl": "*",
         "gl-matrix": "*",
         "hash-int": "*",
-        "poisson-disk-sampling": "*",
         "simplex-noise": "*"
     },
     "devDependencies": {
