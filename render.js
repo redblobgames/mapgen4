@@ -52,7 +52,7 @@ varying vec3 v_emn;
 uniform float u_e;
 void main() {
    float water = texture2D(u_water, v_position).b;
-    float e = 0.5 * (1.0 + v_emn.x);
+   float e = 0.5 * (1.0 + v_emn.x);
    if (e > 0.5) { e -= u_e * water; }
    else { e -= 0.01; }
    gl_FragColor = vec4(fract(256.0*e), e, v_emn.y, 1);

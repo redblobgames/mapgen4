@@ -19,7 +19,7 @@ const DualMesh =     require('@redblobgames/dual-mesh');
 const MeshBuilder =  require('@redblobgames/dual-mesh/create');
 const Map =          require('@redblobgames/mapgen2');
 const DrawWater =    require('./draw-water');
-const Lighting =     require('./lighting');
+const Render =       require('./render');
 const {makeRandInt, makeRandFloat} = require('@redblobgames/prng');
 
 
@@ -193,19 +193,9 @@ function draw() {
     DrawWater.rivers(ctx, map);
     console.timeEnd('draw-rivers');
 
-    /*
-    let t_downlength = assign_downlength(mesh, result.order_t, result.t_outflow_s);
-    for (let t = 0; t < mesh.numTriangles; t++) {
-        // let hue = (360 * result.order_t.indexOf(t) / mesh.numTriangles) | 0;
-        let hue = (2 * t_downlength[t]) % 360;
-        ctx.fillStyle = `hsl(${hue},100%,50%)`;
-        ctx.fillRect(mesh.t_x(t)-1, mesh.t_y(t)-1, 3, 3);
-    }
-    */
-
     ctx.restore();
     
-    Lighting.draw(map, canvas);
+    Render.draw(map, canvas);
 }
 
 
