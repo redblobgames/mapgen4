@@ -1,5 +1,5 @@
 /*
- * From http://www.redblobgames.com/x/1742-webgl-mapgen2/
+ * From http://www.redblobgames.com/maps/mapgen4/
  * Copyright 2017 Red Blob Games <redblobgames@gmail.com>
  * License: Apache v2.0 <http://www.apache.org/licenses/LICENSE-2.0.html>
  */
@@ -11,13 +11,13 @@
 let {vec3, mat4} = require('gl-matrix');
 let colormap = require('./colormap');
 let Geometry = require('./geometry');
-let regl = require('regl')({canvas: "#lighting"});
+let regl = require('regl')({
+    canvas: "#mapgen4",
+    extensions: ['OES_element_index_uint']
+});
 
 const param = {
     exponent: 4.0,
-    em: {
-        e: 0.0, // 0.03,
-    },
     drape: {
         light_angle_deg: 120,
         slope: 5,
@@ -46,16 +46,12 @@ const fbo_z = regl.framebuffer({color: [fbo_z_texture]});
 let drawElevationMoisture = regl({
     frag: `
 precision mediump float;
-uniform sampler2D u_water;
 varying vec2 v_position;
-varying vec3 v_emn;
-uniform float u_e;
+varying vec2 v_em;
 void main() {
-   float water = texture2D(u_water, v_position).b;
-   float e = 0.5 * (1.0 + v_emn.x);
-   if (e > 0.5) { e -= u_e * water; }
-   else { e -= 0.01; }
-   gl_FragColor = vec4(fract(256.0*e), e, v_emn.y, 1);
+   float e = 0.5 * (1.0 + v_em.x);
+   if (e < 0.5) { e -= 0.005; } // produces the border
+   gl_FragColor = vec4(fract(256.0*e), e, v_em.y, 1);
 }`,
 
     vert: `
@@ -63,13 +59,13 @@ precision mediump float;
 uniform mat4 u_projection;
 uniform float u_exponent;
 attribute vec2 a_position;
-attribute vec3 a_emn;
+attribute vec2 a_em;
 varying vec2 v_position;
-varying vec3 v_emn;
+varying vec2 v_em;
 void main() {
     vec4 pos = vec4(u_projection * vec4(a_position, 0, 1));
     v_position = 0.5 * (1.0 + pos.xy);
-    v_emn = vec3(a_emn.x < 0.0? a_emn.x : pow(a_emn.x, u_exponent), a_emn.y, a_emn.z);
+    v_em = vec2(a_em.x < 0.0? a_em.x : pow(a_em.x, u_exponent), a_em.y);
     gl_Position = pos;
 }`,
 
@@ -77,14 +73,13 @@ void main() {
         u_exponent: () => param.exponent,
         u_projection: regl.prop('u_projection'),
         u_water: regl.prop('u_water'),
-        u_e: () => param.em.e,
     },
 
     framebuffer: fbo_em,
-    count: regl.prop('count'),
+    elements: regl.prop('elements'),
     attributes: {
         a_position: regl.prop('a_position'),
-        a_emn: regl.prop('a_emn'),
+        a_em: regl.prop('a_em'),
     },
 });
 
@@ -104,19 +99,19 @@ precision mediump float;
 uniform mat4 u_projection;
 uniform float u_exponent;
 attribute vec2 a_position;
-attribute vec3 a_emn;
+attribute vec2 a_em;
 varying float v_z;
 void main() {
-    vec4 pos = vec4(u_projection * vec4(a_position, pow(max(0.0, a_emn.x), u_exponent), 1));
-    v_z = a_emn.x;
+    vec4 pos = vec4(u_projection * vec4(a_position, pow(max(0.0, a_em.x), u_exponent), 1));
+    v_z = a_em.x;
     gl_Position = pos;
 }`,
 
     framebuffer: fbo_z,
-    count: regl.prop('count'),
+    elements: regl.prop('elements'),
     attributes: {
         a_position: regl.prop('a_position'),
-        a_emn: regl.prop('a_emn'),
+        a_em: regl.prop('a_em'),
     },
     uniforms: {
         u_exponent: () => param.exponent,
@@ -172,19 +167,19 @@ precision mediump float;
 uniform mat4 u_projection;
 uniform float u_exponent;
 attribute vec2 a_position;
-attribute vec3 a_emn;
+attribute vec2 a_em;
 varying vec2 v_uv, v_pos;
 void main() {
-    vec4 pos = vec4(u_projection * vec4(a_position, pow(max(0.0, a_emn.x), u_exponent), 1));
+    vec4 pos = vec4(u_projection * vec4(a_position, pow(max(0.0, a_em.x), u_exponent), 1));
     v_uv = vec2(a_position.x / 1000.0, a_position.y / 1000.0);
     v_pos = (1.0 + pos.xy) * 0.5;
     gl_Position = pos;
 }`,
 
-    count: regl.prop('count'),
+    elements: regl.prop('elements'),
     attributes: {
         a_position: regl.prop('a_position'),
-        a_emn: regl.prop('a_emn'),
+        a_em: regl.prop('a_em'),
     },
     uniforms: {
         u_exponent: () => param.exponent,
@@ -214,9 +209,15 @@ exports.draw = function(map, water_bitmap) {
     mat4.translate(topdown, topdown, [-1, -1, 0, 0]);
     mat4.scale(topdown, topdown, [1/500, 1/500, 1, 1]);
 
-    T1('make-mesh');
-    let {a_position, a_emn} = Geometry.make(map);
-    T2('make-mesh');
+    T1('make-mesh-static');
+    let a_position = new Float32Array(2 * (map.mesh.numRegions + map.mesh.numTriangles));
+    Geometry.setMeshGeometry(map.mesh, a_position);
+    T2('make-mesh-static');
+    T1('make-mesh-dynamic');
+    let elements = new Int32Array(3 * map.mesh.numSolidSides);
+    let a_em = new Float32Array(2 * (map.mesh.numRegions + map.mesh.numTriangles));
+    Geometry.setMapGeometry(map, elements, a_em);
+    T2('make-mesh-dynamic');
     
     T1('make-water-texture');
     let u_water = regl.texture({data: water_bitmap, wrapS: 'clamp', wrapT: 'clamp'});
@@ -224,11 +225,11 @@ exports.draw = function(map, water_bitmap) {
     
     redraw = () => {
 
-        T1(`draw-emn ${a_position.length}`);
+        T1(`draw-em ${elements.length/3} triangles`);
         // Use regl scopes to bind regl.clear to the framebuffer to clear it
         regl({framebuffer: fbo_em})(() => { regl.clear({color: [0, 0, 0, 1], depth: 1}); });
-        drawElevationMoisture({a_position, a_emn, u_water, u_projection: topdown, count: a_position.length});
-        T2(`draw-emn ${a_position.length}`);
+        drawElevationMoisture({elements, a_position, a_em, u_projection: topdown});
+        T2(`draw-em ${elements.length/3} triangles`);
 
         let projection = mat4.create();
         mat4.rotateX(projection, projection, param.drape.rotate_x);
@@ -239,13 +240,13 @@ exports.draw = function(map, water_bitmap) {
         T1('draw-depth');
         if (param.drape.outline_depth > 0) {
             regl({framebuffer: fbo_z})(() => { regl.clear({color: [0, 0, 0, 1], depth: 1}); });
-            drawDepth({u_water, a_position, a_emn, u_projection: projection, count: a_position.length});
+            drawDepth({elements, a_position, a_em, u_water, u_projection: projection});
         }
         T2('draw-depth');
         
         T1('draw-drape');
         regl.clear({color: [0, 0, 0, 1], depth: 1});
-        drawDrape({u_water, u_depth: fbo_z_texture, a_position, a_emn, u_projection: projection, count: a_position.length});
+        drawDrape({elements, a_position, a_em, u_water, u_depth: fbo_z_texture, u_projection: projection});
         T2('draw-drape');
 
         if (FRAME++ > 2) {
@@ -258,7 +259,6 @@ exports.draw = function(map, water_bitmap) {
 
 let G = new dat.GUI();
 G.add(param, 'exponent', 1, 10);
-G.add(param.em, 'e', 0, 0.1);
 G.add(param.drape, 'light_angle_deg', 0, 360);
 G.add(param.drape, 'slope', 0, 10);
 G.add(param.drape, 'flat', 0, 10);
