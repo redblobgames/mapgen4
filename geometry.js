@@ -28,6 +28,7 @@ function setMapGeometry(map, I, P) {
     const V = 0.95; // reduce elevation in valleys
     let {mesh, r_water, t_downslope_s, r_elevation, t_elevation, r_moisture} = map;
     let {numSolidSides, numRegions, numTriangles} = mesh;
+
     if (I.length !== 3 * numSolidSides) { throw "wrong size"; }
     if (P.length !== 2 * (numRegions + numTriangles)) { throw "wrong size"; }
 
@@ -66,6 +67,9 @@ function setMapGeometry(map, I, P) {
             I[i++] = r1; I[i++] = r2; I[i++] = numRegions+t1;
         }
     }
+
+    if (I.length !== i) { throw "wrong size"; }
+    if (P.length !== p) { throw "wrong size"; }
 }
 
 exports.setMeshGeometry = setMeshGeometry;

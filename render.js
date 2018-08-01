@@ -41,6 +41,43 @@ const fbo_em = regl.framebuffer({color: [fbo_em_texture]});
 const fbo_z_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size});
 const fbo_z = regl.framebuffer({color: [fbo_z_texture]});
 
+class Renderer {
+    constructor (mesh) {
+        this.a_position = new Float32Array(2 * (mesh.numRegions + mesh.numTriangles));
+        this.a_em = new Float32Array(2 * (mesh.numRegions + mesh.numTriangles));
+        this.elements = new Int32Array(3 * mesh.numSolidSides);
+        
+        Geometry.setMeshGeometry(mesh, this.a_position);
+        
+        this.buffer_position = regl.buffer({
+            usage: 'static',
+            type: 'float',
+            data: this.a_position,
+        });
+
+        this.buffer_em = regl.buffer({
+            usage: 'dynamic',
+            type: 'float',
+            length: 4 * this.a_em.length,
+        });
+
+        this.buffer_elements = regl.elements({
+            primitive: 'triangles',
+            usage: 'dynamic',
+            type: 'uint32',
+            length: 4 * this.elements.length,
+            count: this.elements.length,
+        });
+    }
+
+    /* Update the buffers with the latest em, elements data */
+    update() {
+        // TODO: better to use subdata or reinitialize?
+        this.buffer_em.subdata(this.a_em);
+        this.buffer_elements.subdata(this.elements);
+    }
+}
+
 
 /* write 16-bit elevation and 8-bit moisture to a texture */
 let drawElevationMoisture = regl({
@@ -52,7 +89,7 @@ void main() {
    float e = 0.5 * (1.0 + v_em.x);
    if (e < 0.5) { e -= 0.005; } // produces the border
    gl_FragColor = vec4(fract(256.0*e), e, v_em.y, 1);
-}`,
+}`, // TODO: < 0.5 vs <= 0.5 produce significantly different results
 
     vert: `
 precision mediump float;
@@ -210,13 +247,11 @@ exports.draw = function(map, water_bitmap) {
     mat4.scale(topdown, topdown, [1/500, 1/500, 1, 1]);
 
     T1('make-mesh-static');
-    let a_position = new Float32Array(2 * (map.mesh.numRegions + map.mesh.numTriangles));
-    Geometry.setMeshGeometry(map.mesh, a_position);
+    let renderer = new Renderer(map.mesh);
     T2('make-mesh-static');
     T1('make-mesh-dynamic');
-    let elements = new Int32Array(3 * map.mesh.numSolidSides);
-    let a_em = new Float32Array(2 * (map.mesh.numRegions + map.mesh.numTriangles));
-    Geometry.setMapGeometry(map, elements, a_em);
+    Geometry.setMapGeometry(map, renderer.elements, renderer.a_em);
+    renderer.update();
     T2('make-mesh-dynamic');
     
     T1('make-water-texture');
@@ -225,11 +260,16 @@ exports.draw = function(map, water_bitmap) {
     
     redraw = () => {
 
-        T1(`draw-em ${elements.length/3} triangles`);
+        T1(`draw-em ${renderer.elements.length/3} triangles`);
         // Use regl scopes to bind regl.clear to the framebuffer to clear it
         regl({framebuffer: fbo_em})(() => { regl.clear({color: [0, 0, 0, 1], depth: 1}); });
-        drawElevationMoisture({elements, a_position, a_em, u_projection: topdown});
-        T2(`draw-em ${elements.length/3} triangles`);
+        drawElevationMoisture({
+            elements: renderer.buffer_elements,
+            a_position: renderer.buffer_position,
+            a_em: renderer.buffer_em,
+            u_projection: topdown,
+        });
+        T2(`draw-em ${renderer.elements.length/3} triangles`);
 
         let projection = mat4.create();
         mat4.rotateX(projection, projection, param.drape.rotate_x);
@@ -240,13 +280,26 @@ exports.draw = function(map, water_bitmap) {
         T1('draw-depth');
         if (param.drape.outline_depth > 0) {
             regl({framebuffer: fbo_z})(() => { regl.clear({color: [0, 0, 0, 1], depth: 1}); });
-            drawDepth({elements, a_position, a_em, u_water, u_projection: projection});
+            drawDepth({
+                elements: renderer.buffer_elements,
+                a_position: renderer.buffer_position,
+                a_em: renderer.buffer_em,
+                u_water: u_water,
+                u_projection: projection
+            });
         }
         T2('draw-depth');
         
         T1('draw-drape');
         regl.clear({color: [0, 0, 0, 1], depth: 1});
-        drawDrape({elements, a_position, a_em, u_water, u_depth: fbo_z_texture, u_projection: projection});
+        drawDrape({
+            elements: renderer.buffer_elements,
+            a_position: renderer.buffer_position,
+            a_em: renderer.buffer_em,
+            u_water: u_water,
+            u_depth: fbo_z_texture,
+            u_projection: projection
+        });
         T2('draw-drape');
 
         if (FRAME++ > 2) {
