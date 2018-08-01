@@ -10,7 +10,7 @@
 
 let {vec3, mat4} = require('gl-matrix');
 let colormap = require('./colormap');
-let geometry = require('./geometry');
+let Geometry = require('./geometry');
 let regl = require('regl')({canvas: "#lighting"});
 
 const param = {
@@ -215,7 +215,7 @@ exports.draw = function(map, water_bitmap) {
     mat4.scale(topdown, topdown, [1/500, 1/500, 1, 1]);
 
     T1('make-mesh');
-    let {a_position, a_emn} = geometry.make(map);
+    let {a_position, a_emn} = Geometry.make(map);
     T2('make-mesh');
     
     T1('make-water-texture');
