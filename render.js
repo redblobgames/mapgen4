@@ -165,7 +165,7 @@ uniform sampler2D u_colormap;
 uniform sampler2D u_mapdata;
 uniform sampler2D u_water;
 uniform sampler2D u_depth;
-uniform float u_light_angle_rad;
+uniform vec2 u_light_angle;
 uniform float u_inverse_texture_size, 
               u_slope, u_flat,
               u_c, u_d, u_mix,
@@ -182,7 +182,7 @@ void main() {
    float zW = dot(texture2D(u_mapdata, pos - dx), decipher);
    float zS = dot(texture2D(u_mapdata, pos + dy), decipher);
    vec3 slope_vector = normalize(vec3(zS-zN, zE-zW, u_d*2.0*u_inverse_texture_size));
-   vec3 light_vector = normalize(vec3(cos(u_light_angle_rad), sin(u_light_angle_rad), mix(u_slope, u_flat, slope_vector.z)));
+   vec3 light_vector = normalize(vec3(u_light_angle, mix(u_slope, u_flat, slope_vector.z)));
    float light = u_c + max(0.0, dot(light_vector, slope_vector));
    vec2 em = texture2D(u_mapdata, pos).yz;
    vec4 biome_color = texture2D(u_colormap, em);
@@ -193,7 +193,7 @@ void main() {
                       texture2D(u_depth, v_pos + sample_offset + u_outline_depth*(-dy-dx)).x);
    float outline = 1.0 + u_outline_strength * (max(u_outline_threshold, depth1-depth0) - u_outline_threshold);
 
-   // gl_FragColor = vec4(light, light, light, 1);
+   // gl_FragColor = vec4(light/outline, light/outline, light/outline, 1);
    // gl_FragColor = vec4(biome_color, 1);
    // gl_FragColor = texture2D(u_mapdata, v_uv);
    gl_FragColor = vec4(mix(biome_color, water_color, u_mix * sqrt(water_color.a)).rgb * light / outline, 1);
@@ -226,7 +226,10 @@ void main() {
         u_mapdata: () => fbo_em_texture,
         u_water: regl.prop('u_water'),
         u_inverse_texture_size: 1.5 / fbo_texture_size,
-        u_light_angle_rad: () => Math.PI/180 * param.drape.light_angle_deg,
+        u_light_angle: () => [
+            Math.cos(Math.PI/180 * param.drape.light_angle_deg),
+            Math.sin(Math.PI/180 * param.drape.light_angle_deg),
+        ],
         u_slope: () => param.drape.slope,
         u_flat: () => param.drape.flat,
         u_c: () => param.drape.c,
@@ -262,7 +265,6 @@ exports.draw = function(map, water_bitmap) {
 
         T1(`draw-em ${renderer.elements.length/3} triangles`);
         // Use regl scopes to bind regl.clear to the framebuffer to clear it
-        regl({framebuffer: fbo_em})(() => { regl.clear({color: [0, 0, 0, 1], depth: 1}); });
         drawElevationMoisture({
             elements: renderer.buffer_elements,
             a_position: renderer.buffer_position,
@@ -279,7 +281,6 @@ exports.draw = function(map, water_bitmap) {
         
         T1('draw-depth');
         if (param.drape.outline_depth > 0) {
-            regl({framebuffer: fbo_z})(() => { regl.clear({color: [0, 0, 0, 1], depth: 1}); });
             drawDepth({
                 elements: renderer.buffer_elements,
                 a_position: renderer.buffer_position,
@@ -302,6 +303,14 @@ exports.draw = function(map, water_bitmap) {
         });
         T2('draw-drape');
 
+        T1('clear-fb');
+        // Might as well do these afterwards, because they're a
+        // significant slowdown, and I should do it after I've already
+        // drawn the map
+        regl({framebuffer: fbo_em})(() => { regl.clear({color: [0, 0, 0, 1], depth: 1}); });
+        regl({framebuffer: fbo_z})(() => { regl.clear({color: [0, 0, 0, 1], depth: 1}); });
+        T2('clear-fb');
+        
         if (FRAME++ > 2) {
             T1 = T2 = () => {}; // only show performance the first few times
         }
