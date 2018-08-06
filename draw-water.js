@@ -30,7 +30,7 @@ exports.lakes = function(ctx, map) {
     }
 };
 
-exports.rivers = function(ctx, map) {
+exports.rivers = function(ctx, map, spacing) {
     let {mesh} = map;
     let end = mesh.numSolidSides;
 
@@ -38,12 +38,12 @@ exports.rivers = function(ctx, map) {
     for (let s = 0; s < mesh.numSolidSides; s++) {
         let r0 = map.mesh.s_begin_r(s),
             r1 = map.mesh.s_end_r(s);
-        if (map.s_flow[s] === 0) { continue; }
-        let bri = 30 + Math.floor(30 / map.s_flow[s]);
+        let flow = map.s_flow[s] * spacing * spacing / 30;
+        if (flow === 0) { continue; }
+        let bri = 30 + Math.floor(1 / flow);
         let t1 = mesh.s_inner_t(s), t2 = mesh.s_outer_t(s);
         ctx.strokeStyle = `hsl(200,50%,${bri}%)`;
-        // TODO: line width needs to depend on how much space we have, e.g. in a canyon it would have to be narrow
-        ctx.lineWidth = 0.1 * Math.sqrt(map.s_flow[s]);
+        ctx.lineWidth = 0.1 * Math.sqrt(flow);
         ctx.beginPath();
         ctx.moveTo(mesh.t_x(t1), mesh.t_y(t1));
         ctx.lineTo(mesh.t_x(t2), mesh.t_y(t2));

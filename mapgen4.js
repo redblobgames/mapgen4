@@ -213,7 +213,7 @@ function draw() {
     console.timeEnd('draw-lakes');
     
     console.time('draw-rivers');
-    DrawWater.rivers(ctx, map);
+    DrawWater.rivers(ctx, map, param.spacing);
     console.timeEnd('draw-rivers');
 
     ctx.restore();
