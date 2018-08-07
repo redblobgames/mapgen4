@@ -24,10 +24,7 @@ const {makeRandInt, makeRandFloat} = require('@redblobgames/prng');
 
 let param = {
     seed: 180,   // 102, 181, 184, 185, 187, 505, 507
-    variant: 0,
-    spacing: 4,
-    temperature: 0,
-    rainfall: 0,
+    spacing: 5,
     canvasSize: 2000,
 };
 
@@ -191,9 +188,11 @@ function draw() {
     console.timeEnd('points');
     
     console.time('mesh-init');
-    let mesh = meshb.create();
+    let mesh = meshb.create(true);
     console.timeEnd('mesh-init');
 
+    Render.setup(mesh);
+    
     let map = new Map(mesh);
 
     console.log(`triangles = ${mesh.numTriangles} regions = ${mesh.numRegions}`);

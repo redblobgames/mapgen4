@@ -17,20 +17,21 @@ let regl = require('regl')({
 });
 
 const param = {
-    exponent: 4.0,
+    exponent: 2.5,
+    distance: 480,
     drape: {
-        light_angle_deg: 120,
-        slope: 5,
-        flat: 5,
+        light_angle_deg: 80,
+        slope: 1,
+        flat: 2.5,
         c: 0.25,
-        d: 6,
+        d: 8,
         mix: 0.5,
-        rotate_x: Math.PI + 0.2,
-        rotate_z: 0,
-        scale_z: 1.5,
+        rotate_x_deg: 190,
+        rotate_z_deg: 0,
+        scale_z: 0.5,
         outline_depth: 1.2,
-        outline_strength: 20,
-        outline_threshold: 0.0,
+        outline_strength: 15,
+        outline_threshold: 25,
     },
 };
 exports.param = param;
@@ -82,17 +83,21 @@ class Renderer {
 /* write 16-bit elevation and 8-bit moisture to a texture */
 let drawElevationMoisture = regl({
     frag: `
-precision mediump float;
+precision highp float;
 varying vec2 v_position;
 varying vec2 v_em;
 void main() {
    float e = 0.5 * (1.0 + v_em.x);
    if (e < 0.5) { e -= 0.005; } // produces the border
    gl_FragColor = vec4(fract(256.0*e), e, v_em.y, 1);
+   // NOTE: it should be using the floor instead of rounding, but
+   // rounding produces a nice looking artifact, so I'll keep that
+   // until I can produce the artifact properly (e.g. bug → feature)
+   // gl_FragColor = vec4(fract(256.0*e), floor(256.0*e)/256.0, v_em.y, 1);
 }`, // TODO: < 0.5 vs <= 0.5 produce significantly different results
 
     vert: `
-precision mediump float;
+precision highp float;
 uniform mat4 u_projection;
 uniform float u_exponent;
 attribute vec2 a_position;
@@ -113,6 +118,9 @@ void main() {
     },
 
     framebuffer: fbo_em,
+    depth: {
+        enable: false,
+    },
     elements: regl.prop('elements'),
     attributes: {
         a_position: regl.prop('a_position'),
@@ -125,14 +133,14 @@ void main() {
 // TODO: float texture?
 let drawDepth = regl({
     frag: `
-precision mediump float;
+precision highp float;
 varying float v_z;
 void main() {
    gl_FragColor = vec4(v_z, v_z, v_z, 1);
 }`,
 
     vert: `
-precision mediump float;
+precision highp float;
 uniform mat4 u_projection;
 uniform float u_exponent;
 attribute vec2 a_position;
@@ -160,7 +168,7 @@ void main() {
 /* draw the final image by draping the biome colors over the geometry */
 let drawDrape = regl({
     frag: `
-precision mediump float;
+precision highp float;
 uniform sampler2D u_colormap;
 uniform sampler2D u_mapdata;
 uniform sampler2D u_water;
@@ -185,22 +193,25 @@ void main() {
    vec3 light_vector = normalize(vec3(u_light_angle, mix(u_slope, u_flat, slope_vector.z)));
    float light = u_c + max(0.0, dot(light_vector, slope_vector));
    vec2 em = texture2D(u_mapdata, pos).yz;
+   if (em.x > 0.5) { em.x = 2.0 * (em.x-0.5) + 0.5; } /* HACK: for noise-based elevation */
    vec4 biome_color = texture2D(u_colormap, em);
    vec4 water_color = texture2D(u_water, pos);
 
-   float depth0 = texture2D(u_depth, v_pos + sample_offset).x,
-         depth1 = max(texture2D(u_depth, v_pos + sample_offset + u_outline_depth*(-dy+dx)).x,
-                      texture2D(u_depth, v_pos + sample_offset + u_outline_depth*(-dy-dx)).x);
+   float depth0 = texture2D(u_depth, v_pos).x,
+         depth1 = max(max(texture2D(u_depth, v_pos + u_outline_depth*(-dy-dx)).x,
+                          texture2D(u_depth, v_pos + u_outline_depth*(-dy+dx)).x),
+                          texture2D(u_depth, v_pos + u_outline_depth*(-dy)).x);
    float outline = 1.0 + u_outline_strength * (max(u_outline_threshold, depth1-depth0) - u_outline_threshold);
 
    // gl_FragColor = vec4(light/outline, light/outline, light/outline, 1);
-   // gl_FragColor = vec4(biome_color, 1);
+   // gl_FragColor = vec4(biome_color.rgb, 1);
    // gl_FragColor = texture2D(u_mapdata, v_uv);
+   // gl_FragColor = vec4(mix(vec4(1,1,1,1), water_color, u_mix * sqrt(water_color.a)).rgb, 1);
    gl_FragColor = vec4(mix(biome_color, water_color, u_mix * sqrt(water_color.a)).rgb * light / outline, 1);
 }`,
 
     vert: `
-precision mediump float;
+precision highp float;
 uniform mat4 u_projection;
 uniform float u_exponent;
 attribute vec2 a_position;
@@ -227,8 +238,8 @@ void main() {
         u_water: regl.prop('u_water'),
         u_inverse_texture_size: 1.5 / fbo_texture_size,
         u_light_angle: () => [
-            Math.cos(Math.PI/180 * param.drape.light_angle_deg),
-            Math.sin(Math.PI/180 * param.drape.light_angle_deg),
+            Math.cos(Math.PI/180 * (param.drape.light_angle_deg + param.drape.rotate_z_deg)),
+            Math.sin(Math.PI/180 * (param.drape.light_angle_deg + param.drape.rotate_z_deg)),
         ],
         u_slope: () => param.drape.slope,
         u_flat: () => param.drape.flat,
@@ -237,11 +248,17 @@ void main() {
         u_mix: () => param.drape.mix,
         u_outline_depth: () => param.drape.outline_depth,
         u_outline_strength: () => param.drape.outline_strength,
-        u_outline_threshold: () => param.drape.outline_threshold,
+        u_outline_threshold: () => param.drape.outline_threshold/1000,
     },
 });
 
-let redraw;
+let redraw, renderer;
+exports.setup = function(mesh) {
+    console.time('make-mesh-static');
+    renderer = new Renderer(mesh);
+    console.timeEnd('make-mesh-static');
+};
+
 exports.draw = function(map, water_bitmap) {
     let FRAME = 0, T1 = console.time, T2 = console.timeEnd;
 
@@ -249,9 +266,6 @@ exports.draw = function(map, water_bitmap) {
     mat4.translate(topdown, topdown, [-1, -1, 0, 0]);
     mat4.scale(topdown, topdown, [1/500, 1/500, 1, 1]);
 
-    T1('make-mesh-static');
-    let renderer = new Renderer(map.mesh);
-    T2('make-mesh-static');
     T1('make-mesh-dynamic');
     Geometry.setMapGeometry(map, renderer.elements, renderer.a_em);
     renderer.update();
@@ -274,10 +288,10 @@ exports.draw = function(map, water_bitmap) {
         T2(`draw-em ${renderer.elements.length/3} triangles`);
 
         let projection = mat4.create();
-        mat4.rotateX(projection, projection, param.drape.rotate_x);
-        mat4.rotateZ(projection, projection, param.drape.rotate_z);
-        mat4.translate(projection, projection, [-1, -1, 0, 0]);
-        mat4.scale(projection, projection, [1/500, 1/500, param.drape.scale_z, 1]);
+        mat4.rotateX(projection, projection, param.drape.rotate_x_deg * Math.PI/180);
+        mat4.rotateZ(projection, projection, param.drape.rotate_z_deg * Math.PI/180);
+        mat4.scale(projection, projection, [1/param.distance, 1/param.distance, param.drape.scale_z, 1]);
+        mat4.translate(projection, projection, [-500, -500, 0, 0]);
         
         T1('draw-depth');
         if (param.drape.outline_depth > 0) {
@@ -307,8 +321,9 @@ exports.draw = function(map, water_bitmap) {
         // Might as well do these afterwards, because they're a
         // significant slowdown, and I should do it after I've already
         // drawn the map
-        regl({framebuffer: fbo_em})(() => { regl.clear({color: [0, 0, 0, 1], depth: 1}); });
+        //regl({framebuffer: fbo_em})(() => { regl.clear({color: [0, 0, 0, 1], depth: 1}); });
         regl({framebuffer: fbo_z})(() => { regl.clear({color: [0, 0, 0, 1], depth: 1}); });
+        // TODO: do I even need to clear them?
         T2('clear-fb');
         
         if (FRAME++ > 2) {
@@ -321,18 +336,19 @@ exports.draw = function(map, water_bitmap) {
 
 let G = new dat.GUI();
 G.add(param, 'exponent', 1, 10);
+G.add(param, 'distance', 100, 2000);
 G.add(param.drape, 'light_angle_deg', 0, 360);
 G.add(param.drape, 'slope', 0, 10);
 G.add(param.drape, 'flat', 0, 10);
 G.add(param.drape, 'c', 0, 1);
 G.add(param.drape, 'd', 0, 40);
 G.add(param.drape, 'mix', 0, 2);
-G.add(param.drape, 'rotate_x', -2*Math.PI, 2*Math.PI);
-G.add(param.drape, 'rotate_z', -2*Math.PI, 2*Math.PI);
+G.add(param.drape, 'rotate_x_deg', -360, 360);
+G.add(param.drape, 'rotate_z_deg', -360, 360);
 G.add(param.drape, 'scale_z', 0, 2);
 G.add(param.drape, 'outline_depth', 0, 5);
 G.add(param.drape, 'outline_strength', 0, 30);
-G.add(param.drape, 'outline_threshold', 0, 0.1);
+G.add(param.drape, 'outline_threshold', 0, 100);
 function update() {
     redraw();
 }

@@ -8,7 +8,7 @@
 /* Fill P:Float32Array with x,y data from mesh:TriangleMesh,
    first region points then triangle points */
 function setMeshGeometry(mesh, P) {
-    let {numSolidSides, numRegions, numTriangles} = mesh;
+    let {numRegions, numTriangles} = mesh;
     if (P.length !== 2 * (numRegions + numTriangles)) { throw "wrong size"; }
 
     let p = 0;
