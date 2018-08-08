@@ -23,7 +23,7 @@ const {makeRandInt, makeRandFloat} = require('@redblobgames/prng');
 
 
 let param = {
-    seed: 180,   // 102, 181, 184, 185, 187, 505, 507
+    seed: 180,   // 102, 181, 184, 185, 187, 505, 507, 2033
     spacing: 5,
     canvasSize: 2000,
 };
@@ -37,6 +37,34 @@ let param = {
 
 let canvas = document.createElement('canvas');
 canvas.width = canvas.height = param.canvasSize;
+
+
+function elevationNoise(noise, base, x, y) {
+    let dx = (x-500)/500, dy = (y-500)/500;
+    let e = base;
+    let step = (base < 0.5)? 0 : (base > 0.7)? 1 : (base - 0.5)/0.2;
+    e += step * 0.5 * (Math.abs(noise.noise2D(dx*3 - 3, dy*3 - 3)) * base) * Math.abs(noise.noise2D(dx*32 + 9, dy*32 + 9)); // bumpier mountains
+    
+    if (e < -1.0) { e = -1.0; }
+    if (e > +1.0) { e = +1.0; }
+    return e;
+}
+
+function elevation(noise, x, y) {
+    let dx = (x-500)/500, dy = (y-500)/500;
+    let base = noise.noise2D(dx, dy);
+    let e = (0.5 * base
+             + 0.25 * noise.noise2D(dx*2 + 5, dy*2 + 5)
+             + 0.125 * noise.noise2D(dx*4 + 7, dy*4 + 7)
+             + 0.0625 * noise.noise2D(dx*8 + 9, dy*8 + 9));
+
+    let step = (base < 0.5)? 0 : (base > 0.7)? 1 : (base - 0.5)/0.2;
+    e += step * 0.5 * (Math.abs(noise.noise2D(dx*3 - 3, dy*3 - 3)) * base) * Math.abs(noise.noise2D(dx*32 + 9, dy*32 + 9)); // bumpier mountains
+    
+    if (e < -1.0) { e = -1.0; }
+    if (e > +1.0) { e = +1.0; }
+    return e;
+}
 
 
 class Map {
@@ -60,27 +88,16 @@ class Map {
     assignElevation() {
         let {mesh, noise, t_elevation, r_elevation, r_moisture, r_water, r_ocean, seeds_t} = this;
         console.time('map-elevation-1');
-        function elevation(x, y) {
-            let dx = (x-500)/500, dy = (y-500)/500;
-            let e = (0.5 * noise.noise2D(dx, dy)
-                     + 0.25 * noise.noise2D(dx*2 + 5, dy*2 + 5)
-                     + 0.125 * noise.noise2D(dx*4 + 7, dy*4 + 7)
-                     + 0.0625 * noise.noise2D(dx*8 + 9, dy*8 + 9));
-            e += 0.2 * (noise.noise2D(dx*3 - 3, dy*3 - 3) * e) * noise.noise2D(dx*32 + 9, dy*32 + 9); // bumpier mountains
-            if (e < -1.0) { e = -1.0; }
-            if (e > +1.0) { e = +1.0; }
-            return e;
-        }
         seeds_t.splice(0);
         for (let t = 0; t < mesh.numTriangles; t++) {
-            let e = elevation(mesh.t_x(t), mesh.t_y(t));
+            let e = elevation(noise, mesh.t_x(t), mesh.t_y(t));
             t_elevation[t] = e;
             if (e < 0 && mesh.t_ghost(t)) { seeds_t.push(t); }
         }
         console.timeEnd('map-elevation-1');
         console.time('map-elevation-2');
         for (let r = 0; r < mesh.numRegions; r++) {
-            let e = elevation(mesh.r_x(r), mesh.r_y(r));
+            let e = elevation(noise, mesh.r_x(r), mesh.r_y(r));
             r_elevation[r] = e;
             r_moisture[r] = 0.8-Math.sqrt(Math.abs(e));
             r_water[r] = e < 0;
@@ -219,6 +236,87 @@ function draw() {
     
     Render.draw(map, canvas);
 }
+
+function setUpImageDrop() {
+    let dropbox = document.getElementById('drop-target');
+    dropbox.addEventListener('dragenter', handleDragEnter, false);
+    dropbox.addEventListener('dragover', handleDragOver, false);
+    dropbox.addEventListener('dragleave', handleDragLeave, false);
+    dropbox.addEventListener('drop', handleDrop, false);
+    function handleDragEnter(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        let item = e.dataTransfer.items[0];
+        dropbox.className = (item.kind === 'file' && item.type.startsWith("image/")) ? "dragging-good" : "dragging-bad";
+    }
+    function handleDragOver(e) {
+        e.stopPropagation();
+        e.preventDefault();
+    }
+    function handleDragLeave(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        dropbox.className = "";
+    }
+    function handleDrop(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        dropbox.className = "";
+
+        let item = e.dataTransfer.items[0];
+        if (item.kind != 'file') {
+            console.log("Not a file:", item.kind);
+            return;
+        }
+        if (!item.type.startsWith("image/")) {
+            console.log("Not an image file:", item.type);
+            return;
+        }
+        let noise = new SimplexNoise(makeRandFloat(param.seed));
+        let reader = new FileReader();
+        dropbox.className = "waiting";
+        reader.onload = function(e) {
+            dropbox.src = e.target.result;
+            dropbox.onload = () => {
+                let canvas = document.createElement('canvas');
+                let w = canvas.width = dropbox.naturalWidth || dropbox.width;
+                let h = canvas.height = dropbox.naturalHeight || dropbox.height;
+                let ctx = canvas.getContext('2d');
+                ctx.drawImage(dropbox, 0, 0);
+
+                let rgba = ctx.getImageData(0, 0, w, h).data;
+                function getPixel(x, y) { // where x,y between 0.0 and 1.0
+                    let ix = (x * w) | 0;
+                    if (ix < 0) { ix = 0; } else if (ix >= w) { ix = w-1; }
+                    let iy = (y * h) | 0;
+                    if (iy < 0) { iy = 0; } else if (iy >= h) { iy = h-1; }
+                    
+                    let i = 4 * (iy * w + ix);
+                    let r = rgba[i], g = rgba[i+1], b = rgba[i+2];
+                    return [r, g, b];
+                }
+
+                elevation = (_, x, y) => {
+                    let pixel = getPixel(x/1000, y/1000);
+                    let gray = pixel[1];
+                    if (x < 5 && y < 5) { console.log('elevation', x, y, gray); }
+                    if (pixel[2] > gray) {
+                        // water
+                        return elevationNoise(noise, -0.1, x*1000, y*1000);
+                    } else {
+                        // land
+                        return Math.max(1/256, elevationNoise(noise, (gray/255)**2, x*1000, y*1000));
+                    }
+                };
+
+                draw();
+                dropbox.className = "";
+            };
+        };
+        reader.readAsDataURL(e.dataTransfer.files[0]);
+    }
+}
+setUpImageDrop();
 
 
 draw();
