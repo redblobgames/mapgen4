@@ -19,6 +19,8 @@ let regl = require('regl')({
 const param = {
     exponent: 2.5,
     distance: 480,
+    x: 500,
+    y: 500,
     drape: {
         light_angle_deg: 80,
         slope: 1,
@@ -39,43 +41,46 @@ exports.param = param;
 const fbo_texture_size = 2000;
 const fbo_em_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size});
 const fbo_em = regl.framebuffer({color: [fbo_em_texture]});
-const fbo_z_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size});
-const fbo_z = regl.framebuffer({color: [fbo_z_texture]});
+const fbo_depth_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size});
+const fbo_z = regl.framebuffer({color: [fbo_depth_texture]});
 
 class Renderer {
     constructor (mesh) {
-        this.a_position = new Float32Array(2 * (mesh.numRegions + mesh.numTriangles));
-        this.a_em = new Float32Array(2 * (mesh.numRegions + mesh.numTriangles));
-        this.elements = new Int32Array(3 * mesh.numSolidSides);
+        this.a_quad_xy = new Float32Array(2 * (mesh.numRegions + mesh.numTriangles));
+        this.a_quad_em = new Float32Array(2 * (mesh.numRegions + mesh.numTriangles));
+        this.quad_elements = new Int32Array(3 * mesh.numSolidSides);
         
-        Geometry.setMeshGeometry(mesh, this.a_position);
+        Geometry.setMeshGeometry(mesh, this.a_quad_xy);
         
-        this.buffer_position = regl.buffer({
+        this.buffer_quad_xy = regl.buffer({
             usage: 'static',
             type: 'float',
-            data: this.a_position,
+            data: this.a_quad_xy,
         });
 
-        this.buffer_em = regl.buffer({
+        this.buffer_quad_em = regl.buffer({
             usage: 'dynamic',
             type: 'float',
-            length: 4 * this.a_em.length,
+            length: 4 * this.a_quad_em.length,
         });
 
-        this.buffer_elements = regl.elements({
+        this.buffer_quad_elements = regl.elements({
             primitive: 'triangles',
             usage: 'dynamic',
             type: 'uint32',
-            length: 4 * this.elements.length,
-            count: this.elements.length,
+            length: 4 * this.quad_elements.length,
+            count: this.quad_elements.length,
+        });
+
         });
     }
 
     /* Update the buffers with the latest em, elements data */
-    update() {
+    update(map) {
         // TODO: better to use subdata or reinitialize?
-        this.buffer_em.subdata(this.a_em);
-        this.buffer_elements.subdata(this.elements);
+        Geometry.setMapGeometry(map, this.quad_elements, this.a_quad_em);
+        this.buffer_quad_em.subdata(this.a_quad_em);
+        this.buffer_quad_elements.subdata(this.quad_elements);
     }
 }
 
@@ -84,7 +89,6 @@ class Renderer {
 let drawElevationMoisture = regl({
     frag: `
 precision highp float;
-varying vec2 v_position;
 varying vec2 v_em;
 void main() {
    float e = 0.5 * (1.0 + v_em.x);
@@ -100,13 +104,11 @@ void main() {
 precision highp float;
 uniform mat4 u_projection;
 uniform float u_exponent;
-attribute vec2 a_position;
+attribute vec2 a_xy;
 attribute vec2 a_em;
-varying vec2 v_position;
 varying vec2 v_em;
 void main() {
-    vec4 pos = vec4(u_projection * vec4(a_position, 0, 1));
-    v_position = 0.5 * (1.0 + pos.xy);
+    vec4 pos = vec4(u_projection * vec4(a_xy, 0, 1));
     v_em = vec2(a_em.x < 0.0? a_em.x : pow(a_em.x, u_exponent), a_em.y);
     gl_Position = pos;
 }`,
@@ -114,7 +116,6 @@ void main() {
     uniforms:  {
         u_exponent: () => param.exponent,
         u_projection: regl.prop('u_projection'),
-        u_water: regl.prop('u_water'),
     },
 
     framebuffer: fbo_em,
@@ -123,7 +124,7 @@ void main() {
     },
     elements: regl.prop('elements'),
     attributes: {
-        a_position: regl.prop('a_position'),
+        a_xy: regl.prop('a_xy'),
         a_em: regl.prop('a_em'),
     },
 });
@@ -143,11 +144,11 @@ void main() {
 precision highp float;
 uniform mat4 u_projection;
 uniform float u_exponent;
-attribute vec2 a_position;
+attribute vec2 a_xy;
 attribute vec2 a_em;
 varying float v_z;
 void main() {
-    vec4 pos = vec4(u_projection * vec4(a_position, pow(max(0.0, a_em.x), u_exponent), 1));
+    vec4 pos = vec4(u_projection * vec4(a_xy, pow(max(0.0, a_em.x), u_exponent), 1));
     v_z = a_em.x;
     gl_Position = pos;
 }`,
@@ -155,7 +156,7 @@ void main() {
     framebuffer: fbo_z,
     elements: regl.prop('elements'),
     attributes: {
-        a_position: regl.prop('a_position'),
+        a_xy: regl.prop('a_xy'),
         a_em: regl.prop('a_em'),
     },
     uniforms: {
@@ -193,7 +194,7 @@ void main() {
    vec3 light_vector = normalize(vec3(u_light_angle, mix(u_slope, u_flat, slope_vector.z)));
    float light = u_c + max(0.0, dot(light_vector, slope_vector));
    vec2 em = texture2D(u_mapdata, pos).yz;
-   if (em.x > 0.5) { em.x = 2.0 * (em.x-0.5) + 0.5; } /* HACK: for noise-based elevation */
+   if (em.x > 0.7) { em.x = 2.0 * (em.x-0.7) + 0.7; } /* HACK: for noise-based elevation */
    vec4 biome_color = texture2D(u_colormap, em);
    vec4 water_color = texture2D(u_water, pos);
 
@@ -214,19 +215,19 @@ void main() {
 precision highp float;
 uniform mat4 u_projection;
 uniform float u_exponent;
-attribute vec2 a_position;
+attribute vec2 a_xy;
 attribute vec2 a_em;
 varying vec2 v_uv, v_pos;
 void main() {
-    vec4 pos = vec4(u_projection * vec4(a_position, pow(max(0.0, a_em.x), u_exponent), 1));
-    v_uv = vec2(a_position.x / 1000.0, a_position.y / 1000.0);
+    vec4 pos = vec4(u_projection * vec4(a_xy, pow(max(0.0, a_em.x), u_exponent), 1));
+    v_uv = a_xy / 1000.0;
     v_pos = (1.0 + pos.xy) * 0.5;
     gl_Position = pos;
 }`,
 
     elements: regl.prop('elements'),
     attributes: {
-        a_position: regl.prop('a_position'),
+        a_xy: regl.prop('a_xy'),
         a_em: regl.prop('a_em'),
     },
     uniforms: {
@@ -267,8 +268,7 @@ exports.draw = function(map, water_bitmap) {
     mat4.scale(topdown, topdown, [1/500, 1/500, 1, 1]);
 
     T1('make-mesh-dynamic');
-    Geometry.setMapGeometry(map, renderer.elements, renderer.a_em);
-    renderer.update();
+    renderer.update(map);
     T2('make-mesh-dynamic');
     
     T1('make-water-texture');
@@ -277,29 +277,27 @@ exports.draw = function(map, water_bitmap) {
     
     redraw = () => {
 
-        T1(`draw-em ${renderer.elements.length/3} triangles`);
-        // Use regl scopes to bind regl.clear to the framebuffer to clear it
+        T1(`draw-em ${renderer.quad_elements.length/3} triangles`);
         drawElevationMoisture({
-            elements: renderer.buffer_elements,
-            a_position: renderer.buffer_position,
-            a_em: renderer.buffer_em,
+            elements: renderer.buffer_quad_elements,
+            a_xy: renderer.buffer_quad_xy,
+            a_em: renderer.buffer_quad_em,
             u_projection: topdown,
         });
-        T2(`draw-em ${renderer.elements.length/3} triangles`);
+        T2(`draw-em ${renderer.quad_elements.length/3} triangles`);
 
         let projection = mat4.create();
         mat4.rotateX(projection, projection, param.drape.rotate_x_deg * Math.PI/180);
         mat4.rotateZ(projection, projection, param.drape.rotate_z_deg * Math.PI/180);
         mat4.scale(projection, projection, [1/param.distance, 1/param.distance, param.drape.scale_z, 1]);
-        mat4.translate(projection, projection, [-500, -500, 0, 0]);
+        mat4.translate(projection, projection, [-param.x, -param.y, 0, 0]);
         
         T1('draw-depth');
         if (param.drape.outline_depth > 0) {
             drawDepth({
-                elements: renderer.buffer_elements,
-                a_position: renderer.buffer_position,
-                a_em: renderer.buffer_em,
-                u_water: u_water,
+                elements: renderer.buffer_quad_elements,
+                a_xy: renderer.buffer_quad_xy,
+                a_em: renderer.buffer_quad_em,
                 u_projection: projection
             });
         }
@@ -308,11 +306,11 @@ exports.draw = function(map, water_bitmap) {
         T1('draw-drape');
         regl.clear({color: [0, 0, 0, 1], depth: 1});
         drawDrape({
-            elements: renderer.buffer_elements,
-            a_position: renderer.buffer_position,
-            a_em: renderer.buffer_em,
             u_water: u_water,
-            u_depth: fbo_z_texture,
+            elements: renderer.buffer_quad_elements,
+            a_xy: renderer.buffer_quad_xy,
+            a_em: renderer.buffer_quad_em,
+            u_depth: fbo_depth_texture,
             u_projection: projection
         });
         T2('draw-drape');
@@ -337,6 +335,8 @@ exports.draw = function(map, water_bitmap) {
 let G = new dat.GUI();
 G.add(param, 'exponent', 1, 10);
 G.add(param, 'distance', 100, 2000);
+G.add(param, 'x', 0, 1000);
+G.add(param, 'y', 0, 1000);
 G.add(param.drape, 'light_angle_deg', 0, 360);
 G.add(param.drape, 'slope', 0, 10);
 G.add(param.drape, 'flat', 0, 10);

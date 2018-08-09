@@ -7,7 +7,7 @@
 
 /* Fill P:Float32Array with x,y data from mesh:TriangleMesh,
    first region points then triangle points */
-function setMeshGeometry(mesh, P) {
+exports.setMeshGeometry = function(mesh, P) {
     let {numRegions, numTriangles} = mesh;
     if (P.length !== 2 * (numRegions + numTriangles)) { throw "wrong size"; }
 
@@ -20,11 +20,11 @@ function setMeshGeometry(mesh, P) {
         P[p++] = mesh.t_x(t);
         P[p++] = mesh.t_y(t);
     }
-}
+};
 
 /* Fill P:Float32Array with elevation,moisture data from mapgen4 map,
    and also I:Int32Array with indices into this array */
-function setMapGeometry(map, I, P) {
+exports.setMapGeometry = function(map, I, P) {
     const V = 0.95; // reduce elevation in valleys
     let {mesh, r_water, t_downslope_s, r_elevation, t_elevation, r_moisture} = map;
     let {numSolidSides, numRegions, numTriangles} = mesh;
@@ -70,7 +70,6 @@ function setMapGeometry(map, I, P) {
 
     if (I.length !== i) { throw "wrong size"; }
     if (P.length !== p) { throw "wrong size"; }
-}
+};
 
-exports.setMeshGeometry = setMeshGeometry;
-exports.setMapGeometry = setMapGeometry;
+
