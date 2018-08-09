@@ -38,19 +38,26 @@ const param = {
 };
 exports.param = param;
 
+const river_texturemap = regl.texture({data: Geometry.createRiverBitmap()});
 const fbo_texture_size = 2000;
 const fbo_em_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size});
 const fbo_em = regl.framebuffer({color: [fbo_em_texture]});
 const fbo_depth_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size});
 const fbo_z = regl.framebuffer({color: [fbo_depth_texture]});
+const fbo_river_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size});
+const fbo_river = regl.framebuffer({color: [fbo_river_texture]});
+
 
 class Renderer {
     constructor (mesh) {
         this.a_quad_xy = new Float32Array(2 * (mesh.numRegions + mesh.numTriangles));
         this.a_quad_em = new Float32Array(2 * (mesh.numRegions + mesh.numTriangles));
         this.quad_elements = new Int32Array(3 * mesh.numSolidSides);
+        this.a_river_xy = new Float32Array(3 * 2 * mesh.numSolidTriangles);
+        this.a_river_uv = new Float32Array(3 * 2 * mesh.numSolidTriangles);
         
         Geometry.setMeshGeometry(mesh, this.a_quad_xy);
+        Geometry.setRiverGeometry(mesh, this.a_river_xy);
         
         this.buffer_quad_xy = regl.buffer({
             usage: 'static',
@@ -72,6 +79,16 @@ class Renderer {
             count: this.quad_elements.length,
         });
 
+        this.buffer_river_xy = regl.buffer({
+            usage: 'static',
+            type: 'float',
+            data: this.a_river_xy,
+        });
+
+        this.buffer_river_uv = regl.buffer({
+            usage: 'dynamic',
+            type: 'float',
+            length: 4 * this.a_river_uv.length,
         });
     }
 
@@ -81,8 +98,49 @@ class Renderer {
         Geometry.setMapGeometry(map, this.quad_elements, this.a_quad_em);
         this.buffer_quad_em.subdata(this.a_quad_em);
         this.buffer_quad_elements.subdata(this.quad_elements);
+
+        Geometry.setRiverTextures(map, this.a_river_uv);
+        this.buffer_river_uv.subdata(this.a_river_uv);
     }
 }
+
+
+/* draw rivers to a texture, which will be draped on the map surface */
+let drawRivers = regl({
+    frag: `
+precision mediump float;
+uniform sampler2D u_rivertexturemap;
+varying vec2 v_uv;
+void main() {
+   gl_FragColor = texture2D(u_rivertexturemap, v_uv);
+   // gl_FragColor = vec4(v_uv, 0.5, 1.0);
+}`,
+
+    vert: `
+precision highp float;
+uniform mat4 u_projection;
+attribute vec2 a_xy, a_uv;
+varying vec2 v_uv;
+void main() {
+  v_uv = a_uv;
+  gl_Position = vec4(u_projection * vec4(a_xy, 0, 1));
+}`,
+    
+    uniforms:  {
+        u_projection: regl.prop('u_projection'),
+        u_rivertexturemap: river_texturemap,
+    },
+
+    framebuffer: fbo_river,
+    depth: {
+        enable: false,
+    },
+    count: regl.prop('count'),
+    attributes: {
+        a_xy: regl.prop('a_xy'),
+        a_uv: regl.prop('a_uv'),
+    },
+});
 
 
 /* write 16-bit elevation and 8-bit moisture to a texture */
@@ -197,6 +255,7 @@ void main() {
    if (em.x > 0.7) { em.x = 2.0 * (em.x-0.7) + 0.7; } /* HACK: for noise-based elevation */
    vec4 biome_color = texture2D(u_colormap, em);
    vec4 water_color = texture2D(u_water, pos);
+   if (em.x < 0.5) { water_color.a = 0.0; } // don't draw rivers in the ocean
 
    float depth0 = texture2D(u_depth, v_pos).x,
          depth1 = max(max(texture2D(u_depth, v_pos + u_outline_depth*(-dy-dx)).x,
@@ -286,6 +345,15 @@ exports.draw = function(map, water_bitmap) {
         });
         T2(`draw-em ${renderer.quad_elements.length/3} triangles`);
 
+        T1(`draw-rivers ${renderer.a_river_xy.length/6} triangles`);
+        drawRivers({
+            count: renderer.a_river_xy.length/2,
+            a_xy: renderer.buffer_river_xy,
+            a_uv: renderer.buffer_river_uv,
+            u_projection: topdown,
+        });
+        T2(`draw-rivers ${renderer.a_river_xy.length/6} triangles`);
+        
         let projection = mat4.create();
         mat4.rotateX(projection, projection, param.drape.rotate_x_deg * Math.PI/180);
         mat4.rotateZ(projection, projection, param.drape.rotate_z_deg * Math.PI/180);
@@ -306,10 +374,11 @@ exports.draw = function(map, water_bitmap) {
         T1('draw-drape');
         regl.clear({color: [0, 0, 0, 1], depth: 1});
         drawDrape({
-            u_water: u_water,
             elements: renderer.buffer_quad_elements,
             a_xy: renderer.buffer_quad_xy,
             a_em: renderer.buffer_quad_em,
+            u_water: fbo_river_texture,
+            // u_water: u_water,
             u_depth: fbo_depth_texture,
             u_projection: projection
         });

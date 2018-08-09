@@ -72,4 +72,107 @@ exports.setMapGeometry = function(map, I, P) {
     if (P.length !== p) { throw "wrong size"; }
 };
 
+/* Fill P:Float32Array with x,y data from mesh:TriangleMesh,
+   numTriangle triangles, each with 3 points */
+exports.setRiverGeometry = function(mesh, P) {
+    let {numSolidTriangles} = mesh;
+    if (P.length !== 3 * 2 * numSolidTriangles) { throw "wrong size"; }
 
+    let p = 0;
+    for (let t = 0; t < numSolidTriangles; t++) {
+        let s0 = 3*t;
+        let r1 = mesh.s_begin_r(s0),
+            r2 = mesh.s_begin_r(s0+1),
+            r3 = mesh.s_begin_r(s0+2);
+        P[p++] = mesh.r_x(r1);
+        P[p++] = mesh.r_y(r1);
+        P[p++] = mesh.r_x(r2);
+        P[p++] = mesh.r_y(r2);
+        P[p++] = mesh.r_x(r3);
+        P[p++] = mesh.r_y(r3);
+    }
+
+    if (P.length !== p) { throw "wrong size"; }
+};
+
+/* Create a bitmap that will be used for texture mapping */
+exports.createRiverBitmap = function() {
+    const size = 8;
+    let canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    let ctx = canvas.getContext('2d');
+    ctx.scale(size/1024, size/1024);
+    ctx.strokeStyle = "hsl(200,50%,25%)";
+    ctx.lineWidth = 200;
+    
+    /* FORK: let's make a right triangle for now, with the hypotenuse the outflow */
+    ctx.beginPath();
+    ctx.moveTo(0, 512);
+    ctx.lineTo(333, 333);
+    ctx.moveTo(512, 0);
+    ctx.lineTo(333, 333);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(333, 333);
+    ctx.lineTo(512, 512);
+    ctx.stroke();
+    
+    /* BEND: let's use the other right triangle */
+    ctx.beginPath();
+    ctx.moveTo(1024, 512);
+    ctx.lineTo(691, 691);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(691, 691);
+    ctx.lineTo(512, 512);
+    ctx.stroke();
+    
+    return canvas;
+};
+
+/* Fill P:Float32Array with u,v data pointing to the river bitmap
+   created in createRiverBitmap() */
+exports.setRiverTextures = function(map, P) {
+    let {mesh, t_downslope_s} = map;
+    let {numSolidTriangles} = mesh;
+    if (P.length !== 3 * 2 * numSolidTriangles) { throw "wrong size"; }
+
+    let p = 0;
+    for (let t = 0; t < numSolidTriangles; t++) {
+        /* t_downslope_s[t] tells us which side is downslope, and the
+         * texture is oriented so that the downslope side should be
+         * from 0,1 to 1,0 */
+        let s0 = 3*t;
+        let out_side = t_downslope_s[t] - s0;
+        let in_side1 = (out_side + 1) % 3;
+        let in_side2 = (out_side + 2) % 3;
+        let flow_in1 = t_downslope_s[mesh.s_outer_t(s0+in_side1)] === mesh.s_opposite_s(s0+in_side1);
+        let flow_in2 = t_downslope_s[mesh.s_outer_t(s0+in_side2)] === mesh.s_opposite_s(s0+in_side2);
+        if (flow_in1 && flow_in2) {
+            /* FORK */
+            P[p + 2*in_side1    ] = 0;
+            P[p + 2*in_side1 + 1] = 0;
+            P[p + 2*in_side2    ] = 0;
+            P[p + 2*in_side2 + 1] = 1;
+            P[p + 2*out_side    ] = 1;
+            P[p + 2*out_side + 1] = 0;
+        } else if (flow_in1) {
+            P[p + 2*in_side1    ] = 1;
+            P[p + 2*in_side1 + 1] = 0;
+            P[p + 2*in_side2    ] = 1;
+            P[p + 2*in_side2 + 1] = 1;
+            P[p + 2*out_side    ] = 0;
+            P[p + 2*out_side + 1] = 1;
+        } else {
+            P[p + 2*in_side1    ] = 0;
+            P[p + 2*in_side1 + 1] = 1;
+            P[p + 2*in_side2    ] = 1;
+            P[p + 2*in_side2 + 1] = 1;
+            P[p + 2*out_side    ] = 1;
+            P[p + 2*out_side + 1] = 0;
+        }
+        p += 6;
+    }
+
+    if (P.length !== p) { throw "wrong size"; }
+};
