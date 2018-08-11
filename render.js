@@ -13,7 +13,7 @@ let colormap = require('./colormap');
 let Geometry = require('./geometry');
 let regl = require('regl')({
     canvas: "#mapgen4",
-    extensions: ['OES_element_index_uint']
+    extensions: ['OES_element_index_uint', 'OES_standard_derivatives']
 });
 
 const param = {
@@ -52,17 +52,24 @@ class Renderer {
     constructor (mesh) {
         this.a_quad_xy = new Float32Array(2 * (mesh.numRegions + mesh.numTriangles));
         this.a_quad_em = new Float32Array(2 * (mesh.numRegions + mesh.numTriangles));
+        this.a_quad_w = new Int8Array(mesh.numRegions + mesh.numTriangles);
         this.quad_elements = new Int32Array(3 * mesh.numSolidSides);
         this.a_river_xy = new Float32Array(3 * 2 * mesh.numSolidTriangles);
         this.a_river_uv = new Float32Array(3 * 2 * mesh.numSolidTriangles);
         
-        Geometry.setMeshGeometry(mesh, this.a_quad_xy);
+        Geometry.setMeshGeometry(mesh, this.a_quad_xy, this.a_quad_w);
         Geometry.setRiverGeometry(mesh, this.a_river_xy);
         
         this.buffer_quad_xy = regl.buffer({
             usage: 'static',
             type: 'float',
             data: this.a_quad_xy,
+        });
+
+        this.buffer_quad_w = regl.buffer({
+            usage: 'static',
+            type: 'int8',
+            data: this.a_quad_w,
         });
 
         this.buffer_quad_em = regl.buffer({
@@ -146,12 +153,15 @@ void main() {
 /* write 16-bit elevation and 8-bit moisture to a texture */
 let drawElevationMoisture = regl({
     frag: `
+#extension GL_OES_standard_derivatives : enable
 precision highp float;
 varying vec2 v_em;
+varying float v_w, v_flow;
 void main() {
    float e = 0.5 * (1.0 + v_em.x);
-   if (e < 0.5) { e -= 0.005; } // produces the border
-   gl_FragColor = vec4(fract(256.0*e), e, v_em.y, 1);
+   float w = 1.0 - smoothstep(0.5, 1.5, v_w / fwidth(v_w));
+   if (e < 0.5) { e -= 0.005; w = 1.0; } // produces the border
+   gl_FragColor = vec4(fract(256.0*e), e, w, w);
    // NOTE: it should be using the floor instead of rounding, but
    // rounding produces a nice looking artifact, so I'll keep that
    // until I can produce the artifact properly (e.g. bug → feature)
@@ -164,10 +174,14 @@ uniform mat4 u_projection;
 uniform float u_exponent;
 attribute vec2 a_xy;
 attribute vec2 a_em;
+attribute float a_w, a_flow;
 varying vec2 v_em;
+varying float v_w, v_flow;
 void main() {
     vec4 pos = vec4(u_projection * vec4(a_xy, 0, 1));
     v_em = vec2(a_em.x < 0.0? a_em.x : pow(a_em.x, u_exponent), a_em.y);
+    v_w = a_w;
+    v_flow = a_flow;
     gl_Position = pos;
 }`,
 
@@ -184,6 +198,8 @@ void main() {
     attributes: {
         a_xy: regl.prop('a_xy'),
         a_em: regl.prop('a_em'),
+        a_w: regl.prop('a_w'),
+        a_flow: regl.prop('a_flow'),
     },
 });
 
@@ -238,6 +254,7 @@ uniform float u_inverse_texture_size,
               u_c, u_d, u_mix,
               u_outline_strength, u_outline_depth, u_outline_threshold;
 varying vec2 v_uv, v_pos;
+varying float v_m;
 void main() {
    vec2 sample_offset = vec2(0.5*u_inverse_texture_size, 0.5*u_inverse_texture_size);
    vec2 pos = v_uv + sample_offset;
@@ -253,6 +270,8 @@ void main() {
    float light = u_c + max(0.0, dot(light_vector, slope_vector));
    vec2 em = texture2D(u_mapdata, pos).yz;
    if (em.x > 0.7) { em.x = 2.0 * (em.x-0.7) + 0.7; } /* HACK: for noise-based elevation */
+   // if (em.x >= 0.5 && em.y > 0.5) { em.x = 0.49; }
+   em.y = v_m;
    vec4 biome_color = texture2D(u_colormap, em);
    vec4 water_color = texture2D(u_water, pos);
    if (em.x < 0.5) { water_color.a = 0.0; } // don't draw rivers in the ocean
@@ -264,7 +283,6 @@ void main() {
    float outline = 1.0 + u_outline_strength * (max(u_outline_threshold, depth1-depth0) - u_outline_threshold);
 
    // gl_FragColor = vec4(light/outline, light/outline, light/outline, 1);
-   // gl_FragColor = vec4(biome_color.rgb, 1);
    // gl_FragColor = texture2D(u_mapdata, v_uv);
    // gl_FragColor = vec4(mix(vec4(1,1,1,1), water_color, u_mix * sqrt(water_color.a)).rgb, 1);
    gl_FragColor = vec4(mix(biome_color, water_color, u_mix * sqrt(water_color.a)).rgb * light / outline, 1);
@@ -276,10 +294,13 @@ uniform mat4 u_projection;
 uniform float u_exponent;
 attribute vec2 a_xy;
 attribute vec2 a_em;
+attribute float a_w;
 varying vec2 v_uv, v_pos;
+varying float v_m;
 void main() {
     vec4 pos = vec4(u_projection * vec4(a_xy, pow(max(0.0, a_em.x), u_exponent), 1));
     v_uv = a_xy / 1000.0;
+    v_m = a_em.y;
     v_pos = (1.0 + pos.xy) * 0.5;
     gl_Position = pos;
 }`,
@@ -341,17 +362,19 @@ exports.draw = function(map, water_bitmap) {
             elements: renderer.buffer_quad_elements,
             a_xy: renderer.buffer_quad_xy,
             a_em: renderer.buffer_quad_em,
+            a_w: renderer.buffer_quad_w,
+            a_flow: renderer.buffer_quad_w,
             u_projection: topdown,
         });
         T2(`draw-em ${renderer.quad_elements.length/3} triangles`);
 
         T1(`draw-rivers ${renderer.a_river_xy.length/6} triangles`);
-        drawRivers({
-            count: renderer.a_river_xy.length/2,
-            a_xy: renderer.buffer_river_xy,
-            a_uv: renderer.buffer_river_uv,
-            u_projection: topdown,
-        });
+        // drawRivers({
+        //     count: renderer.a_river_xy.length/2,
+        //     a_xy: renderer.buffer_river_xy,
+        //     a_uv: renderer.buffer_river_uv,
+        //     u_projection: topdown,
+        // });
         T2(`draw-rivers ${renderer.a_river_xy.length/6} triangles`);
         
         let projection = mat4.create();
@@ -377,6 +400,7 @@ exports.draw = function(map, water_bitmap) {
             elements: renderer.buffer_quad_elements,
             a_xy: renderer.buffer_quad_xy,
             a_em: renderer.buffer_quad_em,
+            a_w: renderer.buffer_quad_w,
             u_water: fbo_river_texture,
             // u_water: u_water,
             u_depth: fbo_depth_texture,
@@ -403,7 +427,7 @@ exports.draw = function(map, water_bitmap) {
 
 let G = new dat.GUI();
 G.add(param, 'exponent', 1, 10);
-G.add(param, 'distance', 100, 2000);
+G.add(param, 'distance', 100, 1000);
 G.add(param, 'x', 0, 1000);
 G.add(param, 'y', 0, 1000);
 G.add(param.drape, 'light_angle_deg', 0, 360);

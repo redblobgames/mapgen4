@@ -7,24 +7,28 @@
 
 /* Fill P:Float32Array with x,y data from mesh:TriangleMesh,
    first region points then triangle points */
-exports.setMeshGeometry = function(mesh, P) {
+exports.setMeshGeometry = function(mesh, P, W) {
     let {numRegions, numTriangles} = mesh;
     if (P.length !== 2 * (numRegions + numTriangles)) { throw "wrong size"; }
+    if (W.length !== numRegions + numTriangles) { throw "wrong size"; }
 
-    let p = 0;
+    let p = 0, w = 0;
     for (let r = 0; r < numRegions; r++) {
         P[p++] = mesh.r_x(r);
         P[p++] = mesh.r_y(r);
+        W[w++] = 1;
     }
     for (let t = 0; t < numTriangles; t++) {
         P[p++] = mesh.t_x(t);
         P[p++] = mesh.t_y(t);
+        W[w++] = 0;
     }
 };
 
 /* Fill P:Float32Array with elevation,moisture data from mapgen4 map,
    and also I:Int32Array with indices into this array */
 exports.setMapGeometry = function(map, I, P) {
+    // TODO: if I keep the W parameter, this could become a shader uniform
     const V = 0.95; // reduce elevation in valleys
     let {mesh, r_water, t_downslope_s, r_elevation, t_elevation, r_moisture} = map;
     let {numSolidSides, numRegions, numTriangles} = mesh;
@@ -46,7 +50,7 @@ exports.setMapGeometry = function(map, I, P) {
         P[p++] = 1/3 * (r_moisture[r1] + r_moisture[r2] + r_moisture[r3]);
     }
 
-    let i = 0;
+    let i = 0, count_valley = 0, count_ridge = 0;
     for (let s = 0; s < numSolidSides; s++) {
         let r1 = mesh.s_begin_r(s),
             r2 = mesh.s_end_r(s),
@@ -62,12 +66,15 @@ exports.setMapGeometry = function(map, I, P) {
         if (coast || mesh.s_outer_t(t_downslope_s[t1]) === t2 || mesh.s_outer_t(t_downslope_s[t2]) === t1) {
             // It's a coastal or river edge, forming a valley
             I[i++] = r1; I[i++] = numRegions+t2; I[i++] = numRegions+t1;
+            count_valley++;
         } else {
             // It's a ridge
             I[i++] = r1; I[i++] = r2; I[i++] = numRegions+t1;
+            count_ridge++;
         }
     }
 
+    console.log(`valleys = ${count_valley} ridges = ${count_ridge}`);
     if (I.length !== i) { throw "wrong size"; }
     if (P.length !== p) { throw "wrong size"; }
 };

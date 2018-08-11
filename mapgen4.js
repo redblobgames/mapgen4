@@ -225,11 +225,11 @@ function draw() {
     console.timeEnd('canvas-init');
 
     console.time('draw-lakes');
-    DrawWater.lakes(ctx, map);
+    //DrawWater.lakes(ctx, map);
     console.timeEnd('draw-lakes');
     
     console.time('draw-rivers');
-    DrawWater.rivers(ctx, map, param.spacing);
+    //DrawWater.rivers(ctx, map, param.spacing);
     console.timeEnd('draw-rivers');
 
     ctx.restore();
