@@ -23,9 +23,10 @@ const {makeRandInt, makeRandFloat} = require('@redblobgames/prng');
 
 
 let param = {
-    seed: 180,   // 102, 181, 184, 185, 187, 505, 507, 2033
+    seed: 42,   // 102, 181, 184, 185, 187, 505, 507, 2033
     spacing: 5,
     canvasSize: 2000,
+    softwareWater: false,
 };
 
 (function readSeedFromUrl() {
@@ -35,8 +36,6 @@ let param = {
     }
 })();
 
-let canvas = document.createElement('canvas');
-canvas.width = canvas.height = param.canvasSize;
 
 
 function elevationNoise(noise, base, x, y) {
@@ -96,8 +95,13 @@ class Map {
         }
         console.timeEnd('map-elevation-1');
         console.time('map-elevation-2');
+        let out_t = [];
         for (let r = 0; r < mesh.numRegions; r++) {
-            let e = elevation(noise, mesh.r_x(r), mesh.r_y(r));
+            let e = 0, water = false;
+            mesh.r_circulate_t(out_t, r);
+            for (let t of out_t) { e += t_elevation[t]; water = water || t_elevation[t] < 0.0; }
+            e /= out_t.length;
+            if (water && e >= 0) { e = -0.001; }
             r_elevation[r] = e;
             r_moisture[r] = 0.8-Math.sqrt(Math.abs(e));
             r_water[r] = e < 0;
@@ -217,24 +221,26 @@ function draw() {
     map.assignElevation();
     map.assignRivers();
     
-    console.time('canvas-init');
-    let ctx = canvas.getContext('2d');
-    ctx.save();
-    ctx.scale(canvas.width / 1000, canvas.height / 1000);
-    ctx.clearRect(0, 0, 1000, 1000);
-    console.timeEnd('canvas-init');
+    let canvas = null;
+    if (param.softwareWater) {
+        console.time('canvas-init');
+        canvas = document.createElement('canvas');
+        canvas.width = canvas.height = param.canvasSize;
+        let ctx = canvas.getContext('2d');
+        ctx.save();
+        ctx.scale(canvas.width / 1000, canvas.height / 1000);
+        ctx.clearRect(0, 0, 1000, 1000);
+        console.timeEnd('canvas-init');
 
-    console.time('draw-lakes');
-    //DrawWater.lakes(ctx, map);
-    console.timeEnd('draw-lakes');
-    
-    console.time('draw-rivers');
-    //DrawWater.rivers(ctx, map, param.spacing);
-    console.timeEnd('draw-rivers');
+        console.time('draw-rivers');
+        DrawWater.rivers(ctx, map, param.spacing);
+        console.timeEnd('draw-rivers');
+        
+        ctx.restore();
+    }
 
-    ctx.restore();
     
-    Render.draw(map, canvas);
+    Render.draw(map, canvas, param.spacing);
 }
 
 function setUpImageDrop() {

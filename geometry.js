@@ -5,6 +5,8 @@
  */
 'use strict';
 
+let {vec2} = require('gl-matrix');
+
 /* Fill P:Float32Array with x,y data from mesh:TriangleMesh,
    first region points then triangle points */
 exports.setMeshGeometry = function(mesh, P, W) {
@@ -28,7 +30,7 @@ exports.setMeshGeometry = function(mesh, P, W) {
 /* Fill P:Float32Array with elevation,moisture data from mapgen4 map,
    and also I:Int32Array with indices into this array */
 exports.setMapGeometry = function(map, I, P) {
-    // TODO: if I keep the W parameter, this could become a shader uniform
+    // TODO: V should probably depend on the slope
     const V = 0.95; // reduce elevation in valleys
     let {mesh, r_water, t_downslope_s, r_elevation, t_elevation, r_moisture} = map;
     let {numSolidSides, numRegions, numTriangles} = mesh;
@@ -102,82 +104,215 @@ exports.setRiverGeometry = function(mesh, P) {
     if (P.length !== p) { throw "wrong size"; }
 };
 
-/* Create a bitmap that will be used for texture mapping */
+/* Create a bitmap that will be used for texture mapping
+   BEND textures will be ordered: {blank side, input side, output side}
+   FORK textures will be ordered: {passive input side, active input side, output side}
+
+   Cols will be the input flow rate
+   Rows will be the output flow rate
+*/
+function assignTextureCoordinates(numSizes, textureSize) {
+    /* create (numSizes+1)^2 size combinations, each with two triangles */
+    function UV(x, y) {
+        return {xy: [x, y], uv: [(x+0.5)/textureSize, (y+0.5)/textureSize]};
+    }
+    
+    const spacing = 5;
+    let triangles = [];
+    let width = Math.floor((textureSize - 2*spacing) / (2*numSizes+3)) - spacing,
+        height = Math.floor((textureSize - 2*spacing) / (numSizes+1)) - spacing;
+    for (let row = 0; row <= numSizes; row++) {
+        triangles[row] = [];
+        for (let col = 0; col <= numSizes; col++) {
+            let baseX = spacing + (2 * spacing + 2 * width) * col,
+                baseY = spacing + (spacing + height) * row;
+            triangles[row][col] = [
+                [UV(baseX + width, baseY),
+                 UV(baseX, baseY + height),
+                 UV(baseX + 2*width, baseY + height)],
+                [UV(baseX + 2*width + spacing, baseY + height),
+                 UV(baseX + 3*width + spacing, baseY),
+                 UV(baseX + width + spacing, baseY)]
+            ];
+        }
+    }
+    return triangles;
+}
+
+
+// TODO: turn this into an object :-/
+const numRiverSizes = 20;
+const riverTextureSize = 2048;
+let riverTexturePositions = assignTextureCoordinates(numRiverSizes, riverTextureSize);
 exports.createRiverBitmap = function() {
-    const size = 8;
     let canvas = document.createElement('canvas');
-    canvas.width = canvas.height = size;
+    canvas.width = canvas.height = riverTextureSize;
     let ctx = canvas.getContext('2d');
-    ctx.scale(size/1024, size/1024);
-    ctx.strokeStyle = "hsl(200,50%,25%)";
-    ctx.lineWidth = 200;
+
+    function lineWidth(i) {
+        return i / numRiverSizes * riverTextureSize / 75;
+    }
     
-    /* FORK: let's make a right triangle for now, with the hypotenuse the outflow */
-    ctx.beginPath();
-    ctx.moveTo(0, 512);
-    ctx.lineTo(333, 333);
-    ctx.moveTo(512, 0);
-    ctx.lineTo(333, 333);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(333, 333);
-    ctx.lineTo(512, 512);
-    ctx.stroke();
-    
-    /* BEND: let's use the other right triangle */
-    ctx.beginPath();
-    ctx.moveTo(1024, 512);
-    ctx.lineTo(691, 691);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(691, 691);
-    ctx.lineTo(512, 512);
-    ctx.stroke();
+    ctx.lineCap = "round";
+    for (let row = 0; row <= numRiverSizes; row++) {
+        for (let col = 0; col <= numRiverSizes; col++) {
+            for (let type = 0; type < 2; type++) {
+                let pos = riverTexturePositions[row][col][type];
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(pos[0].xy[0], pos[0].xy[1]);
+                ctx.lineTo(pos[1].xy[0], pos[1].xy[1]);
+                ctx.lineTo(pos[2].xy[0], pos[2].xy[1]);
+                ctx.lineTo(pos[0].xy[0], pos[0].xy[1]);
+                ctx.clip();
+                
+                let center = [(pos[0].xy[0] + pos[1].xy[0] + pos[2].xy[0]) / 3,
+                              (pos[0].xy[1] + pos[1].xy[1] + pos[2].xy[1]) / 3];
+                let midpoint1 = vec2.lerp([], pos[1].xy, pos[2].xy, 0.5);
+                let midpoint0 = vec2.lerp([], pos[0].xy, pos[1].xy, 0.5);
+                let midpoint2 = vec2.lerp([], pos[2].xy, pos[0].xy, 0.5);
+
+                ctx.strokeStyle = "hsl(200,50%,35%)";
+                if (type === 1) {
+                    ctx.lineWidth = lineWidth(col);
+                    ctx.beginPath();
+                    ctx.moveTo(midpoint1[0], midpoint1[1]);
+                    ctx.lineTo(midpoint0[0], midpoint0[1]);
+                    ctx.stroke();
+                    ctx.lineWidth = lineWidth(row);
+                    ctx.beginPath();
+                    ctx.moveTo(midpoint0[0], midpoint0[1]);
+                    ctx.lineTo(midpoint2[0], midpoint2[1]);
+                    ctx.stroke();
+                } else {
+                    if (col > 0) {
+                        ctx.lineWidth = lineWidth(col);
+                        ctx.beginPath();
+                        ctx.moveTo(midpoint1[0], midpoint1[1]);
+                        ctx.lineTo(center[0], center[1]);
+                        ctx.stroke();
+                        
+                        if (type === 1) {
+                            ctx.lineWidth = lineWidth(col);
+                            ctx.beginPath();
+                            ctx.moveTo(midpoint0[0], midpoint0[1]);
+                            ctx.lineTo(center[0], center[1]);
+                            ctx.stroke();
+                        }
+                    }
+
+                    ctx.lineWidth = lineWidth(Math.max(1, row));
+                    ctx.beginPath();
+                    ctx.moveTo(midpoint2[0], midpoint2[1]);
+                    ctx.lineTo(center[0], center[1]);
+                    ctx.stroke();
+                }
+
+                ctx.restore();
+            }
+        }
+    }
     
     return canvas;
 };
 
+
+function s_length(mesh, s) {
+    // TODO: save this into an array because we'll be reusing it a lot
+    let t1 = mesh.s_inner_t(s),
+        t2 = mesh.s_outer_t(s);
+    let dx = mesh.t_x(t1) - mesh.t_x(t2),
+        dy = mesh.t_y(t1) - mesh.t_y(t2);
+    let d = Math.sqrt(dx*dx + dy*dy);
+    return d;
+}
+
+function clamp(x, lo, hi) {
+    if (x < lo) { x = lo; }
+    if (x > hi) { x = hi; }
+    return x;
+}
+
 /* Fill P:Float32Array with u,v data pointing to the river bitmap
    created in createRiverBitmap() */
-exports.setRiverTextures = function(map, P) {
-    let {mesh, t_downslope_s} = map;
+exports.setRiverTextures = function(map, spacing, P) {
+    let {mesh, t_downslope_s, s_flow} = map;
     let {numSolidTriangles} = mesh;
     if (P.length !== 3 * 2 * numSolidTriangles) { throw "wrong size"; }
 
-    let p = 0;
+    function riverSize(s) {
+        let flow = Math.sqrt(s_flow[s]) * spacing / 25;
+        let size = Math.ceil(flow * numRiverSizes / s_length(mesh, s));
+        return clamp(size, 1, numRiverSizes);
+    }
+    
+    let p = 0, uv = [0, 0, 0, 0, 0, 0];
     for (let t = 0; t < numSolidTriangles; t++) {
-        /* t_downslope_s[t] tells us which side is downslope, and the
-         * texture is oriented so that the downslope side should be
-         * from 0,1 to 1,0 */
-        let s0 = 3*t;
-        let out_side = t_downslope_s[t] - s0;
-        let in_side1 = (out_side + 1) % 3;
-        let in_side2 = (out_side + 2) % 3;
-        let flow_in1 = t_downslope_s[mesh.s_outer_t(s0+in_side1)] === mesh.s_opposite_s(s0+in_side1);
-        let flow_in2 = t_downslope_s[mesh.s_outer_t(s0+in_side2)] === mesh.s_opposite_s(s0+in_side2);
+        let out_s = t_downslope_s[t];
+        let in1_s = mesh.s_next_s(out_s);
+        let in2_s = mesh.s_next_s(in1_s);
+        let flow_in1 = t_downslope_s[mesh.s_outer_t(in1_s)] === mesh.s_opposite_s(in1_s);
+        let flow_in2 = t_downslope_s[mesh.s_outer_t(in2_s)] === mesh.s_opposite_s(in2_s);
+        let textureRow = riverSize(out_s);
         if (flow_in1 && flow_in2) {
             /* FORK */
-            P[p + 2*in_side1    ] = 0;
-            P[p + 2*in_side1 + 1] = 0;
-            P[p + 2*in_side2    ] = 0;
-            P[p + 2*in_side2 + 1] = 1;
-            P[p + 2*out_side    ] = 1;
-            P[p + 2*out_side + 1] = 0;
+            if (s_flow[mesh.s_opposite_s(in1_s)] > s_flow[mesh.s_opposite_s(in2_s)]) {
+                let textureCol = riverSize(mesh.s_opposite_s(in1_s));
+                let texturePos = riverTexturePositions[textureRow][textureCol][1];
+                uv[0] = texturePos[0].uv[0];
+                uv[1] = texturePos[0].uv[1];
+                uv[2] = texturePos[2].uv[0];
+                uv[3] = texturePos[2].uv[1];
+                uv[4] = texturePos[1].uv[0];
+                uv[5] = texturePos[1].uv[1];
+            } else {
+                let textureCol = riverSize(mesh.s_opposite_s(in2_s));
+                let texturePos = riverTexturePositions[textureRow][textureCol][1];
+                uv[0] = texturePos[2].uv[0];
+                uv[1] = texturePos[2].uv[1];
+                uv[2] = texturePos[1].uv[0];
+                uv[3] = texturePos[1].uv[1];
+                uv[4] = texturePos[0].uv[0];
+                uv[5] = texturePos[0].uv[1];
+            }
         } else if (flow_in1) {
-            P[p + 2*in_side1    ] = 1;
-            P[p + 2*in_side1 + 1] = 0;
-            P[p + 2*in_side2    ] = 1;
-            P[p + 2*in_side2 + 1] = 1;
-            P[p + 2*out_side    ] = 0;
-            P[p + 2*out_side + 1] = 1;
+            /* BEND */
+            let textureCol = riverSize(mesh.s_opposite_s(in1_s));
+            let texturePos = riverTexturePositions[textureRow][textureCol][0];
+            uv[0] = texturePos[0].uv[0];
+            uv[1] = texturePos[0].uv[1];
+            uv[2] = texturePos[2].uv[0];
+            uv[3] = texturePos[2].uv[1];
+            uv[4] = texturePos[1].uv[0];
+            uv[5] = texturePos[1].uv[1];
+        } else if (flow_in2) {
+            /* BEND */
+            let textureCol = riverSize(mesh.s_opposite_s(in2_s));
+            let texturePos = riverTexturePositions[textureRow][textureCol][0];
+            uv[0] = texturePos[2].uv[0];
+            uv[1] = texturePos[2].uv[1];
+            uv[2] = texturePos[1].uv[0];
+            uv[3] = texturePos[1].uv[1];
+            uv[4] = texturePos[0].uv[0];
+            uv[5] = texturePos[0].uv[1];
         } else {
-            P[p + 2*in_side1    ] = 0;
-            P[p + 2*in_side1 + 1] = 1;
-            P[p + 2*in_side2    ] = 1;
-            P[p + 2*in_side2 + 1] = 1;
-            P[p + 2*out_side    ] = 1;
-            P[p + 2*out_side + 1] = 0;
+            /* SPRING */
+            let textureCol = 0,
+                textureRow = riverSize(out_s);
+            let texturePos = riverTexturePositions[textureRow][textureCol][0];
+            uv[0] = texturePos[0].uv[0];
+            uv[1] = texturePos[0].uv[1];
+            uv[2] = texturePos[2].uv[0];
+            uv[3] = texturePos[2].uv[1];
+            uv[4] = texturePos[1].uv[0];
+            uv[5] = texturePos[1].uv[1];
         }
+        P[p + 2*(out_s - 3*t)]     = uv[0];
+        P[p + 2*(out_s - 3*t) + 1] = uv[1];
+        P[p + 2*(in1_s - 3*t)]     = uv[2];
+        P[p + 2*(in1_s - 3*t) + 1] = uv[3];
+        P[p + 2*(in2_s - 3*t)]     = uv[4];
+        P[p + 2*(in2_s - 3*t) + 1] = uv[5];
         p += 6;
     }
 

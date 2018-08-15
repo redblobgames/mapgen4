@@ -26,19 +26,19 @@ const param = {
         slope: 1,
         flat: 2.5,
         c: 0.25,
-        d: 8,
+        d: 12,
         mix: 0.5,
         rotate_x_deg: 190,
         rotate_z_deg: 0,
         scale_z: 0.5,
         outline_depth: 1.2,
         outline_strength: 15,
-        outline_threshold: 25,
+        outline_threshold: 0,
     },
 };
 exports.param = param;
 
-const river_texturemap = regl.texture({data: Geometry.createRiverBitmap()});
+const river_texturemap = regl.texture({data: Geometry.createRiverBitmap(), mipmap: 'nice', min: 'mipmap', mag: 'linear'});
 const fbo_texture_size = 2000;
 const fbo_em_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size});
 const fbo_em = regl.framebuffer({color: [fbo_em_texture]});
@@ -100,13 +100,14 @@ class Renderer {
     }
 
     /* Update the buffers with the latest em, elements data */
-    update(map) {
-        // TODO: better to use subdata or reinitialize?
+    updateLand(map) {
         Geometry.setMapGeometry(map, this.quad_elements, this.a_quad_em);
         this.buffer_quad_em.subdata(this.a_quad_em);
         this.buffer_quad_elements.subdata(this.quad_elements);
-
-        Geometry.setRiverTextures(map, this.a_river_uv);
+    }
+    
+    updateWater(map, spacing) {
+        Geometry.setRiverTextures(map, spacing, this.a_river_uv);
         this.buffer_river_uv.subdata(this.a_river_uv);
     }
 }
@@ -120,7 +121,6 @@ uniform sampler2D u_rivertexturemap;
 varying vec2 v_uv;
 void main() {
    gl_FragColor = texture2D(u_rivertexturemap, v_uv);
-   // gl_FragColor = vec4(v_uv, 0.5, 1.0);
 }`,
 
     vert: `
@@ -164,8 +164,9 @@ void main() {
    gl_FragColor = vec4(fract(256.0*e), e, w, w);
    // NOTE: it should be using the floor instead of rounding, but
    // rounding produces a nice looking artifact, so I'll keep that
-   // until I can produce the artifact properly (e.g. bug → feature)
-   // gl_FragColor = vec4(fract(256.0*e), floor(256.0*e)/256.0, v_em.y, 1);
+   // until I can produce the artifact properly (e.g. bug → feature).
+   // Using linear filtering on the texture also smooths out the artifacts.
+   //  gl_FragColor = vec4(fract(256.0*e), floor(256.0*e)/256.0, v_em.y, 1);
 }`, // TODO: < 0.5 vs <= 0.5 produce significantly different results
 
     vert: `
@@ -255,6 +256,7 @@ uniform float u_inverse_texture_size,
               u_outline_strength, u_outline_depth, u_outline_threshold;
 varying vec2 v_uv, v_pos;
 varying float v_m;
+
 void main() {
    vec2 sample_offset = vec2(0.5*u_inverse_texture_size, 0.5*u_inverse_texture_size);
    vec2 pos = v_uv + sample_offset;
@@ -285,7 +287,7 @@ void main() {
    // gl_FragColor = vec4(light/outline, light/outline, light/outline, 1);
    // gl_FragColor = texture2D(u_mapdata, v_uv);
    // gl_FragColor = vec4(mix(vec4(1,1,1,1), water_color, u_mix * sqrt(water_color.a)).rgb, 1);
-   gl_FragColor = vec4(mix(biome_color, water_color, u_mix * sqrt(water_color.a)).rgb * light / outline, 1);
+   gl_FragColor = vec4(mix(biome_color, water_color, u_mix * water_color.a).rgb * light / outline, 1);
 }`,
 
     vert: `
@@ -340,19 +342,22 @@ exports.setup = function(mesh) {
     console.timeEnd('make-mesh-static');
 };
 
-exports.draw = function(map, water_bitmap) {
+exports.draw = function(map, water_bitmap, spacing) {
     let FRAME = 0, T1 = console.time, T2 = console.timeEnd;
 
     let topdown = mat4.create();
     mat4.translate(topdown, topdown, [-1, -1, 0, 0]);
     mat4.scale(topdown, topdown, [1/500, 1/500, 1, 1]);
 
-    T1('make-mesh-dynamic');
-    renderer.update(map);
-    T2('make-mesh-dynamic');
+    T1('make-mesh-dynamic-land');
+    renderer.updateLand(map);
+    T2('make-mesh-dynamic-land');
+    T1('make-mesh-dynamic-water');
+    renderer.updateWater(map, spacing);
+    T2('make-mesh-dynamic-water');
     
     T1('make-water-texture');
-    let u_water = regl.texture({data: water_bitmap, wrapS: 'clamp', wrapT: 'clamp'});
+    let u_water = water_bitmap ? regl.texture({data: water_bitmap, wrapS: 'clamp', wrapT: 'clamp'}) : fbo_river_texture;
     T2('make-water-texture');
     
     redraw = () => {
@@ -369,12 +374,12 @@ exports.draw = function(map, water_bitmap) {
         T2(`draw-em ${renderer.quad_elements.length/3} triangles`);
 
         T1(`draw-rivers ${renderer.a_river_xy.length/6} triangles`);
-        // drawRivers({
-        //     count: renderer.a_river_xy.length/2,
-        //     a_xy: renderer.buffer_river_xy,
-        //     a_uv: renderer.buffer_river_uv,
-        //     u_projection: topdown,
-        // });
+        drawRivers({
+            count: renderer.a_river_xy.length/2,
+            a_xy: renderer.buffer_river_xy,
+            a_uv: renderer.buffer_river_uv,
+            u_projection: topdown,
+        });
         T2(`draw-rivers ${renderer.a_river_xy.length/6} triangles`);
         
         let projection = mat4.create();
@@ -401,8 +406,7 @@ exports.draw = function(map, water_bitmap) {
             a_xy: renderer.buffer_quad_xy,
             a_em: renderer.buffer_quad_em,
             a_w: renderer.buffer_quad_w,
-            u_water: fbo_river_texture,
-            // u_water: u_water,
+            u_water: u_water,
             u_depth: fbo_depth_texture,
             u_projection: projection
         });
