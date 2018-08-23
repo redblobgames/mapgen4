@@ -40,8 +40,8 @@ exports.param = param;
 
 const river_texturemap = regl.texture({data: Geometry.createRiverBitmap(), mipmap: 'nice', min: 'mipmap', mag: 'linear'});
 const fbo_texture_size = 2000;
-const fbo_em_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size});
-const fbo_em = regl.framebuffer({color: [fbo_em_texture]});
+const fbo_land_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size});
+const fbo_land = regl.framebuffer({color: [fbo_land_texture]});
 const fbo_depth_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size});
 const fbo_z = regl.framebuffer({color: [fbo_depth_texture]});
 const fbo_river_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size});
@@ -52,7 +52,6 @@ class Renderer {
     constructor (mesh) {
         this.a_quad_xy = new Float32Array(2 * (mesh.numRegions + mesh.numTriangles));
         this.a_quad_em = new Float32Array(2 * (mesh.numRegions + mesh.numTriangles));
-        this.a_quad_w = new Int8Array(mesh.numRegions + mesh.numTriangles);
         this.quad_elements = new Int32Array(3 * mesh.numSolidSides);
         this.a_river_xy = new Float32Array(3 * 2 * mesh.numSolidTriangles);
         this.a_river_uv = new Float32Array(3 * 2 * mesh.numSolidTriangles);
@@ -64,12 +63,6 @@ class Renderer {
             usage: 'static',
             type: 'float',
             data: this.a_quad_xy,
-        });
-
-        this.buffer_quad_w = regl.buffer({
-            usage: 'static',
-            type: 'int8',
-            data: this.a_quad_w,
         });
 
         this.buffer_quad_em = regl.buffer({
@@ -150,23 +143,20 @@ void main() {
 });
 
 
-/* write 16-bit elevation and 8-bit moisture to a texture */
-let drawElevationMoisture = regl({
+/* write 16-bit elevation to a texture's G,R channels; the B,A channels are empty */
+let drawLand = regl({
     frag: `
-#extension GL_OES_standard_derivatives : enable
 precision highp float;
-varying vec2 v_em;
-varying float v_w, v_flow;
+varying float v_e;
 void main() {
-   float e = 0.5 * (1.0 + v_em.x);
-   float w = 1.0 - smoothstep(0.5, 1.5, v_w / fwidth(v_w));
-   if (e < 0.5) { e -= 0.005; w = 1.0; } // produces the border
-   gl_FragColor = vec4(fract(256.0*e), e, w, w);
+   float e = 0.5 * (1.0 + v_e);
+   if (e < 0.5) { e -= 0.005; } // produces the border
+   gl_FragColor = vec4(fract(256.0*e), e, 0, 1);
    // NOTE: it should be using the floor instead of rounding, but
    // rounding produces a nice looking artifact, so I'll keep that
    // until I can produce the artifact properly (e.g. bug → feature).
    // Using linear filtering on the texture also smooths out the artifacts.
-   //  gl_FragColor = vec4(fract(256.0*e), floor(256.0*e)/256.0, v_em.y, 1);
+   //  gl_FragColor = vec4(fract(256.0*e), floor(256.0*e)/256.0, 0, 1);
 }`, // TODO: < 0.5 vs <= 0.5 produce significantly different results
 
     vert: `
@@ -174,15 +164,11 @@ precision highp float;
 uniform mat4 u_projection;
 uniform float u_exponent;
 attribute vec2 a_xy;
-attribute vec2 a_em;
-attribute float a_w, a_flow;
-varying vec2 v_em;
-varying float v_w, v_flow;
+attribute vec2 a_em; // NOTE: moisture channel unused
+varying float v_e;
 void main() {
     vec4 pos = vec4(u_projection * vec4(a_xy, 0, 1));
-    v_em = vec2(a_em.x < 0.0? a_em.x : pow(a_em.x, u_exponent), a_em.y);
-    v_w = a_w;
-    v_flow = a_flow;
+    v_e = a_em.x < 0.0? a_em.x : pow(a_em.x, u_exponent);
     gl_Position = pos;
 }`,
 
@@ -191,7 +177,7 @@ void main() {
         u_projection: regl.prop('u_projection'),
     },
 
-    framebuffer: fbo_em,
+    framebuffer: fbo_land,
     depth: {
         enable: false,
     },
@@ -199,19 +185,17 @@ void main() {
     attributes: {
         a_xy: regl.prop('a_xy'),
         a_em: regl.prop('a_em'),
-        a_w: regl.prop('a_w'),
-        a_flow: regl.prop('a_flow'),
     },
 });
 
 
 /* write depth to a texture, after applying perspective; used for outline shader */
-// TODO: float texture?
 let drawDepth = regl({
     frag: `
 precision highp float;
 varying float v_z;
 void main() {
+   // TODO: add precision like I do to elevation
    gl_FragColor = vec4(v_z, v_z, v_z, 1);
 }`,
 
@@ -254,8 +238,7 @@ uniform float u_inverse_texture_size,
               u_slope, u_flat,
               u_c, u_d, u_mix,
               u_outline_strength, u_outline_depth, u_outline_threshold;
-varying vec2 v_uv, v_pos;
-varying float v_m;
+varying vec2 v_uv, v_pos, v_em;
 
 void main() {
    vec2 sample_offset = vec2(0.5*u_inverse_texture_size, 0.5*u_inverse_texture_size);
@@ -273,15 +256,16 @@ void main() {
    vec2 em = texture2D(u_mapdata, pos).yz;
    if (em.x > 0.7) { em.x = 2.0 * (em.x-0.7) + 0.7; } /* HACK: for noise-based elevation */
    // if (em.x >= 0.5 && em.y > 0.5) { em.x = 0.49; }
-   em.y = v_m;
+   em.y = v_em.y;
    vec4 biome_color = texture2D(u_colormap, em);
    vec4 water_color = texture2D(u_water, pos);
    if (em.x < 0.5) { water_color.a = 0.0; } // don't draw rivers in the ocean
+   // if (fract(v_e * 10.0) < 10.0 * fwidth(v_e)) { biome_color = vec4(0,0,0,1); } // contour lines
 
-   float depth0 = texture2D(u_depth, v_pos).x,
-         depth1 = max(max(texture2D(u_depth, v_pos + u_outline_depth*(-dy-dx)).x,
-                          texture2D(u_depth, v_pos + u_outline_depth*(-dy+dx)).x),
-                          texture2D(u_depth, v_pos + u_outline_depth*(-dy)).x);
+   float depth0 = texture2D(u_depth, v_pos).z,
+         depth1 = max(max(texture2D(u_depth, v_pos + u_outline_depth*(-dy-dx)).z,
+                          texture2D(u_depth, v_pos + u_outline_depth*(-dy+dx)).z),
+                          texture2D(u_depth, v_pos + u_outline_depth*(-dy)).z);
    float outline = 1.0 + u_outline_strength * (max(u_outline_threshold, depth1-depth0) - u_outline_threshold);
 
    // gl_FragColor = vec4(light/outline, light/outline, light/outline, 1);
@@ -296,13 +280,12 @@ uniform mat4 u_projection;
 uniform float u_exponent;
 attribute vec2 a_xy;
 attribute vec2 a_em;
-attribute float a_w;
-varying vec2 v_uv, v_pos;
-varying float v_m;
+varying vec2 v_em, v_uv, v_pos;
+varying float v_e, v_m;
 void main() {
     vec4 pos = vec4(u_projection * vec4(a_xy, pow(max(0.0, a_em.x), u_exponent), 1));
     v_uv = a_xy / 1000.0;
-    v_m = a_em.y;
+    v_em = a_em;
     v_pos = (1.0 + pos.xy) * 0.5;
     gl_Position = pos;
 }`,
@@ -317,7 +300,7 @@ void main() {
         u_projection: regl.prop('u_projection'),
         u_depth: regl.prop('u_depth'),
         u_colormap: regl.texture({width: colormap.width, height: colormap.height, data: colormap.data, wrapS: 'clamp', wrapT: 'clamp'}),
-        u_mapdata: () => fbo_em_texture,
+        u_mapdata: () => fbo_land_texture,
         u_water: regl.prop('u_water'),
         u_inverse_texture_size: 1.5 / fbo_texture_size,
         u_light_angle: () => [
@@ -362,16 +345,14 @@ exports.draw = function(map, water_bitmap, spacing) {
     
     redraw = () => {
 
-        T1(`draw-em ${renderer.quad_elements.length/3} triangles`);
-        drawElevationMoisture({
+        T1(`draw-land ${renderer.quad_elements.length/3} triangles`);
+        drawLand({
             elements: renderer.buffer_quad_elements,
             a_xy: renderer.buffer_quad_xy,
             a_em: renderer.buffer_quad_em,
-            a_w: renderer.buffer_quad_w,
-            a_flow: renderer.buffer_quad_w,
             u_projection: topdown,
         });
-        T2(`draw-em ${renderer.quad_elements.length/3} triangles`);
+        T2(`draw-land ${renderer.quad_elements.length/3} triangles`);
 
         T1(`draw-rivers ${renderer.a_river_xy.length/6} triangles`);
         drawRivers({
@@ -405,7 +386,6 @@ exports.draw = function(map, water_bitmap, spacing) {
             elements: renderer.buffer_quad_elements,
             a_xy: renderer.buffer_quad_xy,
             a_em: renderer.buffer_quad_em,
-            a_w: renderer.buffer_quad_w,
             u_water: u_water,
             u_depth: fbo_depth_texture,
             u_projection: projection
@@ -413,12 +393,11 @@ exports.draw = function(map, water_bitmap, spacing) {
         T2('draw-drape');
 
         T1('clear-fb');
-        // Might as well do these afterwards, because they're a
-        // significant slowdown, and I should do it after I've already
-        // drawn the map
-        //regl({framebuffer: fbo_em})(() => { regl.clear({color: [0, 0, 0, 1], depth: 1}); });
+        // This is a significant slowdown, so do it at the end of the
+        // frame. That way everything's already been drawn. I don't
+        // have to clear fbo_em or fbo_river_texture because they
+        // don't have depth and will be redrawn every frame
         regl({framebuffer: fbo_z})(() => { regl.clear({color: [0, 0, 0, 1], depth: 1}); });
-        // TODO: do I even need to clear them?
         T2('clear-fb');
         
         if (FRAME++ > 2) {
@@ -435,8 +414,8 @@ G.add(param, 'distance', 100, 1000);
 G.add(param, 'x', 0, 1000);
 G.add(param, 'y', 0, 1000);
 G.add(param.drape, 'light_angle_deg', 0, 360);
-G.add(param.drape, 'slope', 0, 10);
-G.add(param.drape, 'flat', 0, 10);
+G.add(param.drape, 'slope', 0, 5);
+G.add(param.drape, 'flat', 0, 5);
 G.add(param.drape, 'c', 0, 1);
 G.add(param.drape, 'd', 0, 40);
 G.add(param.drape, 'mix', 0, 2);

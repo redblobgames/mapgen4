@@ -1,2 +1,3 @@
 server:
-	npm run start
+	yarn watch
+

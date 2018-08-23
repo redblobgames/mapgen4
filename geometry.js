@@ -9,28 +9,25 @@ let {vec2} = require('gl-matrix');
 
 /* Fill P:Float32Array with x,y data from mesh:TriangleMesh,
    first region points then triangle points */
-exports.setMeshGeometry = function(mesh, P, W) {
+exports.setMeshGeometry = function(mesh, P) {
     let {numRegions, numTriangles} = mesh;
     if (P.length !== 2 * (numRegions + numTriangles)) { throw "wrong size"; }
-    if (W.length !== numRegions + numTriangles) { throw "wrong size"; }
 
-    let p = 0, w = 0;
+    let p = 0;
     for (let r = 0; r < numRegions; r++) {
         P[p++] = mesh.r_x(r);
         P[p++] = mesh.r_y(r);
-        W[w++] = 1;
     }
     for (let t = 0; t < numTriangles; t++) {
         P[p++] = mesh.t_x(t);
         P[p++] = mesh.t_y(t);
-        W[w++] = 0;
     }
 };
 
 /* Fill P:Float32Array with elevation,moisture data from mapgen4 map,
    and also I:Int32Array with indices into this array */
 exports.setMapGeometry = function(map, I, P) {
-    // TODO: V should probably depend on the slope
+    // TODO: V should probably depend on the slope, or elevation, or maybe it should be 0.95 in mountainous areas and 0.99 elsewhere
     const V = 0.95; // reduce elevation in valleys
     let {mesh, r_water, t_downslope_s, r_elevation, t_elevation, r_moisture} = map;
     let {numSolidSides, numRegions, numTriangles} = mesh;
