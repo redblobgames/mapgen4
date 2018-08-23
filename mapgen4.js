@@ -36,22 +36,64 @@ let param = {
     }
 })();
 
-
-
-function elevationNoise(noise, base, x, y) {
-    let dx = (x-500)/500, dy = (y-500)/500;
-    let e = base;
-    let step = (base < 0.5)? 0 : (base > 0.7)? 1 : (base - 0.5)/0.2;
-    e += step * 0.5 * (Math.abs(noise.noise2D(dx*3 - 3, dy*3 - 3)) * base) * Math.abs(noise.noise2D(dx*32 + 9, dy*32 + 9)); // bumpier mountains
-    
-    if (e < -1.0) { e = -1.0; }
-    if (e > +1.0) { e = +1.0; }
-    return e;
-}
+let PEAKS = (() => {
+    const spacing = 0.07;
+    let result = [];
+    let offset = 0;
+    for (let y = -0.9; y <= 0.9; y += spacing) {
+        offset = offset > 0? 0 : spacing/2;
+        for (let x = -0.9 + offset; x <= 0.9; x += spacing) {
+            result.push({
+                x: x + (Math.random() - Math.random()) * spacing,
+                y: y + (Math.random() - Math.random()) * spacing,
+                zm: 1.0 + (Math.random() - Math.random()) * 0.2,
+                zh: 1.0 + (Math.random() - Math.random()) * 0.2,
+                wm: 20 + 3 * y,
+                wh: 40 + 10 * y,
+            });
+        }
+    }
+    return result;
+})();
 
 function elevation(noise, x, y) {
     let dx = (x-500)/500, dy = (y-500)/500;
     let base = noise.noise2D(dx, dy);
+    base = (0.75 * base
+             + 0.5 * noise.noise2D(dx*2 + 5, dy*2 + 5)
+             + 0.125 * noise.noise2D(dx*4 + 7, dy*4 + 7)
+             + 0.0625 * noise.noise2D(dx*8 + 9, dy*8 + 9));
+
+    function mountain(x, y, w) {
+        let d = Math.sqrt((x - dx) * (x - dx) + (y - dy) * (y - dy));
+        return 1 - w * d;
+    }
+    function hill(x, y, w) {
+        let d2 = (x - dx) * (x - dx) + (y - dy) * (y - dy);
+        return Math.max(0, Math.pow(Math.exp(-d2*3000), 0.5) - 0.3);
+    }
+    let e = base;
+    let eh = 0;
+    let em = 0;
+    if (base > 0) {
+        for (let {x, y, zm, zh, wm, wh} of PEAKS) {
+            em = Math.max(em, zm * mountain(x, y, wm));
+            eh = Math.max(eh, zh * hill(x, y, wh));
+        }
+
+        // now use base to decide how much of eh, em to mix in. At base = 0 we mix in none of it. At base = 0.5 we mix in hills. At base = 1.0 we mix in mountains.
+        let w0 = 2,
+            wm = 2 * base * base,
+            wh = 0.5 * (0.5 - Math.abs(0.5 - base));
+        e = (w0 * base + wh * eh + wm * em) / (w0 + wh + wm);
+    }
+    
+    return e;
+    /*
+    // base = (1.0 - Math.abs(base) * 2.0) * Math.pow(Math.abs(noise.noise2D(1.5*dx + 10, 1.5*dy + 10)), 0.125);
+    // TODO: use one noise field to calculate land/water and another to calculate elevation
+    // TODO: calculate distance from coast (multiplied by param.spacing)
+    // TODO: mix(distance_from_coast / 20, basenoise, smoothstep(0, 20, distance_from_coast))
     let e = (0.5 * base
              + 0.25 * noise.noise2D(dx*2 + 5, dy*2 + 5)
              + 0.125 * noise.noise2D(dx*4 + 7, dy*4 + 7)
@@ -63,6 +105,7 @@ function elevation(noise, x, y) {
     if (e < -1.0) { e = -1.0; }
     if (e > +1.0) { e = +1.0; }
     return e;
+*/
 }
 
 
@@ -89,7 +132,7 @@ class Map {
         console.time('map-elevation-1');
         seeds_t.splice(0);
         for (let t = 0; t < mesh.numTriangles; t++) {
-            let e = elevation(noise, mesh.t_x(t), mesh.t_y(t));
+            let e = elevation(noise, mesh.t_x(t), mesh.t_y(t), t);
             t_elevation[t] = e;
             if (e < 0 && mesh.t_ghost(t)) { seeds_t.push(t); }
         }
