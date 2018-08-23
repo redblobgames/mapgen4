@@ -1,10 +1,8 @@
 /*
  * From http://www.redblobgames.com/maps/mapgen4/
- * Copyright 2017 Red Blob Games <redblobgames@gmail.com>
+ * Copyright 2018 Red Blob Games <redblobgames@gmail.com>
  * License: Apache v2.0 <http://www.apache.org/licenses/LICENSE-2.0.html>
  */
-
-/* global dat */
 
 'use strict';
 
@@ -13,7 +11,7 @@ let colormap = require('./colormap');
 let Geometry = require('./geometry');
 let regl = require('regl')({
     canvas: "#mapgen4",
-    extensions: ['OES_element_index_uint', 'OES_standard_derivatives']
+    extensions: ['OES_element_index_uint']
 });
 
 const param = {
@@ -46,64 +44,6 @@ const fbo_depth_texture = regl.texture({width: fbo_texture_size, height: fbo_tex
 const fbo_z = regl.framebuffer({color: [fbo_depth_texture]});
 const fbo_river_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size});
 const fbo_river = regl.framebuffer({color: [fbo_river_texture]});
-
-
-class Renderer {
-    constructor (mesh) {
-        this.a_quad_xy = new Float32Array(2 * (mesh.numRegions + mesh.numTriangles));
-        this.a_quad_em = new Float32Array(2 * (mesh.numRegions + mesh.numTriangles));
-        this.quad_elements = new Int32Array(3 * mesh.numSolidSides);
-        this.a_river_xy = new Float32Array(3 * 2 * mesh.numSolidTriangles);
-        this.a_river_uv = new Float32Array(3 * 2 * mesh.numSolidTriangles);
-        
-        Geometry.setMeshGeometry(mesh, this.a_quad_xy, this.a_quad_w);
-        Geometry.setRiverGeometry(mesh, this.a_river_xy);
-        
-        this.buffer_quad_xy = regl.buffer({
-            usage: 'static',
-            type: 'float',
-            data: this.a_quad_xy,
-        });
-
-        this.buffer_quad_em = regl.buffer({
-            usage: 'dynamic',
-            type: 'float',
-            length: 4 * this.a_quad_em.length,
-        });
-
-        this.buffer_quad_elements = regl.elements({
-            primitive: 'triangles',
-            usage: 'dynamic',
-            type: 'uint32',
-            length: 4 * this.quad_elements.length,
-            count: this.quad_elements.length,
-        });
-
-        this.buffer_river_xy = regl.buffer({
-            usage: 'static',
-            type: 'float',
-            data: this.a_river_xy,
-        });
-
-        this.buffer_river_uv = regl.buffer({
-            usage: 'dynamic',
-            type: 'float',
-            length: 4 * this.a_river_uv.length,
-        });
-    }
-
-    /* Update the buffers with the latest em, elements data */
-    updateLand(map) {
-        Geometry.setMapGeometry(map, this.quad_elements, this.a_quad_em);
-        this.buffer_quad_em.subdata(this.a_quad_em);
-        this.buffer_quad_elements.subdata(this.quad_elements);
-    }
-    
-    updateWater(map, spacing) {
-        Geometry.setRiverTextures(map, spacing, this.a_river_uv);
-        this.buffer_river_uv.subdata(this.a_river_uv);
-    }
-}
 
 
 /* draw rivers to a texture, which will be draped on the map surface */
@@ -189,14 +129,15 @@ void main() {
 });
 
 
-/* write depth to a texture, after applying perspective; used for outline shader */
+/* using the same perspective as the final output, write the depth
+   to a texture, G,R channels; used for outline shader */
 let drawDepth = regl({
     frag: `
 precision highp float;
 varying float v_z;
 void main() {
    // TODO: add precision like I do to elevation
-   gl_FragColor = vec4(v_z, v_z, v_z, 1);
+   gl_FragColor = vec4(fract(256.0*v_z), floor(256.0*v_z)/256.0, 0, 1);
 }`,
 
     vert: `
@@ -225,7 +166,9 @@ void main() {
 });
 
 
-/* draw the final image by draping the biome colors over the geometry */
+/* draw the final image by draping the biome colors over the geometry;
+   note that u_depth and u_mapdata are both encoded with G,R channels
+   for 16 bits */
 let drawDrape = regl({
     frag: `
 precision highp float;
@@ -240,16 +183,21 @@ uniform float u_inverse_texture_size,
               u_outline_strength, u_outline_depth, u_outline_threshold;
 varying vec2 v_uv, v_pos, v_em;
 
+const vec2 _decipher = vec2(1.0/256.0, 1);
+float decipher(vec4 v) {
+   return dot(_decipher, v.xy);
+}
+
 void main() {
    vec2 sample_offset = vec2(0.5*u_inverse_texture_size, 0.5*u_inverse_texture_size);
    vec2 pos = v_uv + sample_offset;
    vec2 dx = vec2(u_inverse_texture_size, 0),
         dy = vec2(0, u_inverse_texture_size);
-   vec4 decipher = vec4(1.0/256.0, 1, 0, 0);
-   float zE = dot(texture2D(u_mapdata, pos + dx), decipher);
-   float zN = dot(texture2D(u_mapdata, pos - dy), decipher);
-   float zW = dot(texture2D(u_mapdata, pos - dx), decipher);
-   float zS = dot(texture2D(u_mapdata, pos + dy), decipher);
+
+   float zE = decipher(texture2D(u_mapdata, pos + dx));
+   float zN = decipher(texture2D(u_mapdata, pos - dy));
+   float zW = decipher(texture2D(u_mapdata, pos - dx));
+   float zS = decipher(texture2D(u_mapdata, pos + dy));
    vec3 slope_vector = normalize(vec3(zS-zN, zE-zW, u_d*2.0*u_inverse_texture_size));
    vec3 light_vector = normalize(vec3(u_light_angle, mix(u_slope, u_flat, slope_vector.z)));
    float light = u_c + max(0.0, dot(light_vector, slope_vector));
@@ -262,10 +210,10 @@ void main() {
    if (em.x < 0.5) { water_color.a = 0.0; } // don't draw rivers in the ocean
    // if (fract(v_e * 10.0) < 10.0 * fwidth(v_e)) { biome_color = vec4(0,0,0,1); } // contour lines
 
-   float depth0 = texture2D(u_depth, v_pos).z,
-         depth1 = max(max(texture2D(u_depth, v_pos + u_outline_depth*(-dy-dx)).z,
-                          texture2D(u_depth, v_pos + u_outline_depth*(-dy+dx)).z),
-                          texture2D(u_depth, v_pos + u_outline_depth*(-dy)).z);
+   float depth0 = decipher(texture2D(u_depth, v_pos)),
+         depth1 = max(max(decipher(texture2D(u_depth, v_pos + u_outline_depth*(-dy-dx))),
+                          decipher(texture2D(u_depth, v_pos + u_outline_depth*(-dy+dx)))),
+                      decipher(texture2D(u_depth, v_pos + u_outline_depth*(-dy))));
    float outline = 1.0 + u_outline_strength * (max(u_outline_threshold, depth1-depth0) - u_outline_threshold);
 
    // gl_FragColor = vec4(light/outline, light/outline, light/outline, 1);
@@ -318,50 +266,91 @@ void main() {
     },
 });
 
-let redraw, renderer;
-exports.setup = function(mesh) {
-    console.time('make-mesh-static');
-    renderer = new Renderer(mesh);
-    console.timeEnd('make-mesh-static');
-};
 
-exports.draw = function(map, water_bitmap, spacing) {
-    let FRAME = 0, T1 = console.time, T2 = console.timeEnd;
+class Renderer {
+    constructor (mesh) {
+        this.frame_number = 0;
+        this.a_quad_xy = new Float32Array(2 * (mesh.numRegions + mesh.numTriangles));
+        this.a_quad_em = new Float32Array(2 * (mesh.numRegions + mesh.numTriangles));
+        this.quad_elements = new Int32Array(3 * mesh.numSolidSides);
+        this.a_river_xy = new Float32Array(3 * 2 * mesh.numSolidTriangles);
+        this.a_river_uv = new Float32Array(3 * 2 * mesh.numSolidTriangles);
+        
+        Geometry.setMeshGeometry(mesh, this.a_quad_xy, this.a_quad_w);
+        Geometry.setRiverGeometry(mesh, this.a_river_xy);
+        
+        this.buffer_quad_xy = regl.buffer({
+            usage: 'static',
+            type: 'float',
+            data: this.a_quad_xy,
+        });
 
-    let topdown = mat4.create();
-    mat4.translate(topdown, topdown, [-1, -1, 0, 0]);
-    mat4.scale(topdown, topdown, [1/500, 1/500, 1, 1]);
+        this.buffer_quad_em = regl.buffer({
+            usage: 'dynamic',
+            type: 'float',
+            length: 4 * this.a_quad_em.length,
+        });
 
-    T1('make-mesh-dynamic-land');
-    renderer.updateLand(map);
-    T2('make-mesh-dynamic-land');
-    T1('make-mesh-dynamic-water');
-    renderer.updateWater(map, spacing);
-    T2('make-mesh-dynamic-water');
+        this.buffer_quad_elements = regl.elements({
+            primitive: 'triangles',
+            usage: 'dynamic',
+            type: 'uint32',
+            length: 4 * this.quad_elements.length,
+            count: this.quad_elements.length,
+        });
+
+        this.buffer_river_xy = regl.buffer({
+            usage: 'static',
+            type: 'float',
+            data: this.a_river_xy,
+        });
+
+        this.buffer_river_uv = regl.buffer({
+            usage: 'dynamic',
+            type: 'float',
+            length: 4 * this.a_river_uv.length,
+        });
+    }
+
+    time(label) { console.time(label); }
+    timeEnd(label) { console.timeEnd(label); }
     
-    T1('make-water-texture');
-    let u_water = water_bitmap ? regl.texture({data: water_bitmap, wrapS: 'clamp', wrapT: 'clamp'}) : fbo_river_texture;
-    T2('make-water-texture');
-    
-    redraw = () => {
+    /* Update the buffers with the latest map data */
+    updateMap(map, spacing) {
+        this.time('make-mesh land');
+        Geometry.setMapGeometry(map, this.quad_elements, this.a_quad_em);
+        this.buffer_quad_em.subdata(this.a_quad_em);
+        this.buffer_quad_elements.subdata(this.quad_elements);
+        this.timeEnd('make-mesh land');
+        
+        this.time('make-mesh rivers');
+        Geometry.setRiverTextures(map, spacing, this.a_river_uv);
+        this.buffer_river_uv.subdata(this.a_river_uv);
+        this.timeEnd('make-mesh rivers');
+    }
 
-        T1(`draw-land ${renderer.quad_elements.length/3} triangles`);
+    updateView() {
+        let topdown = mat4.create();
+        mat4.translate(topdown, topdown, [-1, -1, 0, 0]);
+        mat4.scale(topdown, topdown, [1/500, 1/500, 1, 1]);
+
+        this.time(`draw-land ${this.quad_elements.length/3} triangles`);
         drawLand({
-            elements: renderer.buffer_quad_elements,
-            a_xy: renderer.buffer_quad_xy,
-            a_em: renderer.buffer_quad_em,
+            elements: this.buffer_quad_elements,
+            a_xy: this.buffer_quad_xy,
+            a_em: this.buffer_quad_em,
             u_projection: topdown,
         });
-        T2(`draw-land ${renderer.quad_elements.length/3} triangles`);
+        this.timeEnd(`draw-land ${this.quad_elements.length/3} triangles`);
 
-        T1(`draw-rivers ${renderer.a_river_xy.length/6} triangles`);
+        this.time(`draw-rivers ${this.a_river_xy.length/6} triangles`);
         drawRivers({
-            count: renderer.a_river_xy.length/2,
-            a_xy: renderer.buffer_river_xy,
-            a_uv: renderer.buffer_river_uv,
+            count: this.a_river_xy.length/2,
+            a_xy: this.buffer_river_xy,
+            a_uv: this.buffer_river_uv,
             u_projection: topdown,
         });
-        T2(`draw-rivers ${renderer.a_river_xy.length/6} triangles`);
+        this.timeEnd(`draw-rivers ${this.a_river_xy.length/6} triangles`);
         
         let projection = mat4.create();
         mat4.rotateX(projection, projection, param.drape.rotate_x_deg * Math.PI/180);
@@ -369,64 +358,42 @@ exports.draw = function(map, water_bitmap, spacing) {
         mat4.scale(projection, projection, [1/param.distance, 1/param.distance, param.drape.scale_z, 1]);
         mat4.translate(projection, projection, [-param.x, -param.y, 0, 0]);
         
-        T1('draw-depth');
+        this.time('draw-depth');
         if (param.drape.outline_depth > 0) {
             drawDepth({
-                elements: renderer.buffer_quad_elements,
-                a_xy: renderer.buffer_quad_xy,
-                a_em: renderer.buffer_quad_em,
+                elements: this.buffer_quad_elements,
+                a_xy: this.buffer_quad_xy,
+                a_em: this.buffer_quad_em,
                 u_projection: projection
             });
         }
-        T2('draw-depth');
+        this.timeEnd('draw-depth');
         
-        T1('draw-drape');
+        this.time('draw-drape');
         regl.clear({color: [0, 0, 0, 1], depth: 1});
         drawDrape({
-            elements: renderer.buffer_quad_elements,
-            a_xy: renderer.buffer_quad_xy,
-            a_em: renderer.buffer_quad_em,
-            u_water: u_water,
+            elements: this.buffer_quad_elements,
+            a_xy: this.buffer_quad_xy,
+            a_em: this.buffer_quad_em,
+            u_water: fbo_river_texture,
             u_depth: fbo_depth_texture,
             u_projection: projection
         });
-        T2('draw-drape');
+        this.timeEnd('draw-drape');
 
-        T1('clear-fb');
+        this.time('clear-fb');
         // This is a significant slowdown, so do it at the end of the
         // frame. That way everything's already been drawn. I don't
         // have to clear fbo_em or fbo_river_texture because they
         // don't have depth and will be redrawn every frame
         regl({framebuffer: fbo_z})(() => { regl.clear({color: [0, 0, 0, 1], depth: 1}); });
-        T2('clear-fb');
-        
-        if (FRAME++ > 2) {
-            T1 = T2 = () => {}; // only show performance the first few times
+        this.timeEnd('clear-fb');
+
+        if (this.frame_number++ > 2) {
+            this.time = this.timeEnd = () => {}; // only show performance the first few times
         }
-    };
-    redraw();
-};
-
-
-let G = new dat.GUI();
-G.add(param, 'exponent', 1, 10);
-G.add(param, 'distance', 100, 1000);
-G.add(param, 'x', 0, 1000);
-G.add(param, 'y', 0, 1000);
-G.add(param.drape, 'light_angle_deg', 0, 360);
-G.add(param.drape, 'slope', 0, 5);
-G.add(param.drape, 'flat', 0, 5);
-G.add(param.drape, 'c', 0, 1);
-G.add(param.drape, 'd', 0, 40);
-G.add(param.drape, 'mix', 0, 2);
-G.add(param.drape, 'rotate_x_deg', -360, 360);
-G.add(param.drape, 'rotate_z_deg', -360, 360);
-G.add(param.drape, 'scale_z', 0, 2);
-G.add(param.drape, 'outline_depth', 0, 5);
-G.add(param.drape, 'outline_strength', 0, 30);
-G.add(param.drape, 'outline_threshold', 0, 100);
-function update() {
-    redraw();
+    }
 }
-for (let c of G.__controllers) c.listen().onChange(update);
-exports.datGUI = G;
+
+Renderer.param = param;
+exports.Renderer = Renderer;

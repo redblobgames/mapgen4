@@ -1,6 +1,6 @@
 /*
- * From http://www.redblobgames.com/maps/mapgen2/
- * Copyright 2017 Red Blob Games <redblobgames@gmail.com>
+ * From http://www.redblobgames.com/maps/mapgen4/
+ * Copyright 2018 Red Blob Games <redblobgames@gmail.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,10 +14,11 @@
  */
 'use strict';
 
+/* global dat */
+
 const SimplexNoise = require('simplex-noise');
 const DualMesh =     require('@redblobgames/dual-mesh');
 const MeshBuilder =  require('@redblobgames/dual-mesh/create');
-const DrawWater =    require('./draw-water');
 const Render =       require('./render');
 const {makeRandInt, makeRandFloat} = require('@redblobgames/prng');
 
@@ -255,7 +256,9 @@ function draw() {
     let mesh = meshb.create(true);
     console.timeEnd('mesh-init');
 
-    Render.setup(mesh);
+    console.time('make-mesh-static');
+    let render = new Render.Renderer(mesh);
+    console.timeEnd('make-mesh-static');
     
     let map = new Map(mesh);
 
@@ -264,26 +267,29 @@ function draw() {
     map.assignElevation();
     map.assignRivers();
     
-    let canvas = null;
-    if (param.softwareWater) {
-        console.time('canvas-init');
-        canvas = document.createElement('canvas');
-        canvas.width = canvas.height = param.canvasSize;
-        let ctx = canvas.getContext('2d');
-        ctx.save();
-        ctx.scale(canvas.width / 1000, canvas.height / 1000);
-        ctx.clearRect(0, 0, 1000, 1000);
-        console.timeEnd('canvas-init');
+    render.updateMap(map, param.spacing);
+    render.updateView();
 
-        console.time('draw-rivers');
-        DrawWater.rivers(ctx, map, param.spacing);
-        console.timeEnd('draw-rivers');
-        
-        ctx.restore();
-    }
-
+    const gparam = Render.param;
+    let G = new dat.GUI();
+    G.add(gparam, 'exponent', 1, 10);
+    G.add(gparam, 'distance', 100, 1000);
+    G.add(gparam, 'x', 0, 1000);
+    G.add(gparam, 'y', 0, 1000);
+    G.add(gparam.drape, 'light_angle_deg', 0, 360);
+    G.add(gparam.drape, 'slope', 0, 5);
+    G.add(gparam.drape, 'flat', 0, 5);
+    G.add(gparam.drape, 'c', 0, 1);
+    G.add(gparam.drape, 'd', 0, 40);
+    G.add(gparam.drape, 'mix', 0, 2);
+    G.add(gparam.drape, 'rotate_x_deg', -360, 360);
+    G.add(gparam.drape, 'rotate_z_deg', -360, 360);
+    G.add(gparam.drape, 'scale_z', 0, 2);
+    G.add(gparam.drape, 'outline_depth', 0, 5);
+    G.add(gparam.drape, 'outline_strength', 0, 30);
+    G.add(gparam.drape, 'outline_threshold', 0, 100);
+    for (let c of G.__controllers) c.listen().onChange(() => render.updateView());
     
-    Render.draw(map, canvas, param.spacing);
 }
 
 function setUpImageDrop() {
