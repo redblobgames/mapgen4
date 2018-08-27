@@ -177,6 +177,8 @@ function biased_search(mesh, seeds_t, t_priority, /* out */ t_downflow_s, /* out
 
 
 function assign_flow(mesh, order_t, t_elevation, t_downflow_s, /* out */ t_flow, /* out */ s_flow) {
+    t_flow.fill(0);
+    s_flow.fill(0);
     for (let t = 0; t < mesh.numTriangles; t++) {
         if (t_elevation[t] > 0) {
             t_flow[t] = 1;

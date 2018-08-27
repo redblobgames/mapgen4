@@ -29,17 +29,20 @@ exports.setMeshGeometry = function(mesh, P) {
 exports.setMapGeometry = function(map, I, P) {
     // TODO: V should probably depend on the slope, or elevation, or maybe it should be 0.95 in mountainous areas and 0.99 elsewhere
     const V = 0.95; // reduce elevation in valleys
-    let {mesh, r_water, t_downslope_s, r_elevation, t_elevation, r_moisture} = map;
+    let {mesh, r_water, s_flow, r_elevation, t_elevation, r_moisture} = map;
     let {numSolidSides, numRegions, numTriangles} = mesh;
 
     if (I.length !== 3 * numSolidSides) { throw "wrong size"; }
     if (P.length !== 2 * (numRegions + numTriangles)) { throw "wrong size"; }
 
+    console.time('   setMapGeometry A');
     let p = 0;
     for (let r = 0; r < numRegions; r++) {
         P[p++] = r_elevation[r];
         P[p++] = r_moisture[r];
     }
+    console.timeEnd('   setMapGeometry A');
+    console.time('   setMapGeometry B');
     for (let t = 0; t < numTriangles; t++) {
         P[p++] = V * t_elevation[t];
         let s0 = 3*t;
@@ -48,21 +51,25 @@ exports.setMapGeometry = function(map, I, P) {
             r3 = mesh.s_begin_r(s0+2);
         P[p++] = 1/3 * (r_moisture[r1] + r_moisture[r2] + r_moisture[r3]);
     }
+    console.timeEnd('   setMapGeometry B');
 
+    console.time('   setMapGeometry C');
     let i = 0, count_valley = 0, count_ridge = 0;
+    let {_halfedges, _triangles} = mesh;
     for (let s = 0; s < numSolidSides; s++) {
-        let r1 = mesh.s_begin_r(s),
-            r2 = mesh.s_end_r(s),
+        let opposite_s = mesh.s_opposite_s(s),
+            r1 = mesh.s_begin_r(s),
+            r2 = mesh.s_begin_r(opposite_s),
             t1 = mesh.s_inner_t(s),
-            t2 = mesh.s_outer_t(s);
-
+            t2 = mesh.s_inner_t(opposite_s);
+        
         // Each quadrilateral is turned into two triangles, so each
         // half-edge gets turned into one. There are two ways to fold
         // a quadrilateral. This is usually a nuisance but in this
         // case it's a feature. See the explanation here
         // https://www.redblobgames.com/x/1725-procedural-elevation/#rendering
         let coast = r_water[r1] || r_water[r2];
-        if (coast || mesh.s_outer_t(t_downslope_s[t1]) === t2 || mesh.s_outer_t(t_downslope_s[t2]) === t1) {
+        if (coast || s_flow[s] > 0 || s_flow[opposite_s] > 0) {
             // It's a coastal or river edge, forming a valley
             I[i++] = r1; I[i++] = numRegions+t2; I[i++] = numRegions+t1;
             count_valley++;
@@ -72,6 +79,7 @@ exports.setMapGeometry = function(map, I, P) {
             count_ridge++;
         }
     }
+    console.timeEnd('   setMapGeometry C');
 
     console.log(`valleys = ${count_valley} ridges = ${count_ridge}`);
     if (I.length !== i) { throw "wrong size"; }
@@ -214,16 +222,6 @@ exports.createRiverBitmap = function() {
 };
 
 
-function s_length(mesh, s) {
-    // TODO: save this into an array because we'll be reusing it a lot
-    let t1 = mesh.s_inner_t(s),
-        t2 = mesh.s_outer_t(s);
-    let dx = mesh.t_x(t1) - mesh.t_x(t2),
-        dy = mesh.t_y(t1) - mesh.t_y(t2);
-    let d = Math.sqrt(dx*dx + dy*dy);
-    return d;
-}
-
 function clamp(x, lo, hi) {
     if (x < lo) { x = lo; }
     if (x > hi) { x = hi; }
@@ -234,12 +232,13 @@ function clamp(x, lo, hi) {
    created in createRiverBitmap() */
 exports.setRiverTextures = function(map, spacing, P) {
     let {mesh, t_downslope_s, s_flow} = map;
-    let {numSolidTriangles} = mesh;
+    let {numSolidTriangles, s_length} = mesh;
     if (P.length !== 3 * 2 * numSolidTriangles) { throw "wrong size"; }
 
     function riverSize(s) {
+        // TODO: build a table of s_flow to flow
         let flow = Math.sqrt(s_flow[s]) * spacing / 25;
-        let size = Math.ceil(flow * numRiverSizes / s_length(mesh, s));
+        let size = Math.ceil(flow * numRiverSizes / s_length[s]);
         return clamp(size, 1, numRiverSizes);
     }
     

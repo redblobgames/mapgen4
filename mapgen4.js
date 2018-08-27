@@ -68,6 +68,17 @@ let mesh = meshb.create(true);
 console.timeEnd('mesh-init');
 console.log(`triangles = ${mesh.numTriangles} regions = ${mesh.numRegions}`);
 
+console.time('s_length');
+mesh.s_length = new Float32Array(mesh.numSides);
+for (let s = 0; s < mesh.numSides; s++) {
+    let t1 = mesh.s_inner_t(s),
+        t2 = mesh.s_outer_t(s);
+    let dx = mesh.t_x(t1) - mesh.t_x(t2),
+        dy = mesh.t_y(t1) - mesh.t_y(t2);
+    mesh.s_length[s] =Math.sqrt(dx*dx + dy*dy);
+}
+console.timeEnd('s_length');
+
 console.time('static allocation');
 let map = new Map(mesh, param);
 let render = new Render.Renderer(mesh);
