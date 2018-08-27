@@ -8,27 +8,49 @@
 const SimplexNoise = require('simplex-noise');
 const {makeRandInt, makeRandFloat} = require('@redblobgames/prng');
 
-let PEAKS = (() => {
-    const spacing = 0.07;
-    let result = [];
-    let offset = 0;
-    for (let y = -0.9; y <= 0.9; y += spacing) {
-        offset = offset > 0? 0 : spacing/2;
-        for (let x = -0.9 + offset; x <= 0.9; x += spacing) {
-            result.push({
-                x: x + (Math.random() - Math.random()) * spacing,
-                y: y + (Math.random() - Math.random()) * spacing,
-                zm: 1.0 + (Math.random() - Math.random()) * 0.2,
-                zh: 1.0 + (Math.random() - Math.random()) * 0.2,
-                wm: 20 + 3 * y,
-                wh: 40 + 10 * y,
-            });
+/* 
+ * Mountains are peaks surrounded by steep dropoffs. We need to:
+ *
+ *   1. Pick the locations of the peaks.
+ *   2. Calculate the distance from every triangle to the nearest peak.
+ * 
+ * We'll use breadth first search for this because it's simple and
+ * fast. Dijkstra's Algorithm would produce a more accurate distance
+ * field, but we only need an approximation.
+ */
+function chooseMountainPeaks(mesh, spacing, randFloat) {
+    // TODO: this may be better as blue noise, but it needs to be converted to the mesh
+    const fractionOfPeaks = spacing*spacing / 1500;
+    let peak_t = [];
+    for (let t = 0; t < mesh.numTriangles; t++) {
+        if (randFloat() < fractionOfPeaks) {
+            peak_t.push(t);
         }
     }
-    return result;
-})();
+    return peak_t;
+}
 
-function elevation(noise, x, y) {
+function calculateMountainDistance(mesh, seeds_t) {
+    let distance_t = new Float32Array(mesh.numTriangles);
+    distance_t.fill(-1);
+    let queue_t = seeds_t.concat([]);
+    for (let i = 0; i < queue_t.length; i++) {
+        let current_t = queue_t[i];
+        for (let j = 0; j < 3; j++) {
+            let s = 3 * current_t + j;
+            let neighbor_t = mesh.s_outer_t(s);
+            if (distance_t[neighbor_t] === -1) {
+                distance_t[neighbor_t] = distance_t[current_t] + mesh.s_length[s] ;
+                queue_t.push(neighbor_t);
+            }
+        }
+    }
+    return distance_t;
+}
+
+
+function elevation(noise, x, y, mountain_distance_t, t) {
+    const mountain_slope = 25;
     let dx = (x-500)/500, dy = (y-500)/500;
     let base = noise.noise2D(dx, dy);
     base = (0.75 * base
@@ -36,48 +58,18 @@ function elevation(noise, x, y) {
              + 0.125 * noise.noise2D(dx*4 + 7, dy*4 + 7)
              + 0.0625 * noise.noise2D(dx*8 + 9, dy*8 + 9));
 
-    function mountain(x, y, w) {
-        let d = Math.sqrt((x - dx) * (x - dx) + (y - dy) * (y - dy));
-        return 1 - w * d;
-    }
-    function hill(x, y, w) {
-        let d2 = (x - dx) * (x - dx) + (y - dy) * (y - dy);
-        return Math.max(0, Math.pow(Math.exp(-d2*3000), 0.5) - 0.3);
-    }
     let e = base;
-    let eh = 0;
-    let em = 0;
     if (base > 0) {
-        for (let {x, y, zm, zh, wm, wh} of PEAKS) {
-            em = Math.max(em, zm * mountain(x, y, wm));
-            eh = Math.max(eh, zh * hill(x, y, wh));
-        }
-
-        // now use base to decide how much of eh, em to mix in. At base = 0 we mix in none of it. At base = 0.5 we mix in hills. At base = 1.0 we mix in mountains.
-        let w0 = 2,
-            wm = 2 * base * base,
-            wh = 0.5 * (0.5 - Math.abs(0.5 - base));
-        e = (w0 * base + wh * eh + wm * em) / (w0 + wh + wm);
+        // now use base to decide how much of em to mix in. At base = 0 we mix in none of it. At base = 1.0 we mix in mountains.
+        // TODO: This is going to require a LOT of tweaking once user painted elevations are in
+        let em = 1 - mountain_slope/1000 * mountain_distance_t[t];
+        if (em < 0) { em = 0; }
+        let w0 = 1,
+            wm = base*base;
+        e = (w0 * base * base + wm * em) / (w0 + wm);
     }
     
     return e;
-    /*
-    // base = (1.0 - Math.abs(base) * 2.0) * Math.pow(Math.abs(noise.noise2D(1.5*dx + 10, 1.5*dy + 10)), 0.125);
-    // TODO: use one noise field to calculate land/water and another to calculate elevation
-    // TODO: calculate distance from coast (multiplied by param.spacing)
-    // TODO: mix(distance_from_coast / 20, basenoise, smoothstep(0, 20, distance_from_coast))
-    let e = (0.5 * base
-             + 0.25 * noise.noise2D(dx*2 + 5, dy*2 + 5)
-             + 0.125 * noise.noise2D(dx*4 + 7, dy*4 + 7)
-             + 0.0625 * noise.noise2D(dx*8 + 9, dy*8 + 9));
-
-    let step = (base < 0.5)? 0 : (base > 0.7)? 1 : (base - 0.5)/0.2;
-    e += step * 0.5 * (Math.abs(noise.noise2D(dx*3 - 3, dy*3 - 3)) * base) * Math.abs(noise.noise2D(dx*32 + 9, dy*32 + 9)); // bumpier mountains
-    
-    if (e < -1.0) { e = -1.0; }
-    if (e > +1.0) { e = +1.0; }
-    return e;
-*/
 }
 
 
@@ -88,6 +80,7 @@ class Map {
         this.noise = new SimplexNoise(makeRandFloat(param.seed));
         this.t_elevation = new Float32Array(mesh.numTriangles);
         this.r_elevation = new Float32Array(mesh.numRegions);
+        this.t_mountain_distance = calculateMountainDistance(mesh, chooseMountainPeaks(mesh, param.spacing, makeRandFloat(param.seed)));
         this.r_moisture = new Float32Array(mesh.numRegions);
         this.r_water = new Int8Array(mesh.numRegions);
         this.r_ocean = new Int8Array(mesh.numRegions);
@@ -100,11 +93,11 @@ class Map {
     }
 
     assignElevation() {
-        let {mesh, noise, t_elevation, r_elevation, r_moisture, r_water, r_ocean, seeds_t} = this;
+        let {mesh, noise, t_elevation, t_mountain_distance, r_elevation, r_moisture, r_water, r_ocean, seeds_t} = this;
         console.time('map-elevation-1');
         seeds_t.splice(0);
         for (let t = 0; t < mesh.numTriangles; t++) {
-            let e = elevation(noise, mesh.t_x(t), mesh.t_y(t), t);
+            let e = elevation(noise, mesh.t_x(t), mesh.t_y(t), t_mountain_distance, t);
             t_elevation[t] = e;
             if (e < 0 && mesh.t_ghost(t)) { seeds_t.push(t); }
         }
