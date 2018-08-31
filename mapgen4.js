@@ -86,7 +86,6 @@ console.timeEnd('static allocation');
 
 const gparam = Render.param;
 let G = new dat.GUI();
-G.add(gparam, 'exponent', 1, 10);
 G.add(gparam, 'distance', 100, 1000);
 G.add(gparam, 'x', 0, 1000);
 G.add(gparam, 'y', 0, 1000);
@@ -105,9 +104,16 @@ G.add(gparam.drape, 'outline_threshold', 0, 100);
 for (let c of G.__controllers) c.listen().onChange(() => render.updateView());
 
 function generate() {
+    let start_time = performance.now();
+    console.time('TOTAL MAP');
     map.assignElevation();
     map.assignRivers();
+    console.timeEnd('TOTAL MAP');
+    console.time('TOTAL RENDERPREP');
     render.updateMap(map, param.spacing);
+    console.timeEnd('TOTAL RENDERPREP');
+    let elapsed = performance.now() - start_time;
+    document.getElementById('timing').innerText = `${elapsed.toFixed(2)} milliseconds`;
 }
 
 function redraw() {

@@ -15,16 +15,15 @@ let regl = require('regl')({
 });
 
 const param = {
-    exponent: 2.5,
     distance: 480,
     x: 500,
     y: 500,
     drape: {
         light_angle_deg: 80,
-        slope: 1,
+        slope: 2,
         flat: 2.5,
         c: 0.25,
-        d: 12,
+        d: 30,
         mix: 0.5,
         rotate_x_deg: 190,
         rotate_z_deg: 0,
@@ -102,18 +101,16 @@ void main() {
     vert: `
 precision highp float;
 uniform mat4 u_projection;
-uniform float u_exponent;
 attribute vec2 a_xy;
 attribute vec2 a_em; // NOTE: moisture channel unused
 varying float v_e;
 void main() {
     vec4 pos = vec4(u_projection * vec4(a_xy, 0, 1));
-    v_e = a_em.x < 0.0? a_em.x : pow(a_em.x, u_exponent);
+    v_e = a_em.x;
     gl_Position = pos;
 }`,
 
     uniforms:  {
-        u_exponent: () => param.exponent,
         u_projection: regl.prop('u_projection'),
     },
 
@@ -143,12 +140,11 @@ void main() {
     vert: `
 precision highp float;
 uniform mat4 u_projection;
-uniform float u_exponent;
 attribute vec2 a_xy;
 attribute vec2 a_em;
 varying float v_z;
 void main() {
-    vec4 pos = vec4(u_projection * vec4(a_xy, pow(max(0.0, a_em.x), u_exponent), 1));
+    vec4 pos = vec4(u_projection * vec4(a_xy, max(0.0, a_em.x), 1));
     v_z = a_em.x;
     gl_Position = pos;
 }`,
@@ -160,7 +156,6 @@ void main() {
         a_em: regl.prop('a_em'),
     },
     uniforms: {
-        u_exponent: () => param.exponent,
         u_projection: regl.prop('u_projection'),
     },
 });
@@ -225,13 +220,12 @@ void main() {
     vert: `
 precision highp float;
 uniform mat4 u_projection;
-uniform float u_exponent;
 attribute vec2 a_xy;
 attribute vec2 a_em;
 varying vec2 v_em, v_uv, v_pos;
 varying float v_e, v_m;
 void main() {
-    vec4 pos = vec4(u_projection * vec4(a_xy, pow(max(0.0, a_em.x), u_exponent), 1));
+    vec4 pos = vec4(u_projection * vec4(a_xy, max(0.0, a_em.x), 1));
     v_uv = a_xy / 1000.0;
     v_em = a_em;
     v_pos = (1.0 + pos.xy) * 0.5;
