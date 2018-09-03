@@ -18,8 +18,9 @@
 
 const DualMesh =     require('@redblobgames/dual-mesh');
 const MeshBuilder =  require('@redblobgames/dual-mesh/create');
-const Render =       require('./render');
+const Painting =     require('./painting');
 const Map =          require('./map');
+const Render =       require('./render');
 const {makeRandInt, makeRandFloat} = require('@redblobgames/prng');
 
 
@@ -86,6 +87,7 @@ console.timeEnd('static allocation');
 
 const gparam = Render.param;
 let G = new dat.GUI();
+G.close();
 G.add(gparam, 'distance', 100, 1000);
 G.add(gparam, 'x', 0, 1000);
 G.add(gparam, 'y', 0, 1000);
@@ -120,5 +122,11 @@ function redraw() {
     render.updateView();
 }
 
+console.log("INITIALIZATION FINISHED");
 generate();
 redraw();
+
+Painting.onUpdate = () => {
+    generate();
+    redraw();
+};

@@ -3,11 +3,12 @@
     "version": "1.0.0",
     "private": true,
     "dependencies": {
-        "@redblobgames/dual-mesh": "file:/Users/amitp/Projects/redblobgames/1735-dual-mesh/",
-        "@redblobgames/prng": "file:/Users/amitp/Projects/redblobgames/1742-prng/",
-        "regl": "*",
+        "@redblobgames/dual-mesh": "file:../../../../Projects/redblobgames/1735-dual-mesh",
+        "@redblobgames/prng": "file:../../../../Projects/redblobgames/1742-prng",
+        "flatqueue": "*",
         "gl-matrix": "*",
         "hash-int": "*",
+        "regl": "*",
         "simplex-noise": "*"
     },
     "devDependencies": {

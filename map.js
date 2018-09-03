@@ -2,11 +2,15 @@
  * From https://www.redblobgames.com/maps/mapgen4/
  * Copyright 2018 Red Blob Games <redblobgames@gmail.com>
  * License: Apache v2.0 <http://www.apache.org/licenses/LICENSE-2.0.html>
+ *
+ * This module has the procedural map generation algorithms (elevations, rivers)
  */
 'use strict';
 
 const SimplexNoise = require('simplex-noise');
+const FlatQueue = require('flatqueue');
 const {makeRandInt, makeRandFloat} = require('@redblobgames/prng');
+const Painting = require('./painting');
 
 const mountain = {
     land_limit: 200,
@@ -57,10 +61,14 @@ function calculateMountainDistance(mesh, seeds_t) {
         }
     }
     console.timeEnd('   calculateMountainDistance');
+    // TODO: maybe switch to +1 instead of s_length, and then divide
+    // by spacing later; that'd let me use 8-bit int, and also let me
+    // reuse breadth first search used for other distance fields
     return distance_t;
 }
 
 function precalculateNoise(noise, mesh) {
+    console.time('   precalculateNoise');
     let {numTriangles} = mesh;
     let noise0 = new Float32Array(numTriangles),
         noise1 = new Float32Array(numTriangles),
@@ -74,6 +82,7 @@ function precalculateNoise(noise, mesh) {
         noise2[t] = noise.noise2D(4*nx + 7, 4*ny + 7);
         noise3[t] = noise.noise2D(8*nx + 9, 8*ny + 9);
     }
+    console.timeEnd('   precalculateNoise');
     return [noise0, noise1, noise2, noise3];
 }
 
@@ -122,13 +131,8 @@ class Map {
 
         // Figure out the ocean and land regions
         for (let r = 0; r < numRegions; r++) {
-            let nx = (mesh.r_x(r) - 500) / 500,
-                ny = (mesh.r_y(r) - 500) / 500;
-            let e = (0.75 * noise.noise2D(nx, ny)
-                     + 0.5 * noise.noise2D(2*nx + 5, 2*ny + 5)
-                     + 0.125 * noise.noise2D(4*nx + 7, 4*ny + 7)
-                     + 0.1625 * noise.noise2D(8*nx + 9, 8*ny + 9));
-            r_ocean[r] = e < -0.2; // TODO: water level should be a parameter
+            let constraint = Painting.constraintAt(mesh.r_x(r)/1000, mesh.r_y(r)/1000);
+            r_ocean[r] = constraint == Painting.OCEAN;
         }
 
         // Figure out the ocean, land, and coastline triangles
@@ -149,6 +153,7 @@ class Map {
                 t_elevation[t] = 0.0;
                 coastal_t.push(t);
             }
+            
         }
 
         // Calculate a distance field starting from the coastline triangles
@@ -178,11 +183,10 @@ class Map {
         // Calculate a distance field starting from the mountain triangles
         let mountain_t = [];
         for (let t = 0; t < numTriangles; t++) {
-            let n = this.noise.noise2D(mesh.t_x(t)/1000 + 3,
-                                       mesh.t_y(t)/1000 + 5);
-            if (Math.abs(n) < 0.05) { mountain_t.push(t); }
+            let constraint = Painting.constraintAt(mesh.t_x(t)/1000, mesh.t_y(t)/1000);
+            if (constraint === Painting.MOUNTAIN) { mountain_t.push(t); }
         }
-        const mountain_limit = coastal_limit;
+        const mountain_limit = coastal_limit / 4; // TODO: make separate param
         let t_mountain_distance = new Float32Array(mesh.numTriangles);
         limitedBreadthFirstSearch(mountain_t, t_mountain_distance, mountain_limit);
         
@@ -206,7 +210,8 @@ class Map {
                  *    worley noise. These form distinct peaks, with
                  *    varying distance between them. 
                  */
-                let eh = (1 + noise.noise2D(mesh.t_x(t)/100, mesh.t_y(t)/100)) / 20;
+                // TODO: these noise parameters should be exposed in UI - lower numbers mean more meandering in rivers
+                let eh = (1 + noise.noise2D(mesh.t_x(t)/10, mesh.t_y(t)/10) + noise.noise2D(mesh.t_x(t)/100, mesh.t_y(t)/100)/10) / 100;
                 let em = 1 - mountain_slope/1000 * this.precomputed.t_mountain_distance[t];
                 if (em < 0) { em = 0; }
                 let weight = 1 - dm;
@@ -224,8 +229,10 @@ class Map {
                 /* The water depth depends on distance to the coast
                  * and also some noise. The purpose is to make the
                  * shades of blue vary nicely. */
-                e = -dc * (1 + noise.noise2D(mesh.t_x(t)/300, mesh.t_y(t)/300));
+                e = -dc * (1 + this.precomputed.noise[1][t]);
             }
+            if (e < -1.0) { e = -1.0; }
+            if (e > +1.0) { e = +1.0; }
             t_elevation[t] = e;
         }
         
@@ -259,7 +266,7 @@ class Map {
     assignRivers() {
         let {mesh, seeds_t, t_elevation, t_downslope_s, order_t, t_flow, s_flow} = this;
         console.time('map-rivers-1');
-        biased_search(mesh, seeds_t, t_elevation, t_downslope_s, order_t);
+        dijkstra_search(mesh, seeds_t, t_elevation, t_downslope_s, order_t);
         console.timeEnd('map-rivers-1');
         console.time('map-rivers-2');
         assign_flow(mesh, order_t, t_elevation, t_downslope_s, t_flow, s_flow);
@@ -271,44 +278,50 @@ class Map {
 
 /**
  * seeds_t: array of int
- * t_priority: Float32Array[numTriangles]
+ * t_elevation: Float32Array[numTriangles]
  * t_downflow_s: Int32Array[numTriangles]
  * order_t: Int32Array[numTriangles]
  */
-function biased_search(mesh, seeds_t, t_priority, /* out */ t_downflow_s, /* out */ order_t) {
+let queue = new FlatQueue();
+function dijkstra_search(mesh, seeds_t, t_elevation, /* out */ t_downflow_s, /* out */ order_t) {
     // TODO: no need to do this for oceans
+    seeds_t = [];
+    for (let t = mesh.numSolidTriangles; t < mesh.numTriangles; t++) {
+        seeds_t.push(t);
+    }
+    
     let numSeeds = seeds_t.length,
         {numTriangles} = mesh;
     t_downflow_s.fill(-999);
-    seeds_t.forEach(t => { t_downflow_s[t] = -1; });
+    seeds_t.forEach(t => {
+        t_downflow_s[t] = -1;
+        queue.push(t, t_elevation[t]);
+    });
+    console.log('SEEDS', numSeeds);
     order_t.set(seeds_t);
     for (let queue_in = numSeeds, queue_out = 0; queue_out < numTriangles; queue_out++) {
-        if (queue_out >= numSeeds) {
-            // Shuffle some elements of the queue to prefer values with lower t_priority.
-            // Higher constants make it evaluate more elements, and rivers will meander less,
-            // but also follow the contours more closely, which should result in fewer canyons.
-            // TODO: try a threshold on whether to swap (should allow more meandering in valleys but less in mountains)
-            // TODO: this step is fragile and may behave badly when updating small parts of the map
-            // TODO: no need to swap them all; only swap the one that's picked
-            let pivot_step = Math.ceil((queue_in-queue_out) / 5);
-            for (let pivot = queue_in - 1; pivot > queue_out; pivot = pivot - pivot_step) {
-                if (t_priority[order_t[pivot]] < t_priority[order_t[queue_out]]) {
-                    let swap = order_t[pivot];
-                    order_t[pivot] = order_t[queue_out];
-                    order_t[queue_out] = swap;
-                }
-            }
-        }
-        
-        let current_t = order_t[queue_out];
+        let current_t = queue.pop();
         for (let j = 0; j < 3; j++) {
             let s = 3 * current_t + j;
             let neighbor_t = mesh.s_outer_t(s); // uphill from current_t
             if (t_downflow_s[neighbor_t] === -999) {
                 t_downflow_s[neighbor_t] = mesh.s_opposite_s(s);
                 order_t[queue_in++] = neighbor_t;
+                queue.push(neighbor_t, t_elevation[neighbor_t]);
             }
         }
+        /*
+        if (queue_out % 3000 === 0) {
+            let values = queue.values.concat([]);
+            values.sort((a, b) => a-b);
+            let N = values.length;
+            console.log(`PROFILE N=${N} quartiles: ${values[0].toFixed(4)} ${values[N/4|0].toFixed(4)} ${values[N/2|0].toFixed(4)} ${values[3*N/4|0].toFixed(4)} ${values[N-1].toFixed(4)}`);
+        }
+*/
+    }
+    if (queue.length !== 0) {
+        console.log('NOT EMPTY', queue.length, queue);
+        while (queue.length > 0) queue.pop();
     }
     // order_t is the visit pre-order, so roots of the tree always get
     // visited before leaves; we can use this in reverse to visit
@@ -338,7 +351,7 @@ function assign_flow(mesh, order_t, t_elevation, t_downflow_s, /* out */ t_flow,
         let t1 = order_t[i];
         let s = t_downflow_s[t1];
         let t2 = (_halfedges[s] / 3) | 0;
-        if (s >= 0 && t_elevation[t2] > 0) {
+        if (s >= 0 && t_elevation[t2] >= 0.0) {
             t_flow[t2] += t_flow[t1];
             s_flow[s] += t_flow[t1]; // TODO: isn't s_flow[s] === t_flow[?]
             if (t_elevation[t2] > t_elevation[t1]) {

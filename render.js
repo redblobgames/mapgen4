@@ -2,6 +2,8 @@
  * From http://www.redblobgames.com/maps/mapgen4/
  * Copyright 2018 Red Blob Games <redblobgames@gmail.com>
  * License: Apache v2.0 <http://www.apache.org/licenses/LICENSE-2.0.html>
+ *
+ * This module uses webgl+regl to render the generated maps
  */
 
 'use strict';
@@ -376,11 +378,11 @@ class Renderer {
         this.timeEnd('draw-drape');
 
         this.time('clear-fb');
-        // This is a significant slowdown, so do it at the end of the
-        // frame. That way everything's already been drawn. I don't
-        // have to clear fbo_em or fbo_river_texture because they
-        // don't have depth and will be redrawn every frame
-        regl({framebuffer: fbo_z})(() => { regl.clear({color: [0, 0, 0, 1], depth: 1}); });
+        // I don't have to clear fbo_em or fbo_river_texture because
+        // they don't have depth and will be redrawn every frame
+        fbo_z.use(() => {
+            regl.clear({color: [0, 0, 0, 1], depth: 1});
+        });
         this.timeEnd('clear-fb');
 
         if (this.frame_number++ > 2) {
