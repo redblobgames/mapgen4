@@ -48,19 +48,27 @@ const colors = {
 /** Use a noise function to determine the initial shapes */
 function setInitialData() {
     const noise = new SimplexNoise(makeRandFloat(188)); // TODO: seed
+    function n(nx, ny) {
+        // A bunch of tweaks; TODO: this should be more principled, or parameterized
+        let a = noise.noise2D(nx, ny),
+            b = noise.noise2D(2*nx + 5, 2*ny + 5),
+            c = noise.noise2D(4*nx + 7, 4*ny + 7),
+            d = noise.noise2D(8*nx + 9, 8*ny + 9);
+        let ia = 1 - Math.abs(a);
+        return (0.75 * a + 0.5 * a * b + 0.25 * ia * c + 0.125 * ia * d);
+    }
+
+    const warp = 0.2;
     for (let y = 0; y < size; y++) {
         for (let x = 0; x < size; x++) {
             let p = y * size + x;
             let nx = 2 * (x/size - 0.5),
                 ny = 2 * (y/size - 0.5);
-            let e = (0.75 * noise.noise2D(nx, ny)
-                     + 0.5 * noise.noise2D(2*nx + 5, 2*ny + 5)
-                     + 0.125 * noise.noise2D(4*nx + 7, 4*ny + 7)
-                     + 0.1625 * noise.noise2D(8*nx + 9, 8*ny + 9));
-            let n = noise.noise2D(x/size + 3, y/size + 5);
+            let e = n(nx + n(nx+5, ny)*warp, ny + n(nx, ny+5)*warp);
+            let m = noise.noise2D(x/size + 3, y/size + 5);
             if (e < -0.2) {
                 constraints[p] = constraints.OCEAN;
-            } else if (Math.abs(n) < 0.02) {
+            } else if (Math.abs(m) < 0.02) {
                 constraints[p] = constraints.MOUNTAIN;
             } else {
                 constraints[p] = constraints.VALLEY;
