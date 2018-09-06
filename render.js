@@ -8,10 +8,10 @@
 
 'use strict';
 
-let {vec3, mat4} = require('gl-matrix');
-let colormap = require('./colormap');
-let Geometry = require('./geometry');
-let regl = require('regl')({
+const {vec3, mat4} = require('gl-matrix');
+const colormap = require('./colormap');
+const Geometry = require('./geometry');
+const regl = require('regl')({
     canvas: "#mapgen4",
     extensions: ['OES_element_index_uint']
 });
@@ -312,17 +312,12 @@ class Renderer {
     timeEnd(label) { console.timeEnd(label); }
     
     /* Update the buffers with the latest map data */
-    updateMap(map, spacing) {
-        this.time('make-mesh land');
-        Geometry.setMapGeometry(map, this.quad_elements, this.a_quad_em);
+    updateMap() {
+        this.time('copy-mesh');
         this.buffer_quad_em.subdata(this.a_quad_em);
         this.buffer_quad_elements.subdata(this.quad_elements);
-        this.timeEnd('make-mesh land');
-        
-        this.time('make-mesh rivers');
-        Geometry.setRiverTextures(map, spacing, this.a_river_uv);
         this.buffer_river_uv.subdata(this.a_river_uv);
-        this.timeEnd('make-mesh rivers');
+        this.timeEnd('copy-mesh');
     }
 
     updateView() {

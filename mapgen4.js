@@ -16,11 +16,13 @@
 
 /* global dat */
 
-const DualMesh =     require('@redblobgames/dual-mesh');
-const MeshBuilder =  require('@redblobgames/dual-mesh/create');
-const Painting =     require('./painting');
-const Map =          require('./map');
-const Render =       require('./render');
+const WebWorkify  = require('webworkify');
+const DualMesh    = require('@redblobgames/dual-mesh');
+const MeshBuilder = require('@redblobgames/dual-mesh/create');
+const Painting    = require('./painting');
+const Map         = require('./map');
+const Geometry    = require('./geometry');
+const Render      = require('./render');
 const {makeRandInt, makeRandFloat} = require('@redblobgames/prng');
 
 
@@ -81,7 +83,6 @@ for (let s = 0; s < mesh.numSides; s++) {
 console.timeEnd('s_length');
 
 console.time('static allocation');
-let map = new Map(mesh, param);
 let render = new Render.Renderer(mesh);
 console.timeEnd('static allocation');
 
@@ -103,30 +104,54 @@ G.add(gparam.drape, 'scale_z', 0, 2);
 G.add(gparam.drape, 'outline_depth', 0, 5);
 G.add(gparam.drape, 'outline_strength', 0, 30);
 G.add(gparam.drape, 'outline_threshold', 0, 100);
-for (let c of G.__controllers) c.listen().onChange(() => render.updateView());
-
-function generate() {
-    let start_time = performance.now();
-    console.time('TOTAL MAP');
-    map.assignElevation();
-    map.assignRivers();
-    console.timeEnd('TOTAL MAP');
-    console.time('TOTAL RENDERPREP');
-    render.updateMap(map, param.spacing);
-    console.timeEnd('TOTAL RENDERPREP');
-    let elapsed = performance.now() - start_time;
-    document.getElementById('timing').innerText = `${elapsed.toFixed(2)} milliseconds`;
-}
+for (let c of G.__controllers) c.listen().onChange(redraw);
 
 function redraw() {
+    // TODO: this should go inside requestAnimationFrame, and it shouldn't trigger multiple times
     render.updateView();
 }
 
-console.log("INITIALIZATION FINISHED");
-generate();
-redraw();
-
 Painting.onUpdate = () => {
     generate();
-    redraw();
 };
+
+const worker = WebWorkify(require('./worker.js'));
+let working = false;
+
+worker.addEventListener('message', event => {
+    working = false;
+    let {elapsed, quad_elements_buffer, a_quad_em_buffer, a_river_uv_buffer} = event.data;
+    document.getElementById('timing').innerText = `${elapsed.toFixed(2)} milliseconds`;
+    render.quad_elements = new Int32Array(quad_elements_buffer);
+    render.a_quad_em = new Float32Array(a_quad_em_buffer);
+    render.a_river_uv = new Float32Array(a_river_uv_buffer);
+    render.updateMap();
+    redraw();
+});
+
+function generate() {
+    if (!working) {
+        working = true;
+        worker.postMessage({
+            constraints: {
+                size: Painting.size,
+                constraints: Painting.constraints,
+                OCEAN: Painting.OCEAN,
+                VALLEY: Painting.VALLEY,
+                MOUNTAIN: Painting.MOUNTAIN,
+            },
+            quad_elements_buffer: render.quad_elements.buffer,
+            a_quad_em_buffer: render.a_quad_em.buffer,
+            a_river_uv_buffer: render.a_river_uv.buffer,
+        }, [
+            render.quad_elements.buffer,
+            render.a_quad_em.buffer,
+            render.a_river_uv.buffer,
+        ]
+        );
+    }
+}
+
+worker.postMessage({mesh, param});
+console.log("INITIALIZATION FINISHED");
+generate();

@@ -10,7 +10,6 @@
 const SimplexNoise = require('simplex-noise');
 const FlatQueue = require('flatqueue');
 const {makeRandInt, makeRandFloat} = require('@redblobgames/prng');
-const Painting = require('./painting');
 
 const mountain = {
     land_limit: 200,
@@ -18,12 +17,12 @@ const mountain = {
     density: 1500,
 }
 
-/* 
+/*
  * Mountains are peaks surrounded by steep dropoffs. We need to:
  *
  *   1. Pick the locations of the peaks.
  *   2. Calculate the distance from every triangle to the nearest peak.
- * 
+ *
  * We'll use breadth first search for this because it's simple and
  * fast. Dijkstra's Algorithm would produce a more accurate distance
  * field, but we only need an approximation.
@@ -124,15 +123,15 @@ class Map {
         console.timeEnd('map-alloc');
     }
 
-    assignTriangleElevation2() {
+    assignTriangleElevation(constraints) {
         let {mesh, noise, spacing, t_elevation, coastline_t, r_ocean, seeds_t} = this;
         let {numTriangles, numRegions, numSides} = mesh;
         console.time('map-elevation-1a');
 
         // Figure out the ocean and land regions
         for (let r = 0; r < numRegions; r++) {
-            let constraint = Painting.constraintAt(mesh.r_x(r)/1000, mesh.r_y(r)/1000);
-            r_ocean[r] = constraint == Painting.OCEAN;
+            let constraint = constraints.at(mesh.r_x(r)/1000, mesh.r_y(r)/1000);
+            r_ocean[r] = (constraint == constraints.OCEAN) ? 1 : 0;
         }
 
         // Figure out the ocean, land, and coastline triangles
@@ -146,6 +145,7 @@ class Map {
                 t_elevation[t] = 0.0;
             } else if (r_ocean[r1] && r_ocean[r2]) {
                 t_elevation[t] = -0.5;
+                // TODO: why are there no seeds?! OH because I only look at the inner triangles!! that means all ghosts are getting missed, and also, am I processing every triangle three times?! I might be setting the wrong elevation on them!
                 if (mesh.t_ghost(t)) { seeds_t.push(t); }
             } else if (!r_ocean[r1] && !r_ocean[r2]) {
                 t_elevation[t] = +0.5;
@@ -183,8 +183,8 @@ class Map {
         // Calculate a distance field starting from the mountain triangles
         let mountain_t = [];
         for (let t = 0; t < numTriangles; t++) {
-            let constraint = Painting.constraintAt(mesh.t_x(t)/1000, mesh.t_y(t)/1000);
-            if (constraint === Painting.MOUNTAIN) { mountain_t.push(t); }
+            let constraint = constraints.at(mesh.t_x(t)/1000, mesh.t_y(t)/1000);
+            if (constraint === constraints.MOUNTAIN) { mountain_t.push(t); }
         }
         const mountain_limit = coastal_limit / 4; // TODO: make separate param
         let t_mountain_distance = new Float32Array(mesh.numTriangles);
@@ -251,15 +251,15 @@ class Map {
             // TODO: r_water has already been assigned; use that instead of the water flag
             if (water && e >= 0) { e = -0.001; }
             r_elevation[r] = e;
-            r_moisture[r] = 0.8-Math.sqrt(Math.abs(e));
-            r_water[r] = e < 0;
-            r_ocean[r] = e < 0;
+            r_moisture[r] = 0.8 - Math.sqrt(Math.abs(e));
+            r_water[r] = (e < 0) ? 1 : 0;
+            r_ocean[r] = (e < 0) ? 1 : 0;
         }
         console.timeEnd('map-elevation-2');
     }
     
-    assignElevation() {
-        this.assignTriangleElevation2();
+    assignElevation(constraints) {
+        this.assignTriangleElevation(constraints);
         this.assignRegionElevation();
     }
 
@@ -297,7 +297,6 @@ function dijkstra_search(mesh, seeds_t, t_elevation, /* out */ t_downflow_s, /* 
         t_downflow_s[t] = -1;
         queue.push(t, t_elevation[t]);
     });
-    console.log('SEEDS', numSeeds);
     order_t.set(seeds_t);
     for (let queue_in = numSeeds, queue_out = 0; queue_out < numTriangles; queue_out++) {
         let current_t = queue.pop();
@@ -310,14 +309,6 @@ function dijkstra_search(mesh, seeds_t, t_elevation, /* out */ t_downflow_s, /* 
                 queue.push(neighbor_t, t_elevation[neighbor_t]);
             }
         }
-        /*
-        if (queue_out % 3000 === 0) {
-            let values = queue.values.concat([]);
-            values.sort((a, b) => a-b);
-            let N = values.length;
-            console.log(`PROFILE N=${N} quartiles: ${values[0].toFixed(4)} ${values[N/4|0].toFixed(4)} ${values[N/2|0].toFixed(4)} ${values[3*N/4|0].toFixed(4)} ${values[N-1].toFixed(4)}`);
-        }
-*/
     }
     if (queue.length !== 0) {
         console.log('NOT EMPTY', queue.length, queue);

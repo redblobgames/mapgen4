@@ -10,7 +10,7 @@
 /* global makeDraggable */
 
 /*
- * Painting interface uses a <canvas>. 
+ * Painting interface uses a <canvas>.
  *
  * As you drag the mouse it will
  * paint filled circles on the canvas.
@@ -24,7 +24,7 @@
 const SimplexNoise = require('simplex-noise');
 const {makeRandInt, makeRandFloat} = require('@redblobgames/prng');
 
-const size = 256;
+const size = 128;
 
 /* The constraint data is stored here */
 const constraints = new Uint8Array(size*size);
@@ -109,20 +109,20 @@ function paintAt(tool, x0, y0, r) {
 }
 
 let currentTool = constraints.MOUNTAIN;
-let currentSize = 3;
+let currentSize = 2;
 
 function displayCurrentTool() {
     document.getElementById('current-control').textContent = (
-        (currentSize === 3? "small": currentSize === 8? "medium" : "large")
+        (currentSize === 2? "small": currentSize === 4? "medium" : "large")
             + " "
             + (currentTool === constraints.OCEAN? "ocean" : currentTool === constraints.VALLEY? "valley" : "mountain")
     );
 }
 
 const controls = [
-    ['1', "small", () => { currentSize = 3; }],
-    ['2', "medium", () => { currentSize = 8; }],
-    ['3', "large", () => { currentSize = 20; }],
+    ['1', "small", () => { currentSize = 2; }],
+    ['2', "medium", () => { currentSize = 4; }],
+    ['3', "large", () => { currentSize = 10; }],
     ['q', "ocean", () => { currentTool = constraints.OCEAN; }],
     ['w', "valley", () => { currentTool = constraints.VALLEY; }],
     ['e', "mountain", () => { currentTool = constraints.MOUNTAIN; }],
@@ -155,6 +155,8 @@ makeDraggable(output, output, (begin, current, state) => {
 exports.onUpdate = () => {};
 
 /** Given x,y from 0.0 to 1.0, return the constraint closest to that point */
+exports.size = size;
+exports.constraints = constraints;
 exports.constraintAt = function(x, y) {
     y = (size * y) | 0;
     x = (size * x) | 0;
