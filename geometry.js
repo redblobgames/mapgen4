@@ -86,28 +86,6 @@ exports.setMapGeometry = function(map, I, P) {
     if (P.length !== p) { throw "wrong size"; }
 };
 
-/* Fill P:Float32Array with x,y data from mesh:TriangleMesh,
-   numTriangle triangles, each with 3 points */
-exports.setRiverGeometry = function(mesh, P) {
-    let {numSolidTriangles} = mesh;
-    if (P.length !== 3 * 2 * numSolidTriangles) { throw "wrong size"; }
-
-    let p = 0;
-    for (let t = 0; t < numSolidTriangles; t++) {
-        let s0 = 3*t;
-        let r1 = mesh.s_begin_r(s0),
-            r2 = mesh.s_begin_r(s0+1),
-            r3 = mesh.s_begin_r(s0+2);
-        P[p++] = mesh.r_x(r1);
-        P[p++] = mesh.r_y(r1);
-        P[p++] = mesh.r_x(r2);
-        P[p++] = mesh.r_y(r2);
-        P[p++] = mesh.r_x(r3);
-        P[p++] = mesh.r_y(r3);
-    }
-
-    if (P.length !== p) { throw "wrong size"; }
-};
 
 /* Create a bitmap that will be used for texture mapping
    BEND textures will be ordered: {blank side, input side, output side}
@@ -191,26 +169,18 @@ exports.createRiverBitmap = function() {
                     ctx.stroke();
                 } else {
                     if (col > 0) {
-                        ctx.lineWidth = lineWidth(col);
+                        ctx.lineWidth = Math.max(lineWidth(col), lineWidth(row));
                         ctx.beginPath();
                         ctx.moveTo(midpoint1[0], midpoint1[1]);
-                        ctx.lineTo(center[0], center[1]);
+                        ctx.quadraticCurveTo(center[0], center[1], midpoint2[0], midpoint2[1]);
                         ctx.stroke();
-                        
-                        if (type === 1) {
-                            ctx.lineWidth = lineWidth(col);
-                            ctx.beginPath();
-                            ctx.moveTo(midpoint0[0], midpoint0[1]);
-                            ctx.lineTo(center[0], center[1]);
-                            ctx.stroke();
-                        }
+                    } else {
+                        ctx.lineWidth = lineWidth(row);
+                        ctx.beginPath();
+                        ctx.moveTo(center[0], center[1]);
+                        ctx.lineTo(midpoint2[0], midpoint2[1]);
+                        ctx.stroke();
                     }
-
-                    ctx.lineWidth = lineWidth(Math.max(1, row));
-                    ctx.beginPath();
-                    ctx.moveTo(midpoint2[0], midpoint2[1]);
-                    ctx.lineTo(center[0], center[1]);
-                    ctx.stroke();
                 }
 
                 ctx.restore();
@@ -228,12 +198,12 @@ function clamp(x, lo, hi) {
     return x;
 }
 
-/* Fill P:Float32Array with u,v data pointing to the river bitmap
+/* Fill P:Float32Array with x,y,u,v data pointing to the river bitmap
    created in createRiverBitmap() */
 exports.setRiverTextures = function(map, spacing, P) {
     let {mesh, t_downslope_s, s_flow} = map;
     let {numSolidTriangles, s_length} = mesh;
-    if (P.length !== 3 * 2 * numSolidTriangles) { throw "wrong size"; }
+    if (P.length !== 3 * 4 * numSolidTriangles) { throw "wrong size"; }
 
     function riverSize(s) {
         // TODO: build a table of s_flow to flow
@@ -303,13 +273,22 @@ exports.setRiverTextures = function(map, spacing, P) {
             uv[4] = texturePos[1].uv[0];
             uv[5] = texturePos[1].uv[1];
         }
-        P[p + 2*(out_s - 3*t)]     = uv[0];
-        P[p + 2*(out_s - 3*t) + 1] = uv[1];
-        P[p + 2*(in1_s - 3*t)]     = uv[2];
-        P[p + 2*(in1_s - 3*t) + 1] = uv[3];
-        P[p + 2*(in2_s - 3*t)]     = uv[4];
-        P[p + 2*(in2_s - 3*t) + 1] = uv[5];
-        p += 6;
+        let r1 = mesh.s_begin_r(3*t    ),
+            r2 = mesh.s_begin_r(3*t + 1),
+            r3 = mesh.s_begin_r(3*t + 2);
+        P[p    ] = mesh.r_x(r1);
+        P[p + 1] = mesh.r_y(r1);
+        P[p + 4] = mesh.r_x(r2);
+        P[p + 5] = mesh.r_y(r2);
+        P[p + 8] = mesh.r_x(r3);
+        P[p + 9] = mesh.r_y(r3);
+        P[p + 4*(out_s - 3*t) + 2] = uv[0];
+        P[p + 4*(out_s - 3*t) + 3] = uv[1];
+        P[p + 4*(in1_s - 3*t) + 2] = uv[2];
+        P[p + 4*(in1_s - 3*t) + 3] = uv[3];
+        P[p + 4*(in2_s - 3*t) + 2] = uv[4];
+        P[p + 4*(in2_s - 3*t) + 3] = uv[5];
+        p += 12;
     }
 
     if (P.length !== p) { throw "wrong size"; }

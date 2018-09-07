@@ -120,11 +120,11 @@ let working = false;
 
 worker.addEventListener('message', event => {
     working = false;
-    let {elapsed, quad_elements_buffer, a_quad_em_buffer, a_river_uv_buffer} = event.data;
+    let {elapsed, quad_elements_buffer, a_quad_em_buffer, a_river_xyuv_buffer} = event.data;
     document.getElementById('timing').innerText = `${elapsed.toFixed(2)} milliseconds`;
     render.quad_elements = new Int32Array(quad_elements_buffer);
     render.a_quad_em = new Float32Array(a_quad_em_buffer);
-    render.a_river_uv = new Float32Array(a_river_uv_buffer);
+    render.a_river_xyuv = new Float32Array(a_river_xyuv_buffer);
     render.updateMap();
     redraw();
 });
@@ -142,11 +142,11 @@ function generate() {
             },
             quad_elements_buffer: render.quad_elements.buffer,
             a_quad_em_buffer: render.a_quad_em.buffer,
-            a_river_uv_buffer: render.a_river_uv.buffer,
+            a_river_xyuv_buffer: render.a_river_xyuv.buffer,
         }, [
             render.quad_elements.buffer,
             render.a_quad_em.buffer,
-            render.a_river_uv.buffer,
+            render.a_river_xyuv.buffer,
         ]
         );
     }

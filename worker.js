@@ -30,7 +30,7 @@ function Worker(self) {
         // This handler is for all subsequent messages
         handler = event => {
             console.log("Worker update started");
-            let {constraints, quad_elements_buffer, a_quad_em_buffer, a_river_uv_buffer} = event.data;
+            let {constraints, quad_elements_buffer, a_quad_em_buffer, a_river_xyuv_buffer} = event.data;
             constraints.at = function(x, y) {
                 const size = this.size;
                 // TODO: copied from Painting.js :-(
@@ -48,19 +48,19 @@ function Worker(self) {
             map.assignElevation(constraints);
             map.assignRivers();
             Geometry.setMapGeometry(map, new Int32Array(quad_elements_buffer), new Float32Array(a_quad_em_buffer));
-            Geometry.setRiverTextures(map, param.spacing, new Float32Array(a_river_uv_buffer));
+            Geometry.setRiverTextures(map, param.spacing, new Float32Array(a_river_xyuv_buffer));
             let elapsed = performance.now() - start_time;
 
             self.postMessage(
                 {elapsed,
                  quad_elements_buffer,
                  a_quad_em_buffer,
-                 a_river_uv_buffer,
+                 a_river_xyuv_buffer,
                 },
                 [
                     quad_elements_buffer,
                     a_quad_em_buffer,
-                    a_river_uv_buffer,
+                    a_river_xyuv_buffer,
                 ]
             );
         };

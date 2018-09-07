@@ -60,11 +60,11 @@ void main() {
     vert: `
 precision highp float;
 uniform mat4 u_projection;
-attribute vec2 a_xy, a_uv;
+attribute vec4 a_xyuv;
 varying vec2 v_uv;
 void main() {
-  v_uv = a_uv;
-  gl_Position = vec4(u_projection * vec4(a_xy, 0, 1));
+  v_uv = a_xyuv.ba;
+  gl_Position = vec4(u_projection * vec4(a_xyuv.xy, 0, 1));
 }`,
     
     uniforms:  {
@@ -78,8 +78,7 @@ void main() {
     },
     count: regl.prop('count'),
     attributes: {
-        a_xy: regl.prop('a_xy'),
-        a_uv: regl.prop('a_uv'),
+        a_xyuv: regl.prop('a_xyuv'),
     },
 });
 
@@ -269,11 +268,9 @@ class Renderer {
         this.a_quad_xy = new Float32Array(2 * (mesh.numRegions + mesh.numTriangles));
         this.a_quad_em = new Float32Array(2 * (mesh.numRegions + mesh.numTriangles));
         this.quad_elements = new Int32Array(3 * mesh.numSolidSides);
-        this.a_river_xy = new Float32Array(3 * 2 * mesh.numSolidTriangles);
-        this.a_river_uv = new Float32Array(3 * 2 * mesh.numSolidTriangles);
+        this.a_river_xyuv = new Float32Array(3 * 4 * mesh.numSolidTriangles);
         
-        Geometry.setMeshGeometry(mesh, this.a_quad_xy, this.a_quad_w);
-        Geometry.setRiverGeometry(mesh, this.a_river_xy);
+        Geometry.setMeshGeometry(mesh, this.a_quad_xy);
         
         this.buffer_quad_xy = regl.buffer({
             usage: 'static',
@@ -295,16 +292,10 @@ class Renderer {
             count: this.quad_elements.length,
         });
 
-        this.buffer_river_xy = regl.buffer({
-            usage: 'static',
-            type: 'float',
-            data: this.a_river_xy,
-        });
-
-        this.buffer_river_uv = regl.buffer({
+        this.buffer_river_xyuv = regl.buffer({
             usage: 'dynamic',
             type: 'float',
-            length: 4 * this.a_river_uv.length,
+            length: 4 * this.a_river_xyuv.length,
         });
     }
 
@@ -316,7 +307,7 @@ class Renderer {
         this.time('copy-mesh');
         this.buffer_quad_em.subdata(this.a_quad_em);
         this.buffer_quad_elements.subdata(this.quad_elements);
-        this.buffer_river_uv.subdata(this.a_river_uv);
+        this.buffer_river_xyuv.subdata(this.a_river_xyuv);
         this.timeEnd('copy-mesh');
     }
 
@@ -334,14 +325,13 @@ class Renderer {
         });
         this.timeEnd(`draw-land ${this.quad_elements.length/3} triangles`);
 
-        this.time(`draw-rivers ${this.a_river_xy.length/6} triangles`);
+        this.time(`draw-rivers ${this.a_river_xyuv.length/12} triangles`);
         drawRivers({
-            count: this.a_river_xy.length/2,
-            a_xy: this.buffer_river_xy,
-            a_uv: this.buffer_river_uv,
+            count: this.a_river_xyuv.length/4,
+            a_xyuv: this.buffer_river_xyuv,
             u_projection: topdown,
         });
-        this.timeEnd(`draw-rivers ${this.a_river_xy.length/6} triangles`);
+        this.timeEnd(`draw-rivers ${this.a_river_xyuv.length/12} triangles`);
         
         let projection = mat4.create();
         mat4.rotateX(projection, projection, param.drape.rotate_x_deg * Math.PI/180);
