@@ -120,11 +120,12 @@ let working = false;
 
 worker.addEventListener('message', event => {
     working = false;
-    let {elapsed, quad_elements_buffer, a_quad_em_buffer, a_river_xyuv_buffer} = event.data;
+    let {elapsed, numRiverTriangles, quad_elements_buffer, a_quad_em_buffer, a_river_xyuv_buffer} = event.data;
     document.getElementById('timing').innerText = `${elapsed.toFixed(2)} milliseconds`;
     render.quad_elements = new Int32Array(quad_elements_buffer);
     render.a_quad_em = new Float32Array(a_quad_em_buffer);
     render.a_river_xyuv = new Float32Array(a_river_xyuv_buffer);
+    render.numRiverTriangles = numRiverTriangles;
     render.updateMap();
     redraw();
 });

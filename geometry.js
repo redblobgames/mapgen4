@@ -199,9 +199,10 @@ function clamp(x, lo, hi) {
 }
 
 /* Fill P:Float32Array with x,y,u,v data pointing to the river bitmap
-   created in createRiverBitmap() */
+   created in createRiverBitmap(). Returns the number of triangles actually
+   needed, which will be at most numSolidTriangles.  */
 exports.setRiverTextures = function(map, spacing, P) {
-    let {mesh, t_downslope_s, s_flow} = map;
+    let {mesh, t_elevation, t_downslope_s, s_flow} = map;
     let {numSolidTriangles, s_length} = mesh;
     if (P.length !== 3 * 4 * numSolidTriangles) { throw "wrong size"; }
 
@@ -211,85 +212,53 @@ exports.setRiverTextures = function(map, spacing, P) {
         let size = Math.ceil(flow * numRiverSizes / s_length[s]);
         return clamp(size, 1, numRiverSizes);
     }
-    
+
     let p = 0, uv = [0, 0, 0, 0, 0, 0];
     for (let t = 0; t < numSolidTriangles; t++) {
         let out_s = t_downslope_s[t];
+        if (t_elevation[t] < 0) continue;
+        if (s_flow[out_s] < 1) continue; // TODO: this should be a parameter
+        let r1 = mesh.s_begin_r(3*t    ),
+            r2 = mesh.s_begin_r(3*t + 1),
+            r3 = mesh.s_begin_r(3*t + 2);
         let in1_s = mesh.s_next_s(out_s);
         let in2_s = mesh.s_next_s(in1_s);
         let flow_in1 = t_downslope_s[mesh.s_outer_t(in1_s)] === mesh.s_opposite_s(in1_s);
         let flow_in2 = t_downslope_s[mesh.s_outer_t(in2_s)] === mesh.s_opposite_s(in2_s);
         let textureRow = riverSize(out_s);
+        
+        function add(r, c, i, j, k) {
+            const T = riverTexturePositions[r][c][0];
+            P[p    ] = mesh.r_x(r1);
+            P[p + 1] = mesh.r_y(r1);
+            P[p + 4] = mesh.r_x(r2);
+            P[p + 5] = mesh.r_y(r2);
+            P[p + 8] = mesh.r_x(r3);
+            P[p + 9] = mesh.r_y(r3);
+            P[p + 4*(out_s - 3*t) + 2] = T[i].uv[0];
+            P[p + 4*(out_s - 3*t) + 3] = T[i].uv[1];
+            P[p + 4*(in1_s - 3*t) + 2] = T[j].uv[0];
+            P[p + 4*(in1_s - 3*t) + 3] = T[j].uv[1];
+            P[p + 4*(in2_s - 3*t) + 2] = T[k].uv[0];
+            P[p + 4*(in2_s - 3*t) + 3] = T[k].uv[1];
+            p += 12;
+        }
+        
         if (flow_in1 && flow_in2) {
             /* FORK */
-            if (s_flow[mesh.s_opposite_s(in1_s)] > s_flow[mesh.s_opposite_s(in2_s)]) {
-                let textureCol = riverSize(mesh.s_opposite_s(in1_s));
-                let texturePos = riverTexturePositions[textureRow][textureCol][1];
-                uv[0] = texturePos[0].uv[0];
-                uv[1] = texturePos[0].uv[1];
-                uv[2] = texturePos[2].uv[0];
-                uv[3] = texturePos[2].uv[1];
-                uv[4] = texturePos[1].uv[0];
-                uv[5] = texturePos[1].uv[1];
-            } else {
-                let textureCol = riverSize(mesh.s_opposite_s(in2_s));
-                let texturePos = riverTexturePositions[textureRow][textureCol][1];
-                uv[0] = texturePos[2].uv[0];
-                uv[1] = texturePos[2].uv[1];
-                uv[2] = texturePos[1].uv[0];
-                uv[3] = texturePos[1].uv[1];
-                uv[4] = texturePos[0].uv[0];
-                uv[5] = texturePos[0].uv[1];
-            }
+            add(textureRow, riverSize(mesh.s_opposite_s(in1_s)), 0, 2, 1);
+            add(textureRow, riverSize(mesh.s_opposite_s(in2_s)), 2, 1, 0);
         } else if (flow_in1) {
             /* BEND */
-            let textureCol = riverSize(mesh.s_opposite_s(in1_s));
-            let texturePos = riverTexturePositions[textureRow][textureCol][0];
-            uv[0] = texturePos[0].uv[0];
-            uv[1] = texturePos[0].uv[1];
-            uv[2] = texturePos[2].uv[0];
-            uv[3] = texturePos[2].uv[1];
-            uv[4] = texturePos[1].uv[0];
-            uv[5] = texturePos[1].uv[1];
+            add(textureRow, riverSize(mesh.s_opposite_s(in1_s)), 0, 2, 1);
         } else if (flow_in2) {
             /* BEND */
-            let textureCol = riverSize(mesh.s_opposite_s(in2_s));
-            let texturePos = riverTexturePositions[textureRow][textureCol][0];
-            uv[0] = texturePos[2].uv[0];
-            uv[1] = texturePos[2].uv[1];
-            uv[2] = texturePos[1].uv[0];
-            uv[3] = texturePos[1].uv[1];
-            uv[4] = texturePos[0].uv[0];
-            uv[5] = texturePos[0].uv[1];
+            add(textureRow, riverSize(mesh.s_opposite_s(in2_s)), 2, 1, 0);
         } else {
             /* SPRING */
-            let textureCol = 0,
-                textureRow = riverSize(out_s);
-            let texturePos = riverTexturePositions[textureRow][textureCol][0];
-            uv[0] = texturePos[0].uv[0];
-            uv[1] = texturePos[0].uv[1];
-            uv[2] = texturePos[2].uv[0];
-            uv[3] = texturePos[2].uv[1];
-            uv[4] = texturePos[1].uv[0];
-            uv[5] = texturePos[1].uv[1];
+            add(textureRow, 0, 0, 2, 1);
         }
-        let r1 = mesh.s_begin_r(3*t    ),
-            r2 = mesh.s_begin_r(3*t + 1),
-            r3 = mesh.s_begin_r(3*t + 2);
-        P[p    ] = mesh.r_x(r1);
-        P[p + 1] = mesh.r_y(r1);
-        P[p + 4] = mesh.r_x(r2);
-        P[p + 5] = mesh.r_y(r2);
-        P[p + 8] = mesh.r_x(r3);
-        P[p + 9] = mesh.r_y(r3);
-        P[p + 4*(out_s - 3*t) + 2] = uv[0];
-        P[p + 4*(out_s - 3*t) + 3] = uv[1];
-        P[p + 4*(in1_s - 3*t) + 2] = uv[2];
-        P[p + 4*(in1_s - 3*t) + 3] = uv[3];
-        P[p + 4*(in2_s - 3*t) + 2] = uv[4];
-        P[p + 4*(in2_s - 3*t) + 3] = uv[5];
-        p += 12;
     }
 
-    if (P.length !== p) { throw "wrong size"; }
+    return p / 12;
 };

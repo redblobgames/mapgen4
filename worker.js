@@ -48,11 +48,12 @@ function Worker(self) {
             map.assignElevation(constraints);
             map.assignRivers();
             Geometry.setMapGeometry(map, new Int32Array(quad_elements_buffer), new Float32Array(a_quad_em_buffer));
-            Geometry.setRiverTextures(map, param.spacing, new Float32Array(a_river_xyuv_buffer));
+            let numRiverTriangles = Geometry.setRiverTextures(map, param.spacing, new Float32Array(a_river_xyuv_buffer));
             let elapsed = performance.now() - start_time;
 
             self.postMessage(
                 {elapsed,
+                 numRiverTriangles,
                  quad_elements_buffer,
                  a_quad_em_buffer,
                  a_river_xyuv_buffer,

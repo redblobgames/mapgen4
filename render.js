@@ -73,6 +73,15 @@ void main() {
     },
 
     framebuffer: fbo_river,
+    blend: {
+        enable: true,
+        func: {src:'src alpha', dst:'one minus src alpha'},
+        equation: {
+            rgb: 'add',
+            alpha: 'add'
+        },
+    color: [0, 0, 0, 0]
+    },
     depth: {
         enable: false,
     },
@@ -269,6 +278,7 @@ class Renderer {
         this.a_quad_em = new Float32Array(2 * (mesh.numRegions + mesh.numTriangles));
         this.quad_elements = new Int32Array(3 * mesh.numSolidSides);
         this.a_river_xyuv = new Float32Array(3 * 4 * mesh.numSolidTriangles);
+        this.numRiverTriangles = 0;
         
         Geometry.setMeshGeometry(mesh, this.a_quad_xy);
         
@@ -307,7 +317,7 @@ class Renderer {
         this.time('copy-mesh');
         this.buffer_quad_em.subdata(this.a_quad_em);
         this.buffer_quad_elements.subdata(this.quad_elements);
-        this.buffer_river_xyuv.subdata(this.a_river_xyuv);
+        this.buffer_river_xyuv.subdata(this.a_river_xyuv.subarray(0, 4 * 3 * this.numRiverTriangles));
         this.timeEnd('copy-mesh');
     }
 
@@ -363,8 +373,13 @@ class Renderer {
         this.timeEnd('draw-drape');
 
         this.time('clear-fb');
-        // I don't have to clear fbo_em or fbo_river_texture because
-        // they don't have depth and will be redrawn every frame
+        // I don't have to clear fbo_em because it doesn't have depth
+        // and will be redrawn every frame. I do have to clear
+        // fbo_river because even though it doesn't have depth, it
+        // doesn't draw all triangles.
+        fbo_river.use(() => {
+            regl.clear({color: [0, 0, 0, 0]});
+        });
         fbo_z.use(() => {
             regl.clear({color: [0, 0, 0, 1], depth: 1});
         });
