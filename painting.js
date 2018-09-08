@@ -79,6 +79,8 @@ function setInitialData() {
 
 /** Convert constraints to colors on the canvas */
 function paintCanvas() {
+    // NOTE: disabled for performance
+    /*
     for (let y = 0; y < size; y++) {
         for (let x = 0; x < size; x++) {
             let p = y * size + x;
@@ -89,6 +91,7 @@ function paintCanvas() {
         }
     }
     ctx.putImageData(imageData, 0, 0);
+    */
     exports.onUpdate();
 }
 

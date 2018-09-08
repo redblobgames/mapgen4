@@ -11,12 +11,9 @@ const DualMesh = require('@redblobgames/dual-mesh');
 const Map      = require('./map');
 const Geometry = require('./geometry');
 
-console.log('Worker loaded');
-
 function Worker(self) {
     // This handler is for the initial message
     let handler = event => {
-        console.log("Worker initializing");
         const param = event.data.param;
 
         // NOTE: web worker messages only include the data; to
@@ -29,7 +26,6 @@ function Worker(self) {
 
         // This handler is for all subsequent messages
         handler = event => {
-            console.log("Worker update started");
             let {constraints, quad_elements_buffer, a_quad_em_buffer, a_river_xyuv_buffer} = event.data;
             constraints.at = function(x, y) {
                 const size = this.size;
@@ -43,13 +39,17 @@ function Worker(self) {
                     return this.OCEAN;
                 }
             };
-            
+
+            console.time('MAP GENERATION');
             let start_time = performance.now();
             map.assignElevation(constraints);
             map.assignRivers();
+            console.time('geometry');
             Geometry.setMapGeometry(map, new Int32Array(quad_elements_buffer), new Float32Array(a_quad_em_buffer));
             let numRiverTriangles = Geometry.setRiverTextures(map, param.spacing, new Float32Array(a_river_xyuv_buffer));
+            console.timeEnd('geometry');
             let elapsed = performance.now() - start_time;
+            console.timeEnd('MAP GENERATION');
 
             self.postMessage(
                 {elapsed,

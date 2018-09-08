@@ -35,14 +35,11 @@ exports.setMapGeometry = function(map, I, P) {
     if (I.length !== 3 * numSolidSides) { throw "wrong size"; }
     if (P.length !== 2 * (numRegions + numTriangles)) { throw "wrong size"; }
 
-    console.time('   setMapGeometry A');
     let p = 0;
     for (let r = 0; r < numRegions; r++) {
         P[p++] = r_elevation[r];
         P[p++] = r_moisture[r];
     }
-    console.timeEnd('   setMapGeometry A');
-    console.time('   setMapGeometry B');
     for (let t = 0; t < numTriangles; t++) {
         P[p++] = V * t_elevation[t];
         let s0 = 3*t;
@@ -51,9 +48,8 @@ exports.setMapGeometry = function(map, I, P) {
             r3 = mesh.s_begin_r(s0+2);
         P[p++] = 1/3 * (r_moisture[r1] + r_moisture[r2] + r_moisture[r3]);
     }
-    console.timeEnd('   setMapGeometry B');
 
-    console.time('   setMapGeometry C');
+    // TODO: split this into its own function; it can be updated separately, and maybe not as often
     let i = 0, count_valley = 0, count_ridge = 0;
     let {_halfedges, _triangles} = mesh;
     for (let s = 0; s < numSolidSides; s++) {
@@ -79,7 +75,6 @@ exports.setMapGeometry = function(map, I, P) {
             count_ridge++;
         }
     }
-    console.timeEnd('   setMapGeometry C');
 
     console.log(`valleys = ${count_valley} ridges = ${count_ridge}`);
     if (I.length !== i) { throw "wrong size"; }
@@ -101,7 +96,7 @@ function assignTextureCoordinates(numSizes, textureSize) {
     }
     
     const spacing = 10;
-    let triangles = [];
+    let triangles = [[]];
     let width = Math.floor((textureSize - 2*spacing) / (2*numSizes+3)) - spacing,
         height = Math.floor((textureSize - 2*spacing) / (numSizes+1)) - spacing;
     for (let row = 0; row <= numSizes; row++) {

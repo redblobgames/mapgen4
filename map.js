@@ -124,9 +124,9 @@ class Map {
     }
 
     assignTriangleElevation(constraints) {
+        console.time('map-elevation-1');
         let {mesh, noise, spacing, t_elevation, coastline_t, r_ocean, seeds_t} = this;
         let {numTriangles, numRegions, numSides} = mesh;
-        console.time('map-elevation-1a');
 
         // Figure out the ocean and land regions
         for (let r = 0; r < numRegions; r++) {
@@ -236,12 +236,12 @@ class Map {
             t_elevation[t] = e;
         }
         
-        console.timeEnd('map-elevation-1a');
+        console.timeEnd('map-elevation-1');
     }
     
     assignRegionElevation() {
-        let {mesh, t_elevation, r_elevation, r_moisture, r_water, r_ocean} = this;
         console.time('map-elevation-2');
+        let {mesh, t_elevation, r_elevation, r_moisture, r_water, r_ocean} = this;
         let out_t = [];
         for (let r = 0; r < mesh.numRegions; r++) {
             let e = 0, water = false;
@@ -259,8 +259,10 @@ class Map {
     }
     
     assignElevation(constraints) {
+        console.time('map-elevation-*');
         this.assignTriangleElevation(constraints);
         this.assignRegionElevation();
+        console.timeEnd('map-elevation-*');
     }
 
     assignRivers() {

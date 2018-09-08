@@ -85,24 +85,27 @@ let render = new Render.Renderer(mesh);
 console.timeEnd('static allocation');
 
 const gparam = Render.param;
-let G = new dat.GUI();
-G.close();
-G.add(gparam, 'distance', 100, 1000);
-G.add(gparam, 'x', 0, 1000);
-G.add(gparam, 'y', 0, 1000);
-G.add(gparam.drape, 'light_angle_deg', 0, 360);
-G.add(gparam.drape, 'slope', 0, 5);
-G.add(gparam.drape, 'flat', 0, 5);
-G.add(gparam.drape, 'c', 0, 1);
-G.add(gparam.drape, 'd', 0, 40);
-G.add(gparam.drape, 'mix', 0, 2);
-G.add(gparam.drape, 'rotate_x_deg', -360, 360);
-G.add(gparam.drape, 'rotate_z_deg', -360, 360);
-G.add(gparam.drape, 'scale_z', 0, 2);
-G.add(gparam.drape, 'outline_depth', 0, 5);
-G.add(gparam.drape, 'outline_strength', 0, 30);
-G.add(gparam.drape, 'outline_threshold', 0, 100);
-for (let c of G.__controllers) c.listen().onChange(redraw);
+if (document.location.hostname==='localhost') {
+    /* Only inject this locally because it slows things down */
+    let G = new dat.GUI();
+    G.close();
+    G.add(gparam, 'distance', 100, 1000);
+    G.add(gparam, 'x', 0, 1000);
+    G.add(gparam, 'y', 0, 1000);
+    G.add(gparam.drape, 'light_angle_deg', 0, 360);
+    G.add(gparam.drape, 'slope', 0, 5);
+    G.add(gparam.drape, 'flat', 0, 5);
+    G.add(gparam.drape, 'c', 0, 1);
+    G.add(gparam.drape, 'd', 0, 40);
+    G.add(gparam.drape, 'mix', 0, 2);
+    G.add(gparam.drape, 'rotate_x_deg', -360, 360);
+    G.add(gparam.drape, 'rotate_z_deg', -360, 360);
+    G.add(gparam.drape, 'scale_z', 0, 2);
+    G.add(gparam.drape, 'outline_depth', 0, 5);
+    G.add(gparam.drape, 'outline_strength', 0, 30);
+    G.add(gparam.drape, 'outline_threshold', 0, 100);
+    for (let c of G.__controllers) c.listen().onChange(redraw);
+}
 
 function redraw() {
     // TODO: this should go inside requestAnimationFrame, and it shouldn't trigger multiple times
@@ -152,5 +155,4 @@ function generate() {
 }
 
 worker.postMessage({mesh, param});
-console.log("INITIALIZATION FINISHED");
 generate();
