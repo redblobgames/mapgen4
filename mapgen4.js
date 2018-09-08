@@ -29,8 +29,6 @@ const {makeRandInt, makeRandFloat} = require('@redblobgames/prng');
 let param = {
     seed: 183,   // 102, 181, 184, 185, 187, 505, 507, 2033
     spacing: 5,
-    canvasSize: 2000,
-    softwareWater: false,
 };
 
 (function readSeedFromUrl() {

@@ -100,7 +100,7 @@ function assignTextureCoordinates(numSizes, textureSize) {
         return {xy: [x, y], uv: [(x+0.5)/textureSize, (y+0.5)/textureSize]};
     }
     
-    const spacing = 5;
+    const spacing = 10;
     let triangles = [];
     let width = Math.floor((textureSize - 2*spacing) / (2*numSizes+3)) - spacing,
         height = Math.floor((textureSize - 2*spacing) / (numSizes+1)) - spacing;
@@ -125,7 +125,7 @@ function assignTextureCoordinates(numSizes, textureSize) {
 
 // TODO: turn this into an object :-/
 const numRiverSizes = 20;
-const riverTextureSize = 2048;
+const riverTextureSize = 4096;
 let riverTexturePositions = assignTextureCoordinates(numRiverSizes, riverTextureSize);
 exports.createRiverBitmap = function() {
     let canvas = document.createElement('canvas');
@@ -133,9 +133,9 @@ exports.createRiverBitmap = function() {
     let ctx = canvas.getContext('2d');
 
     function lineWidth(i) {
-        return i / numRiverSizes * riverTextureSize / 75;
+        const spriteSize = riverTexturePositions[0][1][0][0].xy[0] - riverTexturePositions[0][0][0][0].xy[0];
+        return i / numRiverSizes * spriteSize * 0.25;
     }
-    
     ctx.lineCap = "round";
     for (let row = 0; row <= numRiverSizes; row++) {
         for (let col = 0; col <= numRiverSizes; col++) {
@@ -168,8 +168,16 @@ exports.createRiverBitmap = function() {
                     ctx.lineTo(midpoint2[0], midpoint2[1]);
                     ctx.stroke();
                 } else {
+                    const w = 1; /* TODO: draw a path and fill it; that will allow variable width */
+                    let c = vec2.lerp([], pos[1].xy, pos[2].xy, 0.5 - w),
+                        d = vec2.lerp([], pos[1].xy, pos[2].xy, 0.5 + w),
+                        a = vec2.lerp([], pos[0].xy, pos[1].xy, 0.5 - w),
+                        f = vec2.lerp([], pos[0].xy, pos[1].xy, 0.5 + w),
+                        b = null /* TODO: intersect lines */,
+                        e = null /* TODO: intersect lines */;
+
                     if (col > 0) {
-                        ctx.lineWidth = Math.max(lineWidth(col), lineWidth(row));
+                        ctx.lineWidth = Math.min(lineWidth(col), lineWidth(row));
                         ctx.beginPath();
                         ctx.moveTo(midpoint1[0], midpoint1[1]);
                         ctx.quadraticCurveTo(center[0], center[1], midpoint2[0], midpoint2[1]);
@@ -182,7 +190,6 @@ exports.createRiverBitmap = function() {
                         ctx.stroke();
                     }
                 }
-
                 ctx.restore();
             }
         }
@@ -208,7 +215,9 @@ exports.setRiverTextures = function(map, spacing, P) {
 
     function riverSize(s) {
         // TODO: build a table of s_flow to flow
-        let flow = Math.sqrt(s_flow[s]) * spacing / 25;
+        const maxRiverWidth = 10;
+        // TODO: magic number should be a parameter
+        let flow = clamp(Math.sqrt(s_flow[s]) * spacing / 40, 0, maxRiverWidth);
         let size = Math.ceil(flow * numRiverSizes / s_length[s]);
         return clamp(size, 1, numRiverSizes);
     }

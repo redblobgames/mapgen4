@@ -53,8 +53,11 @@ let drawRivers = regl({
 precision mediump float;
 uniform sampler2D u_rivertexturemap;
 varying vec2 v_uv;
+const vec3 blue = vec3(0.2, 0.5, 0.7);
 void main() {
-   gl_FragColor = texture2D(u_rivertexturemap, v_uv);
+   vec4 color = texture2D(u_rivertexturemap, v_uv);
+   gl_FragColor = vec4(blue * color.a, color.a);
+   // gl_FragColor = color;
 }`,
 
     vert: `
@@ -75,7 +78,7 @@ void main() {
     framebuffer: fbo_river,
     blend: {
         enable: true,
-        func: {src:'src alpha', dst:'one minus src alpha'},
+        func: {src:'one', dst:'one minus src alpha'},
         equation: {
             rgb: 'add',
             alpha: 'add'
