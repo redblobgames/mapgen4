@@ -26,7 +26,6 @@ const param = {
         flat: 2.5,
         c: 0.25,
         d: 30,
-        mix: 0.5,
         rotate_x_deg: 190,
         rotate_z_deg: 0,
         scale_z: 0.5,
@@ -187,7 +186,7 @@ uniform sampler2D u_depth;
 uniform vec2 u_light_angle;
 uniform float u_inverse_texture_size, 
               u_slope, u_flat,
-              u_c, u_d, u_mix,
+              u_c, u_d,
               u_outline_strength, u_outline_depth, u_outline_threshold;
 varying vec2 v_uv, v_pos, v_em;
 
@@ -226,8 +225,8 @@ void main() {
 
    // gl_FragColor = vec4(light/outline, light/outline, light/outline, 1);
    // gl_FragColor = texture2D(u_mapdata, v_uv);
-   // gl_FragColor = vec4(mix(vec4(1,1,1,1), water_color, u_mix * sqrt(water_color.a)).rgb, 1);
-   gl_FragColor = vec4(mix(biome_color, water_color, u_mix * water_color.a).rgb * light / outline, 1);
+   // gl_FragColor = vec4(mix(vec4(1,1,1,1), water_color, sqrt(water_color.a)).rgb, 1);
+   gl_FragColor = vec4(mix(biome_color, water_color, water_color.a).rgb * light / outline, 1);
 }`,
 
     vert: `
@@ -266,7 +265,6 @@ void main() {
         u_flat: () => param.drape.flat,
         u_c: () => param.drape.c,
         u_d: () => param.drape.d,
-        u_mix: () => param.drape.mix,
         u_outline_depth: () => param.drape.outline_depth,
         u_outline_strength: () => param.drape.outline_strength,
         u_outline_threshold: () => param.drape.outline_threshold/1000,

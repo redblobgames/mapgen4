@@ -46,6 +46,7 @@ exports.setMapGeometry = function(map, I, P) {
         let r1 = mesh.s_begin_r(s0),
             r2 = mesh.s_begin_r(s0+1),
             r3 = mesh.s_begin_r(s0+2);
+        // TODO: use t_moisture! no need for r_moisture
         P[p++] = 1/3 * (r_moisture[r1] + r_moisture[r2] + r_moisture[r3]);
     }
 
@@ -142,7 +143,7 @@ exports.createRiverBitmap = function() {
                 ctx.lineTo(pos[1].xy[0], pos[1].xy[1]);
                 ctx.lineTo(pos[2].xy[0], pos[2].xy[1]);
                 ctx.lineTo(pos[0].xy[0], pos[0].xy[1]);
-                ctx.clip();
+                // ctx.clip(); // TODO: need a clip region larger than the triangle to handle texture lookups
                 
                 let center = [(pos[0].xy[0] + pos[1].xy[0] + pos[2].xy[0]) / 3,
                               (pos[0].xy[1] + pos[1].xy[1] + pos[2].xy[1]) / 3];
@@ -152,16 +153,7 @@ exports.createRiverBitmap = function() {
 
                 ctx.strokeStyle = "hsl(200,50%,35%)";
                 if (type === 1) {
-                    ctx.lineWidth = lineWidth(col);
-                    ctx.beginPath();
-                    ctx.moveTo(midpoint1[0], midpoint1[1]);
-                    ctx.lineTo(midpoint0[0], midpoint0[1]);
-                    ctx.stroke();
-                    ctx.lineWidth = lineWidth(row);
-                    ctx.beginPath();
-                    ctx.moveTo(midpoint0[0], midpoint0[1]);
-                    ctx.lineTo(midpoint2[0], midpoint2[1]);
-                    ctx.stroke();
+                    // TODO: river delta/fork sprite
                 } else {
                     const w = 1; /* TODO: draw a path and fill it; that will allow variable width */
                     let c = vec2.lerp([], pos[1].xy, pos[2].xy, 0.5 - w),
@@ -204,16 +196,17 @@ function clamp(x, lo, hi) {
    created in createRiverBitmap(). Returns the number of triangles actually
    needed, which will be at most numSolidTriangles.  */
 exports.setRiverTextures = function(map, spacing, P) {
+    const MIN_FLOW = 15;  // TODO: this should be a parameter
     let {mesh, t_elevation, t_downslope_s, s_flow} = map;
     let {numSolidTriangles, s_length} = mesh;
     if (P.length !== 3 * 4 * numSolidTriangles) { throw "wrong size"; }
 
-    function riverSize(s) {
-        // TODO: build a table of s_flow to flow
+    function riverSize(s, flow) {
+        // TODO: build a table of flow to width
         const maxRiverWidth = 10;
         // TODO: magic number should be a parameter
-        let flow = clamp(Math.sqrt(s_flow[s]) * spacing / 40, 0, maxRiverWidth);
-        let size = Math.ceil(flow * numRiverSizes / s_length[s]);
+        let width = clamp(Math.sqrt(flow - MIN_FLOW) * spacing / 40, 0, maxRiverWidth);
+        let size = Math.ceil(width * numRiverSizes / s_length[s]);
         return clamp(size, 1, numRiverSizes);
     }
 
@@ -221,15 +214,16 @@ exports.setRiverTextures = function(map, spacing, P) {
     for (let t = 0; t < numSolidTriangles; t++) {
         let out_s = t_downslope_s[t];
         if (t_elevation[t] < 0) continue;
-        if (s_flow[out_s] < 1) continue; // TODO: this should be a parameter
+        if (s_flow[out_s] < MIN_FLOW) continue;
         let r1 = mesh.s_begin_r(3*t    ),
             r2 = mesh.s_begin_r(3*t + 1),
             r3 = mesh.s_begin_r(3*t + 2);
         let in1_s = mesh.s_next_s(out_s);
         let in2_s = mesh.s_next_s(in1_s);
-        let flow_in1 = t_downslope_s[mesh.s_outer_t(in1_s)] === mesh.s_opposite_s(in1_s);
-        let flow_in2 = t_downslope_s[mesh.s_outer_t(in2_s)] === mesh.s_opposite_s(in2_s);
-        let textureRow = riverSize(out_s);
+        let in1_flow = s_flow[mesh.s_opposite_s(in1_s)];
+        let in2_flow = s_flow[mesh.s_opposite_s(in2_s)];
+        let out_flow = s_flow[out_s];
+        let textureRow = riverSize(out_s, out_flow);
         
         function add(r, c, i, j, k) {
             const T = riverTexturePositions[r][c][0];
@@ -248,20 +242,15 @@ exports.setRiverTextures = function(map, spacing, P) {
             p += 12;
         }
         
-        if (flow_in1 && flow_in2) {
-            /* FORK */
-            add(textureRow, riverSize(mesh.s_opposite_s(in1_s)), 0, 2, 1);
-            add(textureRow, riverSize(mesh.s_opposite_s(in2_s)), 2, 1, 0);
-        } else if (flow_in1) {
-            /* BEND */
-            add(textureRow, riverSize(mesh.s_opposite_s(in1_s)), 0, 2, 1);
-        } else if (flow_in2) {
-            /* BEND */
-            add(textureRow, riverSize(mesh.s_opposite_s(in2_s)), 2, 1, 0);
-        } else {
-            /* SPRING */
-            add(textureRow, 0, 0, 2, 1);
+        if (in1_flow >= MIN_FLOW) {
+            add(textureRow, riverSize(in1_s, in1_flow), 0, 2, 1);
         }
+        if (in2_flow >= MIN_FLOW) {
+            add(textureRow, riverSize(in2_s, in2_flow), 2, 1, 0);
+        }
+
+        // TODO: handle springs and deltas
+        // add(textureRow, 0, 0, 2, 1);
     }
 
     return p / 12;

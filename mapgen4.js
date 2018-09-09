@@ -41,7 +41,7 @@ let param = {
 
 
 function jitteredHexagonGrid(spacing, discardFraction, randFloat) {
-    const dr = spacing/1.5;
+    const dr = spacing/2.5;
     let points = [];
     let offset = 0;
     for (let y = spacing/2; y < 1000-spacing/2; y += spacing * 3/4) {
@@ -97,7 +97,6 @@ if (document.location.hostname==='localhost') {
     G.add(gparam.drape, 'flat', 0, 5);
     G.add(gparam.drape, 'c', 0, 1);
     G.add(gparam.drape, 'd', 0, 40);
-    G.add(gparam.drape, 'mix', 0, 2);
     G.add(gparam.drape, 'rotate_x_deg', -360, 360);
     G.add(gparam.drape, 'rotate_z_deg', -360, 360);
     G.add(gparam.drape, 'scale_z', 0, 2);

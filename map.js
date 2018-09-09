@@ -212,6 +212,7 @@ class Map {
                  */
                 // TODO: these noise parameters should be exposed in UI - lower numbers mean more meandering in rivers
                 let eh = (1 + noise.noise2D(mesh.t_x(t)/10, mesh.t_y(t)/10) + noise.noise2D(mesh.t_x(t)/100, mesh.t_y(t)/100)/10) / 100;
+                if (eh < 0) { eh = 0; }
                 let em = 1 - mountain_slope/1000 * this.precomputed.t_mountain_distance[t];
                 if (em < 0) { em = 0; }
                 let weight = 1 - dm;
