@@ -137,9 +137,6 @@ function generate() {
             constraints: {
                 size: Painting.size,
                 constraints: Painting.constraints,
-                OCEAN: Painting.OCEAN,
-                VALLEY: Painting.VALLEY,
-                MOUNTAIN: Painting.MOUNTAIN,
             },
             quad_elements_buffer: render.quad_elements.buffer,
             a_quad_em_buffer: render.a_quad_em.buffer,

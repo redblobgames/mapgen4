@@ -27,18 +27,6 @@ function Worker(self) {
         // This handler is for all subsequent messages
         handler = event => {
             let {constraints, quad_elements_buffer, a_quad_em_buffer, a_river_xyuv_buffer} = event.data;
-            constraints.at = function(x, y) {
-                const size = this.size;
-                // TODO: copied from Painting.js :-(
-                y = (size * y) | 0;
-                x = (size * x) | 0;
-                if (0 <= x && x < size && 0 <= y && y < size) {
-                    let p = size * y + x;
-                    return this.constraints[p];
-                } else {
-                    return this.OCEAN;
-                }
-            };
 
             console.time('MAP GENERATION');
             let start_time = performance.now();

@@ -72,7 +72,8 @@ function precalculateNoise(noise, mesh) {
     let noise0 = new Float32Array(numTriangles),
         noise1 = new Float32Array(numTriangles),
         noise2 = new Float32Array(numTriangles),
-        noise3 = new Float32Array(numTriangles);
+        noise3 = new Float32Array(numTriangles),
+        noise4 = new Float32Array(numTriangles);
     for (let t = 0; t < numTriangles; t++) {
         let nx = (mesh.t_x(t)-500) / 500,
             ny = (mesh.t_y(t)-500) / 500;
@@ -80,9 +81,10 @@ function precalculateNoise(noise, mesh) {
         noise1[t] = noise.noise2D(2*nx + 5, 2*ny + 5);
         noise2[t] = noise.noise2D(4*nx + 7, 4*ny + 7);
         noise3[t] = noise.noise2D(8*nx + 9, 8*ny + 9);
+        noise4[t] = noise.noise2D(16*nx + 15, 16*ny + 15);
     }
     console.timeEnd('   precalculateNoise');
-    return [noise0, noise1, noise2, noise3];
+    return [noise0, noise1, noise2, noise3, noise4];
 }
 
         
@@ -109,7 +111,6 @@ class Map {
         this.r_elevation = new Float32Array(mesh.numRegions);
         this.r_moisture = new Float32Array(mesh.numRegions);
         this.r_water = new Int8Array(mesh.numRegions);
-        this.r_ocean = new Int8Array(mesh.numRegions);
         this.t_downslope_s = new Int32Array(mesh.numTriangles);
         this.order_t = new Int32Array(mesh.numTriangles);
         this.t_flow = new Float32Array(mesh.numTriangles);
@@ -125,77 +126,65 @@ class Map {
 
     assignTriangleElevation(constraints) {
         console.time('map-elevation-1');
-        let {mesh, noise, spacing, t_elevation, coastline_t, r_ocean, seeds_t} = this;
-        let {numTriangles, numRegions, numSides} = mesh;
+        let {mesh, noise, spacing, t_elevation, coastline_t, seeds_t} = this;
+        let {numTriangles, numSolidTriangles, numRegions, numSides} = mesh;
 
-        // Figure out the ocean and land regions
-        for (let r = 0; r < numRegions; r++) {
-            let constraint = constraints.at(mesh.r_x(r)/1000, mesh.r_y(r)/1000);
-            r_ocean[r] = (constraint == constraints.OCEAN) ? 1 : 0;
-        }
-
-        // Figure out the ocean, land, and coastline triangles
-        seeds_t.splice(0);
-        let coastal_t = [];
-        for (let s = 0; s < numSides; s++) {
-            let t = mesh.s_inner_t(s),
-                r1 = mesh.s_begin_r(s),
-                r2 = mesh.s_end_r(s);
-            if (mesh.s_ghost(s)) {
-                t_elevation[t] = 0.0;
-            } else if (r_ocean[r1] && r_ocean[r2]) {
-                t_elevation[t] = -0.5;
-                // TODO: why are there no seeds?! OH because I only look at the inner triangles!! that means all ghosts are getting missed, and also, am I processing every triangle three times?! I might be setting the wrong elevation on them!
-                if (mesh.t_ghost(t)) { seeds_t.push(t); }
-            } else if (!r_ocean[r1] && !r_ocean[r2]) {
-                t_elevation[t] = +0.5;
+        // Assign elevations to triangles
+        function constraintAt(x, y) {
+            // https://en.wikipedia.org/wiki/Bilinear_interpolation
+            const C = constraints.constraints, size = constraints.size;
+            x *= size; y *= size;
+            let xInt = Math.floor(x),
+                yInt = Math.floor(y),
+                xFrac = x - xInt,
+                yFrac = y - yInt;
+            if (0 <= xInt && xInt+1 < size && 0 <= yInt && yInt+1 < size) {
+                let p = size * yInt + xInt;
+                let e00 = C[p],
+                    e01 = C[p + 1],
+                    e10 = C[p + size],
+                    e11 = C[p + size + 1];
+                return ((e00 * (1 - xFrac) + e01 * xFrac) * (1 - yFrac)
+                        + (e10 * (1 - xFrac) + e11 * xFrac) * yFrac);
             } else {
-                t_elevation[t] = 0.0;
-                coastal_t.push(t);
-            }
-            
-        }
-
-        // Calculate a distance field starting from the coastline triangles
-        function limitedBreadthFirstSearch(seeds_t, t_distance, limit) {
-            t_distance.fill(limit);
-            for (let t of seeds_t) { t_distance[t] = 0; }
-            let queue_t = seeds_t.concat([]); // TODO: preallocate
-            for (let i = 0; i < queue_t.length; i++) {
-                let current_t = queue_t[i];
-                let current_d = t_distance[current_t];
-                for (let j = 0; j < 3; j++) {
-                    let s = 3 * current_t + j;
-                    let neighbor_t = mesh.s_outer_t(s);
-                    if (!mesh.s_ghost(s) && t_distance[neighbor_t] === limit) {
-                        let neighbor_d = current_d + 1;
-                        t_distance[neighbor_t] = neighbor_d;
-                        if (neighbor_d < limit) { queue_t.push(neighbor_t); }
-                    }
-                }
+                return -128;
             }
         }
-
-        const coastal_limit = (mountain.land_limit / this.spacing) | 0;
-        let t_coastal_distance = new Uint8Array(numTriangles);
-        limitedBreadthFirstSearch(coastal_t, t_coastal_distance, coastal_limit);
-
-        // Calculate a distance field starting from the mountain triangles
-        let mountain_t = [];
-        for (let t = 0; t < numTriangles; t++) {
-            let constraint = constraints.at(mesh.t_x(t)/1000, mesh.t_y(t)/1000);
-            if (constraint === constraints.MOUNTAIN) { mountain_t.push(t); }
+        for (let t = 0; t < numSolidTriangles; t++) {
+            let constraint = constraintAt(mesh.t_x(t)/1000, mesh.t_y(t)/1000);
+            t_elevation[t] = constraint / 128.0;
         }
-        const mountain_limit = coastal_limit / 4; // TODO: make separate param
-        let t_mountain_distance = new Float32Array(mesh.numTriangles);
-        limitedBreadthFirstSearch(mountain_t, t_mountain_distance, mountain_limit);
+        for (let t = numSolidTriangles; t < numTriangles; t++) {
+            t_elevation[t] = 0.0;
+        }
         
-        const mountain_slope = mountain.slope;
+        // Determine coastal triangles: those with some land and some
+        // ocean neighbors
+        seeds_t.splice(0);
+        for (let t = 0; t < numSolidTriangles; t++) {
+            let ocean = 0;
+            for (let i = 0; i < 3; i++) {
+                let s = 3 * t + i;
+                let opposite_s = mesh._halfedges[s];
+                let neighbor_t = (opposite_s / 3) | 0;
+                if (t_elevation[neighbor_t] < 0.0) { ocean++; }
+            }
+            if (ocean !== 0 && ocean !== 3) {
+                seeds_t.push(t);
+            }
+        }
+        for (let t of seeds_t) { t_elevation[t] = 0.0; }
+
+        // For land triangles, mix hill and mountain terrain together
+        const mountain_slope = mountain.slope,
+              t_mountain_distance = this.precomputed.t_mountain_distance,
+              noise0 = this.precomputed.noise[0],
+              noise1 = this.precomputed.noise[1],
+              noise2 = this.precomputed.noise[2],
+              noise4 = this.precomputed.noise[4];
         for (let t = 0; t < numTriangles; t++) {
-            let dc = t_coastal_distance[t] / coastal_limit,
-                dm = t_mountain_distance[t] / mountain_limit;
             let e = t_elevation[t];
-            if (e > 0) {
+            if (e >= 0) {
                 /* Mix two sources of elevation: 
                  *
                  * 1. eh: Hills are formed using simplex noise. These
@@ -204,33 +193,25 @@ class Map {
                  *    doesn't make much difference in the river
                  *    meandering. These hills shouldn't be
                  *    particularly visible so I've kept the amplitude
-                 *    low. (TODO: make this a map parameter)
+                 *    low. (TODO: make this a map parameter?)
                  * 
                  * 2. em: Mountains are formed using something similar to
                  *    worley noise. These form distinct peaks, with
                  *    varying distance between them. 
                  */
                 // TODO: these noise parameters should be exposed in UI - lower numbers mean more meandering in rivers
-                let eh = (1 + noise.noise2D(mesh.t_x(t)/10, mesh.t_y(t)/10) + noise.noise2D(mesh.t_x(t)/100, mesh.t_y(t)/100)/10) / 100;
-                if (eh < 0) { eh = 0; }
-                let em = 1 - mountain_slope/1000 * this.precomputed.t_mountain_distance[t];
-                if (em < 0) { em = 0; }
-                let weight = 1 - dm;
+                let noisiness = 1.0 - 0.5 * (1 + noise0[t]);
+                let eh = (1 + noisiness * noise4[t] + (1 - noisiness) * noise2[t]) / 50;
+                if (eh < 0.01) { eh = 0.01; }
+                let em = 1 - mountain_slope/1000 * t_mountain_distance[t];
+                if (em < 0.01) { em = 0.01; }
+                let weight = e * e;
                 e = (1-weight) * eh + weight * em;
-
-                /* Then reduce elevation close to the coast. This
-                 * prevents discontinuities near the coast. It might
-                 * be nice to have cliffs occasionally but that's
-                 * something to investigate later. */
-                const land_water_ratio = 3;
-                e *= Math.min(1/land_water_ratio, dc) * land_water_ratio;
-                // TODO: rename land_limit
-                // TODO: move land_water_ratio into a map parameter
             } else {
                 /* The water depth depends on distance to the coast
                  * and also some noise. The purpose is to make the
-                 * shades of blue vary nicely. */
-                e = -dc * (1 + this.precomputed.noise[1][t]);
+                 * shades of blue vary. */
+                e *= 2 + noise1[t];
             }
             if (e < -1.0) { e = -1.0; }
             if (e > +1.0) { e = +1.0; }
@@ -242,11 +223,12 @@ class Map {
     
     assignRegionElevation() {
         console.time('map-elevation-2');
-        let {mesh, t_elevation, r_elevation, r_moisture, r_water, r_ocean} = this;
+        let {mesh, t_elevation, r_elevation, r_moisture, r_water} = this;
         let out_t = [];
         for (let r = 0; r < mesh.numRegions; r++) {
             let e = 0, water = false;
             mesh.r_circulate_t(out_t, r);
+            // TODO: might be faster to calculate this the other way -- iterate over triangles, and add 1/3 of each triangle's elevation to the region's elevation, and set water if any triangle is water
             for (let t of out_t) { e += t_elevation[t]; water = water || t_elevation[t] < 0.0; }
             e /= out_t.length;
             // TODO: r_water has already been assigned; use that instead of the water flag
@@ -254,16 +236,13 @@ class Map {
             r_elevation[r] = e;
             r_moisture[r] = 0.8 - Math.sqrt(Math.abs(e));
             r_water[r] = (e < 0) ? 1 : 0;
-            r_ocean[r] = (e < 0) ? 1 : 0;
         }
         console.timeEnd('map-elevation-2');
     }
     
     assignElevation(constraints) {
-        console.time('map-elevation-*');
         this.assignTriangleElevation(constraints);
         this.assignRegionElevation();
-        console.timeEnd('map-elevation-*');
     }
 
     assignRivers() {
