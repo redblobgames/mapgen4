@@ -27,10 +27,14 @@ const {makeRandInt, makeRandFloat} = require('@redblobgames/prng');
 
 const CANVAS_SIZE = 128;
 
-/* The constraint data is stored here */
-const constraints = new Int8Array(CANVAS_SIZE*CANVAS_SIZE);
+/* The elevation is -128 to -1 → water, 0 to +127 → land */
+const elevation = new Int8Array(CANVAS_SIZE * CANVAS_SIZE);
+/* The previous elevation is the elevation before the current paint stroke began */
+const _previousElevation = new Int8Array(CANVAS_SIZE * CANVAS_SIZE);
+/* The painting time is how long, in milliseconds, was spent painting */
+const _paintingTime = new Float32Array(CANVAS_SIZE * CANVAS_SIZE);
 
-/* The constraint data is displayed on the screen with colors */
+/* The elevation data is displayed on the screen with a colormap */
 const canvas = document.getElementById('paint');
 const output = document.getElementById('mapgen4');
 canvas.width = canvas.height = CANVAS_SIZE;
@@ -40,12 +44,12 @@ const pixels = imageData.data;
 
 /** Set a single pixel in the minimap.
  *
- *  Before calling this function, set the corresponding pixel in the constraints[] array
+ *  Before calling this function, set the corresponding pixel in the elevation[] array
  */
 function setMinimapPixel(x, y) {
     const colormap = Colormap.data;
     let p = y * CANVAS_SIZE + x;
-    let q = ((constraints[p] + 128) / 256) * Colormap.width | 0;
+    let q = ((elevation[p] + 128) / 256) * Colormap.width | 0;
     for (let i = 0; i < 4; i++) {
         pixels[4*p + i] = colormap[4 * q + i];
     }
@@ -73,12 +77,12 @@ function setInitialData() {
             let e = 64 * (n(nx + n(nx+5, ny)*warp, ny + n(nx, ny+5)*warp) + 0.2) | 0;
             if (e < -128) { e = -128; }
             if (e > +127) { e = +127; }
-            constraints[p] = e;
+            elevation[p] = e;
             if (e > 0) {
                 let m = noise.noise2D(x/CANVAS_SIZE + 3, y/CANVAS_SIZE + 5);
                 let mountain = 1 - Math.abs(m) / 0.5;
                 if (mountain > 0) {
-                    constraints[p] = Math.max(e, Math.min(e * 10, mountain * 127 | 0));
+                    elevation[p] = Math.max(e, Math.min(e * 10, mountain * 127 | 0));
                 }
             }
             setMinimapPixel(x, y);
@@ -86,7 +90,7 @@ function setInitialData() {
     }
 }
 
-/** Convert constraints to colors on the canvas */
+/** Convert elevation to colors on the canvas */
 let _paintQueued = false; // false, or positive integer 
 function paintCanvas() {
     if (!_paintQueued) {
@@ -100,8 +104,13 @@ function paintCanvas() {
 }
 
 /** x0,y0 should be 0-1 */
-function paintAt(tool, x0, y0, size) {
-    let {elevation} = tool;
+function paintAt(tool, x0, y0, size, deltaTimeInMs) {
+    /* This has two effects: first time you click the mouse it has a
+     * strong effect, and it also limits the amount in case you
+     * pause */
+    deltaTimeInMs = Math.min(100, deltaTimeInMs);
+    
+    let newElevation = tool.elevation;
     let {innerRadius, outerRadius, rate} = size;
     let xc = (x0 * CANVAS_SIZE) | 0, yc = (y0 * CANVAS_SIZE) | 0;
     let top = Math.max(0, yc - outerRadius),
@@ -111,34 +120,22 @@ function paintAt(tool, x0, y0, size) {
         let left = Math.max(0, xc - s),
             right = Math.min(CANVAS_SIZE-1, xc + s);
         for (let x = left; x <= right; x++) {
-            let distance = Math.sqrt((x - xc) * (x - xc) + (y - yc) * (y - yc));
-            let mix = 1.0 - (distance - innerRadius) / outerRadius;
-            if (mix < 0.0) { mix = 0.0; }
-            if (mix > 1.0) { mix = 1.0; }
-            mix = rate * mix; // TODO: this is a workaround, see below
             let p = y * CANVAS_SIZE + x;
-            constraints[p] = (1 - mix) * constraints[p] + mix * elevation;
+            let distance = Math.sqrt((x - xc) * (x - xc) + (y - yc) * (y - yc));
+            let strength = 1.0 - Math.min(1, (distance - innerRadius) / outerRadius);
+            _paintingTime[p] += strength * (rate/1000 * deltaTimeInMs);
+            strength = Math.min(1, _paintingTime[p]);
+            elevation[p] = (1 - strength) * _previousElevation[p] + strength * newElevation;
             setMinimapPixel(x, y);
         }
     }
-    /* NOTE: need to rethink this
-
-       1. Each *stroke* or *tool* needs to have a MAX of the mix values
-       2. Remember the elevations before the tool started, and remix any time the MAX goes up
-       3. Only trigger redraw if something changed
-
-       How would this work with a timer? If you hold down on an area, the mix should increase,
-       which means the mix should be a *rate* mix per unit time
-
-       Right now the 'mix' and 'rate' do the same thing. Instead, 'mix' should also affect the maximum change
-       (mountains would be mix * 1 and oceans would be mix * -1 and not sure about valleys)
-    */
 }
 
 const SIZES = {
-    small:  {key: '1', rate: 0.2, innerRadius: 2, outerRadius: 4},
-    medium: {key: '2', rate: 0.1, innerRadius: 4, outerRadius: 8},
-    large:  {key: '3', rate: 0.05, innerRadius: 8, outerRadius: 16},
+    // rate is effect per second
+    small:  {key: '1', rate: 8, innerRadius: 2, outerRadius: 6},
+    medium: {key: '2', rate: 5, innerRadius: 5, outerRadius: 10},
+    large:  {key: '3', rate: 3, innerRadius: 10, outerRadius: 16},
 };
 
 const TOOLS = {
@@ -178,18 +175,21 @@ for (let control of controls) {
 }
 displayCurrentTool();
 
-makeDraggable(canvas, canvas, (begin, current, state) => {
-    paintAt(TOOLS[currentTool], current.x/canvas.clientWidth, current.y/canvas.clientHeight, SIZES[currentSize]);;
-    paintCanvas();
-});
-makeDraggable(output, output, (begin, current, state) => {
-    paintAt(TOOLS[currentTool], current.x/output.clientWidth, current.y/output.clientHeight, SIZES[currentSize]);;
-    paintCanvas();
-});
+for (let element of [canvas, output]) {
+    makeDraggable(element, element, (begin, current, state) => {
+        let nowMs = Date.now();
+        if (state === null) { state = 0; }
+        _previousElevation.set(elevation);
+        _paintingTime.fill(0);
+        paintAt(TOOLS[currentTool], current.x/element.clientWidth, current.y/element.clientHeight, SIZES[currentSize], nowMs - state);
+        paintCanvas();
+        return nowMs;
+    });
+}
 
 exports.onUpdate = () => {};
 exports.size = CANVAS_SIZE;
-exports.constraints = constraints;
+exports.constraints = elevation;
 
 setInitialData();
 paintCanvas();
