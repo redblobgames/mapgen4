@@ -31,6 +31,7 @@ function Worker(self) {
             console.time('MAP GENERATION');
             let start_time = performance.now();
             map.assignElevation(constraints);
+            map.assignMoisture(constraints.windAngleDeg);
             map.assignRivers();
             console.time('geometry');
             Geometry.setMapGeometry(map, new Int32Array(quad_elements_buffer), new Float32Array(a_quad_em_buffer));

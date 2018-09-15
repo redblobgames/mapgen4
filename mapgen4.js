@@ -136,6 +136,7 @@ function generate() {
         worker.postMessage({
             constraints: {
                 size: Painting.size,
+                windAngleDeg: Painting.windAngleDeg,
                 constraints: Painting.constraints,
             },
             quad_elements_buffer: render.quad_elements.buffer,

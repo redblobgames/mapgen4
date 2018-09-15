@@ -175,6 +175,12 @@ for (let control of controls) {
 }
 displayCurrentTool();
 
+const slider = document.getElementById('wind-angle');
+slider.addEventListener('input', () => {
+    exports.windAngleDeg = slider.valueAsNumber;
+    exports.onUpdate();
+});
+
 for (let element of [canvas, output]) {
     makeDraggable(element, element, (begin, current, state) => {
         let nowMs = Date.now();
@@ -190,6 +196,7 @@ for (let element of [canvas, output]) {
 exports.onUpdate = () => {};
 exports.size = CANVAS_SIZE;
 exports.constraints = elevation;
+exports.windAngleDeg = 0;
 
 setInitialData();
 paintCanvas();

@@ -209,8 +209,6 @@ void main() {
    vec3 light_vector = normalize(vec3(u_light_angle, mix(u_slope, u_flat, slope_vector.z)));
    float light = u_c + max(0.0, dot(light_vector, slope_vector));
    vec2 em = texture2D(u_mapdata, pos).yz;
-   if (em.x > 0.7) { em.x = 2.0 * (em.x-0.7) + 0.7; } /* HACK: for noise-based elevation */
-   // if (em.x >= 0.5 && em.y > 0.5) { em.x = 0.49; }
    em.y = v_em.y;
    vec4 biome_color = texture2D(u_colormap, em);
    vec4 water_color = texture2D(u_water, pos);
