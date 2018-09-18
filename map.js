@@ -88,18 +88,6 @@ function precalculateNoise(noise, mesh) {
 }
 
         
-function elevation(x, y, {t_mountain_distance, noise}, t) {
-    const mountain_slope = 25;
-    let base = (0.75 * noise[0][t]
-                + 0.5 * noise[1][t]
-                + 0.125 * noise[2][t]
-                + 0.0625 * noise[3][t]);
-
-    let e = base;
-    return e;
-}
-
-
 class Map {
     constructor (mesh, param) {
         console.time('map-alloc');
@@ -156,16 +144,20 @@ class Map {
             }
         }
         for (let t = 0; t < numSolidTriangles; t++) {
-            let constraint = constraintAt(mesh.t_x(t)/1000, mesh.t_y(t)/1000);
-            t_elevation[t] = constraint / 128.0;
-        }
-        for (let t = numSolidTriangles; t < numTriangles; t++) {
-            t_elevation[t] = 0.0;
+            /* NOTE: I never want the original painted elevation to be 0,
+             * because I use 0 for coastal triangles, and need to determine
+             * them with an algorithm that looks at >0 vs <0 */
+            let e = constraintAt(mesh.t_x(t)/1000, mesh.t_y(t)/1000) / 128.0;
+            if (e === 0.0) { e = 0.001; }
+            t_elevation[t] = e;
         }
         
         // Determine coastal triangles: those with some land and some
-        // ocean neighbors
+        // ocean neighbors. Also set ghost triangles to be coastal.
         seeds_t.splice(0);
+        for (let t = numSolidTriangles; t < numTriangles; t++) {
+            seeds_t.push(t);
+        }
         for (let t = 0; t < numSolidTriangles; t++) {
             let ocean = 0;
             for (let i = 0; i < 3; i++) {
@@ -178,7 +170,22 @@ class Map {
                 seeds_t.push(t);
             }
         }
-        for (let t of seeds_t) { t_elevation[t] = 0.0; }
+        // Set coastal triangles to have elevation 0. We can't do this
+        // in the above loop because we need to look at neighboring
+        // elevations.
+        for (let t of seeds_t) {
+            t_elevation[t] = 0.0;
+        }
+        // HACK: I'd like to perform the Dijkstra Search from the
+        // coastal triangles, but that doesn't set t_downstream_s,
+        // which I currently need for rendering. So instead I run the
+        // search from all ocean triangles.
+        seeds_t.splice(0);
+        for (let t = 0; t < numSolidTriangles; t++) {
+            if (t_elevation[t] < 0) {
+                seeds_t.push(t);
+            }
+        }
 
         // For land triangles, mix hill and mountain terrain together
         const mountain_slope = mountain.slope,
@@ -189,7 +196,7 @@ class Map {
               noise4 = this.precomputed.noise[4];
         for (let t = 0; t < numTriangles; t++) {
             let e = t_elevation[t];
-            if (e >= 0) {
+            if (e > 0) {
                 /* Mix two sources of elevation:
                  *
                  * 1. eh: Hills are formed using simplex noise. These
@@ -229,7 +236,7 @@ class Map {
     
     assignRegionElevation(constraints) {
         console.time('map-elevation-2');
-        let {mesh, t_elevation, r_elevation, r_moisture, r_water} = this;
+        let {mesh, t_elevation, r_elevation, r_water} = this;
         let {numRegions, _r_in_s, _halfedges} = mesh;
         let out_t = [];
         for (let r = 0; r < numRegions; r++) {
@@ -338,24 +345,20 @@ class Map {
 let queue = new FlatQueue();
 function dijkstra_search(mesh, seeds_t, t_elevation, /* out */ t_downflow_s, /* out */ order_t) {
     // TODO: no need to do this for oceans
-    if (seeds_t.length === 0) {
-        seeds_t.push(mesh.numSolidTriangles); // add one boundary triangle for now -- TODO: need to figure out handle this case
-    }
-    
     let numSeeds = seeds_t.length,
         {numTriangles} = mesh;
     t_downflow_s.fill(-999);
-    seeds_t.forEach(t => {
+    for (let t of seeds_t) {
         t_downflow_s[t] = -1;
         queue.push(t, t_elevation[t]);
-    });
+    };
     order_t.set(seeds_t);
     for (let queue_in = numSeeds, queue_out = 0; queue_out < numTriangles; queue_out++) {
         let current_t = queue.pop();
         for (let j = 0; j < 3; j++) {
             let s = 3 * current_t + j;
             let neighbor_t = mesh.s_outer_t(s); // uphill from current_t
-            if (t_downflow_s[neighbor_t] === -999) {
+            if (t_downflow_s[neighbor_t] === -999 && t_elevation[neighbor_t] >= 0.0) {
                 t_downflow_s[neighbor_t] = mesh.s_opposite_s(s);
                 order_t[queue_in++] = neighbor_t;
                 queue.push(neighbor_t, t_elevation[neighbor_t]);
@@ -401,7 +404,7 @@ function assign_flow(mesh, order_t, t_elevation, t_moisture, t_downflow_s, /* ou
     let {numTriangles, _halfedges} = mesh;
     s_flow.fill(0);
     for (let t = 0; t < numTriangles; t++) {
-        if (t_elevation[t] > 0.0) {
+        if (t_elevation[t] >= 0.0) {
             t_flow[t] = 0.2 * t_moisture[t] * t_moisture[t]; // TODO: nonlinear mapping should be a parameter
         } else {
             t_flow[t] = 0;

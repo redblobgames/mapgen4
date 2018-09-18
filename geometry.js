@@ -46,7 +46,6 @@ exports.setMapGeometry = function(map, I, P) {
         let r1 = mesh.s_begin_r(s0),
             r2 = mesh.s_begin_r(s0+1),
             r3 = mesh.s_begin_r(s0+2);
-        // TODO: use t_moisture! no need for r_moisture
         P[p++] = 1/3 * (r_moisture[r1] + r_moisture[r2] + r_moisture[r3]);
     }
 
@@ -199,7 +198,6 @@ exports.setRiverTextures = function(map, spacing, P) {
     const MIN_FLOW = 15;  // TODO: this should be a parameter
     let {mesh, t_elevation, t_downslope_s, s_flow} = map;
     let {numSolidTriangles, s_length} = mesh;
-    if (P.length !== 3 * 4 * numSolidTriangles) { throw "wrong size"; }
 
     function riverSize(s, flow) {
         // TODO: build a table of flow to width

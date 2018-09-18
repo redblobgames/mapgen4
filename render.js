@@ -276,7 +276,12 @@ class Renderer {
         this.a_quad_xy = new Float32Array(2 * (mesh.numRegions + mesh.numTriangles));
         this.a_quad_em = new Float32Array(2 * (mesh.numRegions + mesh.numTriangles));
         this.quad_elements = new Int32Array(3 * mesh.numSolidSides);
-        this.a_river_xyuv = new Float32Array(3 * 4 * mesh.numSolidTriangles);
+        /* NOTE: The maximum number of river triangles will be when
+         * there's a single binary tree that has every node filled.
+         * Each of the N/2 leaves will produce 1 output triangle and
+         * each of the N/2 nodes will produce 2 triangles. On average
+         * there will be 1.5 output triangles per input triangle. */
+        this.a_river_xyuv = new Float32Array(1.5 * 3 * 4 * mesh.numSolidTriangles);
         this.numRiverTriangles = 0;
         
         Geometry.setMeshGeometry(mesh, this.a_quad_xy);

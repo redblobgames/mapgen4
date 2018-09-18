@@ -38,7 +38,7 @@ function colormap() {
                 g = 64 + 64*e;
                 b = 127 + 127*e;
             } else { // adapted from terrain-from-noise article
-                m = m * (1-e);
+                m = m * (1-e); // colder areas can hold less moisture
                 
                 r = 210 - 100*m;
                 g = 185 - 45*m;
