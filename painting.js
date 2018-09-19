@@ -187,12 +187,18 @@ for (let element of [canvas, output]) {
         if (state === null) { state = 0; }
         _previousElevation.set(elevation);
         _paintingTime.fill(0);
-        paintAt(TOOLS[currentTool], current.x/element.clientWidth, current.y/element.clientHeight, SIZES[currentSize], nowMs - state);
+        let coords = [current.x/element.clientWidth,
+                      current.y/element.clientHeight];
+        if (element === output) {
+            coords = exports.screenToWorldCoords(coords);
+        }
+        paintAt(TOOLS[currentTool], coords[0], coords[1], SIZES[currentSize], nowMs - state);
         paintCanvas();
         return nowMs;
     });
 }
 
+exports.screenToWorldCoords = coords => coords;
 exports.onUpdate = () => {};
 exports.size = CANVAS_SIZE;
 exports.constraints = elevation;

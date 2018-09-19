@@ -97,10 +97,10 @@ if (document.location.hostname==='localhost') {
     G.add(gparam.drape, 'flat', 0, 5);
     G.add(gparam.drape, 'c', 0, 1);
     G.add(gparam.drape, 'd', 0, 40);
-    G.add(gparam.drape, 'rotate_x_deg', -360, 360);
-    G.add(gparam.drape, 'rotate_z_deg', -360, 360);
-    G.add(gparam.drape, 'scale_z', 0, 2);
-    G.add(gparam.drape, 'outline_depth', 0, 5);
+    G.add(gparam.drape, 'rotate_x_deg', 0, 90);
+    G.add(gparam.drape, 'rotate_z_deg', -180, 180);
+    G.add(gparam.drape, 'mountain_height', 0, 250);
+    G.add(gparam.drape, 'outline_depth', 0, 2);
     G.add(gparam.drape, 'outline_strength', 0, 30);
     G.add(gparam.drape, 'outline_threshold', 0, 100);
     for (let c of G.__controllers) c.listen().onChange(redraw);
@@ -110,6 +110,11 @@ function redraw() {
     // TODO: this should go inside requestAnimationFrame, and it shouldn't trigger multiple times
     render.updateView();
 }
+
+Painting.screenToWorldCoords = (coords) => {
+    let out = render.screenToWorld(coords);
+    return [out[0] / 1000, out[1] / 1000];
+};
 
 Painting.onUpdate = () => {
     generate();

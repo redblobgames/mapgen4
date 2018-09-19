@@ -8,7 +8,7 @@
 
 'use strict';
 
-const {vec3, mat4} = require('gl-matrix');
+const {vec3, vec4, mat4} = require('gl-matrix');
 const colormap = require('./colormap');
 const Geometry = require('./geometry');
 const regl = require('regl')({
@@ -26,17 +26,17 @@ const param = {
         flat: 2.5,
         c: 0.25,
         d: 30,
-        rotate_x_deg: 190,
+        rotate_x_deg: 0,
         rotate_z_deg: 0,
-        scale_z: 0.5,
-        outline_depth: 1.2,
+        mountain_height: 50, /* map is 1000x1000; how tall should mountains be? */
+        outline_depth: 1,
         outline_strength: 15,
         outline_threshold: 0,
     },
 };
 exports.param = param;
 
-const river_texturemap = regl.texture({data: Geometry.createRiverBitmap(), mipmap: 'nice', min: 'mipmap', mag: 'linear'});
+const river_texturemap = regl.texture({data: Geometry.createRiverBitmap(), mipmap: 'nice', min: 'mipmap', mag: 'linear', premultiplyAlpha: true});
 const fbo_texture_size = 2000;
 const fbo_land_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size});
 const fbo_land = regl.framebuffer({color: [fbo_land_texture]});
@@ -263,7 +263,7 @@ void main() {
         u_flat: () => param.drape.flat,
         u_c: () => param.drape.c,
         u_d: () => param.drape.d,
-        u_outline_depth: () => param.drape.outline_depth,
+        u_outline_depth: () => param.drape.outline_depth * 500 / param.distance,
         u_outline_strength: () => param.drape.outline_strength,
         u_outline_threshold: () => param.drape.outline_threshold/1000,
     },
@@ -273,6 +273,14 @@ void main() {
 class Renderer {
     constructor (mesh) {
         this.frame_number = 0;
+
+        this.topdown = mat4.create();
+        mat4.translate(this.topdown, this.topdown, [-1, -1, 0, 0]);
+        mat4.scale(this.topdown, this.topdown, [1/500, 1/500, 1, 1]);
+
+        this.projection = mat4.create();
+        this.inverse_projection = mat4.create();
+        
         this.a_quad_xy = new Float32Array(2 * (mesh.numRegions + mesh.numTriangles));
         this.a_quad_em = new Float32Array(2 * (mesh.numRegions + mesh.numTriangles));
         this.quad_elements = new Int32Array(3 * mesh.numSolidSides);
@@ -315,6 +323,22 @@ class Renderer {
 
     time(label) { console.time(label); }
     timeEnd(label) { console.timeEnd(label); }
+
+    /* Convert screen coordinates 0 ≤ x ≤ 1, 0 ≤ y ≤ 1 
+     * to world coords 0 ≤ x ≤ 1000, 0 ≤ y ≤ 1000 */
+    screenToWorld(coords) {
+        /* convert from screen 2d (inverted y) to 4d for matrix multiply */
+        let glCoords = vec4.fromValues(
+            coords[0] * 2 - 1,
+            1 - coords[1] * 2,
+            /* TODO: z should be 0 only when rotate_x_deg is 0;
+             * need to figure out the proper z value here */
+            0,
+            1
+        );
+        /* it returns vec4 but we only need vec2; they're compatible */
+        return vec4.transformMat4([], glCoords, this.inverse_projection);
+    }
     
     /* Update the buffers with the latest map data */
     updateMap() {
@@ -326,16 +350,12 @@ class Renderer {
     }
 
     updateView() {
-        let topdown = mat4.create();
-        mat4.translate(topdown, topdown, [-1, -1, 0, 0]);
-        mat4.scale(topdown, topdown, [1/500, 1/500, 1, 1]);
-
         this.time(`draw-land ${this.quad_elements.length/3} triangles`);
         drawLand({
             elements: this.buffer_quad_elements,
             a_xy: this.buffer_quad_xy,
             a_em: this.buffer_quad_em,
-            u_projection: topdown,
+            u_projection: this.topdown,
         });
         this.timeEnd(`draw-land ${this.quad_elements.length/3} triangles`);
 
@@ -343,23 +363,38 @@ class Renderer {
         drawRivers({
             count: this.a_river_xyuv.length/4,
             a_xyuv: this.buffer_river_xyuv,
-            u_projection: topdown,
+            u_projection: this.topdown,
         });
         this.timeEnd(`draw-rivers ${this.a_river_xyuv.length/12} triangles`);
         
-        let projection = mat4.create();
-        mat4.rotateX(projection, projection, param.drape.rotate_x_deg * Math.PI/180);
-        mat4.rotateZ(projection, projection, param.drape.rotate_z_deg * Math.PI/180);
-        mat4.scale(projection, projection, [1/param.distance, 1/param.distance, param.drape.scale_z, 1]);
-        mat4.translate(projection, projection, [-param.x, -param.y, 0, 0]);
+        /* Standard rotation for orthographic view */
+        mat4.identity(this.projection);
+        mat4.rotateX(this.projection, this.projection, (180 + param.drape.rotate_x_deg) * Math.PI/180);
+        mat4.rotateZ(this.projection, this.projection, param.drape.rotate_z_deg * Math.PI/180);
         
+        /* Top-down oblique copies column 2 (y input) to row 3 (z
+         * output). Typical matrix libraries such as glm's mat4 or
+         * Unity's Matrix4x4 or Unreal's FMatrix don't have this
+         * this.projection built-in. For mapgen4 I merge orthographic
+         * (which will *move* part of y-input to z-output) and
+         * top-down oblique (which will *copy* y-input to z-output).
+         * <https://en.wikipedia.org/wiki/Oblique_projection> */
+        this.projection[9] = 1;
+        
+        /* Scale and translate works on the hybrid this.projection */
+        mat4.scale(this.projection, this.projection, [1/param.distance, 1/param.distance, param.drape.mountain_height/param.distance, 1]);
+        mat4.translate(this.projection, this.projection, [-param.x, -param.y, 0, 0]);
+
+        /* Keep track of the inverse matrix for mapping mouse to world coordinates */
+        mat4.invert(this.inverse_projection, this.projection);
+
         this.time('draw-depth');
         if (param.drape.outline_depth > 0) {
             drawDepth({
                 elements: this.buffer_quad_elements,
                 a_xy: this.buffer_quad_xy,
                 a_em: this.buffer_quad_em,
-                u_projection: projection
+                u_projection: this.projection
             });
         }
         this.timeEnd('draw-depth');
@@ -372,7 +407,7 @@ class Renderer {
             a_em: this.buffer_quad_em,
             u_water: fbo_river_texture,
             u_depth: fbo_depth_texture,
-            u_projection: projection
+            u_projection: this.projection,
         });
         this.timeEnd('draw-drape');
 
