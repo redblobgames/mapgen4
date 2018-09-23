@@ -12,34 +12,21 @@ const FlatQueue = require('flatqueue');
 const {makeRandInt, makeRandFloat} = require('@redblobgames/prng');
 
 const mountain = {
-    land_limit: 200,
-    slope: 25,
+    slope: 20,
     density: 1500,
 }
 
 /*
- * Mountains are peaks surrounded by steep dropoffs. We need to:
- *
- *   1. Pick the locations of the peaks.
- *   2. Calculate the distance from every triangle to the nearest peak.
+ * Mountains are peaks surrounded by steep dropoffs. In the point
+ * selection process (mesh.js) we pick the mountain peak locations.
+ * Here we calculate the distance from every triangle to the nearest
+ * peak.
  *
  * We'll use breadth first search for this because it's simple and
  * fast. Dijkstra's Algorithm would produce a more accurate distance
  * field, but we only need an approximation.
  */
-function chooseMountainPeaks(mesh, spacing, randFloat) {
-    // TODO: this may be better as blue noise, but it needs to be converted to the mesh
-    const fractionOfPeaks = spacing*spacing / mountain.density;
-    let peak_t = [];
-    for (let t = 0; t < mesh.numTriangles; t++) {
-        if (randFloat() < fractionOfPeaks) {
-            peak_t.push(t);
-        }
-    }
-    return peak_t;
-}
-
-function calculateMountainDistance(mesh, seeds_t) {
+function calculateMountainDistance(mesh, seeds_t, spacing) {
     console.time('   calculateMountainDistance');
     let {s_length} = mesh;
     let distance_t = new Float32Array(mesh.numTriangles);
@@ -51,18 +38,16 @@ function calculateMountainDistance(mesh, seeds_t) {
             let s = 3 * current_t + j;
             let neighbor_t = mesh.s_outer_t(s);
             if (distance_t[neighbor_t] === -1) {
-                // TODO: s_length can be very large near the
-                // boundaries; not sure if I should use +s_length or
-                // +spacing
-                distance_t[neighbor_t] = distance_t[current_t] + s_length[s];
+                distance_t[neighbor_t] = distance_t[current_t] + spacing;
                 queue_t.push(neighbor_t);
             }
         }
     }
     console.timeEnd('   calculateMountainDistance');
-    // TODO: maybe switch to +1 instead of s_length, and then divide
-    // by spacing later; that'd let me use 8-bit int, and also let me
-    // reuse breadth first search used for other distance fields
+    // TODO: maybe switch to +1 instead of +spacing, and put spacing
+    // into mountain_slope; that'd let me use 8-bit int; TODO: try
+    // adding randomness to +spacing to see if the output looks more
+    // interesting
     return distance_t;
 }
 
@@ -89,7 +74,7 @@ function precalculateNoise(noise, mesh) {
 
         
 class Map {
-    constructor (mesh, param) {
+    constructor (mesh, peaks_t, param) {
         console.time('map-alloc');
         this.mesh = mesh;
         this.seed = param.seed;
@@ -110,7 +95,7 @@ class Map {
         this.windAngleDeg = undefined;
         this.precomputed = {
             noise: precalculateNoise(this.noise, mesh),
-            t_mountain_distance: calculateMountainDistance(mesh, chooseMountainPeaks(mesh, param.spacing, makeRandFloat(param.seed))),
+            t_mountain_distance: calculateMountainDistance(mesh, peaks_t, param.spacing),
         };
         this.seeds_t = [];
         this.coastline_t = [];
@@ -310,8 +295,8 @@ class Map {
                 moisture += evaporation;
             }
             if (moisture > 1.0 - r_elevation[r]) {
-                let orographicRainfall = 0.5 * (moisture - (1.0 - r_elevation[r])); // TODO: parameter
-                rainfall += orographicRainfall;
+                let orographicRainfall = 0.5 * (moisture - (1.0 - r_elevation[r])); // TODO: parameter, should also depend on param.spacing
+                rainfall += 2 * orographicRainfall; // TODO: parameter: mountains cause a lot more rainfall than plains
                 moisture -= orographicRainfall;
             }
             r_moisture[r] = rainfall;

@@ -129,7 +129,7 @@ exports.createRiverBitmap = function() {
 
     function lineWidth(i) {
         const spriteSize = riverTexturePositions[0][1][0][0].xy[0] - riverTexturePositions[0][0][0][0].xy[0];
-        return i / numRiverSizes * spriteSize * 0.25;
+        return i / numRiverSizes * spriteSize * 0.5; // TODO: parameter
     }
     ctx.lineCap = "round";
     for (let row = 0; row <= numRiverSizes; row++) {
@@ -200,10 +200,9 @@ exports.setRiverTextures = function(map, spacing, P) {
     let {numSolidTriangles, s_length} = mesh;
 
     function riverSize(s, flow) {
-        // TODO: build a table of flow to width
-        const maxRiverWidth = 10;
+        // TODO: performance: build a table of flow to width
         // TODO: magic number should be a parameter
-        let width = clamp(Math.sqrt(flow - MIN_FLOW) * spacing / 40, 0, maxRiverWidth);
+        let width = Math.sqrt(flow - MIN_FLOW) * spacing / 15;
         let size = Math.ceil(width * numRiverSizes / s_length[s]);
         return clamp(size, 1, numRiverSizes);
     }

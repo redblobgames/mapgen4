@@ -22,7 +22,7 @@ function Worker(self) {
         const mesh = new DualMesh(event.data.mesh);
         Object.assign(mesh, event.data.mesh);
         
-        const map = new Map(mesh, param);
+        const map = new Map(mesh, event.data.peaks_t, param);
 
         // This handler is for all subsequent messages
         handler = event => {

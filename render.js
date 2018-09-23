@@ -359,13 +359,13 @@ class Renderer {
         });
         this.timeEnd(`draw-land ${this.quad_elements.length/3} triangles`);
 
-        this.time(`draw-rivers ${this.a_river_xyuv.length/12} triangles`);
+        this.time(`draw-rivers ${this.numRiverTriangles} triangles`);
         drawRivers({
-            count: this.a_river_xyuv.length/4,
+            count: 3 * this.numRiverTriangles,
             a_xyuv: this.buffer_river_xyuv,
             u_projection: this.topdown,
         });
-        this.timeEnd(`draw-rivers ${this.a_river_xyuv.length/12} triangles`);
+        this.timeEnd(`draw-rivers ${this.numRiverTriangles} triangles`);
         
         /* Standard rotation for orthographic view */
         mat4.identity(this.projection);

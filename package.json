@@ -13,7 +13,9 @@
         "simplex-noise": "*"
     },
     "devDependencies": {
-        "uglifyify": "*"
+        "poisson-disk-sampling": "*",
+        "uglifyify": "*",
+        "@types/browserify": "*"
     },
     "scripts": {
         "build": "browserify mapgen4.js -g uglifyify -o _bundle.js",

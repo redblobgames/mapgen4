@@ -91,12 +91,12 @@ function setInitialData() {
 }
 
 /** Convert elevation to colors on the canvas */
-let _paintQueued = false; // false, or positive integer 
+let _paintQueued = 0; // >0 when there's a repaint queued
 function paintCanvas() {
     if (!_paintQueued) {
         _paintQueued = requestAnimationFrame(() => {
             const colormap = Colormap.data;
-            _paintQueued = false;
+            _paintQueued = 0;
             ctx.putImageData(imageData, 0, 0);
         });
     }

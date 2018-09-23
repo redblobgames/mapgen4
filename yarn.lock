@@ -12,6 +12,23 @@
   dependencies:
     hash-int "*"
 
+"@types/browserify@*":
+  version "12.0.34"
+  resolved "https://registry.yarnpkg.com/@types/browserify/-/browserify-12.0.34.tgz#6320dce5c76020c60f4be94e802f90c2a4733123"
+  dependencies:
+    "@types/insert-module-globals" "*"
+    "@types/node" "*"
+
+"@types/insert-module-globals@*":
+  version "7.0.0"
+  resolved "https://registry.yarnpkg.com/@types/insert-module-globals/-/insert-module-globals-7.0.0.tgz#8d158de4a6384e8daa13b3d63eebab6d5f67777d"
+  dependencies:
+    "@types/node" "*"
+
+"@types/node@*":
+  version "10.10.3"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-10.10.3.tgz#09c75a4ad84d6a3d286790bdd9489a4f8ee9906c"
+
 balanced-match@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/balanced-match/-/balanced-match-1.0.0.tgz#89b4d199ab2bee49de164ea02b89ce462d71b767"
@@ -59,11 +76,37 @@ hash-int@*:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/hash-int/-/hash-int-1.0.0.tgz#28cae10f5a651ed65d5680ccc0d08005cf372a0d"
 
+iota-array@^1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/iota-array/-/iota-array-1.0.0.tgz#81ef57fe5d05814cd58c2483632a99c30a0e8087"
+
+is-buffer@^1.0.2:
+  version "1.1.6"
+  resolved "https://registry.yarnpkg.com/is-buffer/-/is-buffer-1.1.6.tgz#efaa2ea9daa0d7ab2ea13a97b2b8ad51fefbe8be"
+
 minimatch@^3.0.2:
   version "3.0.4"
   resolved "https://registry.yarnpkg.com/minimatch/-/minimatch-3.0.4.tgz#5166e286457f03306064be5497e8dbb0c3d32083"
   dependencies:
     brace-expansion "^1.1.7"
+
+moore@~1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/moore/-/moore-1.0.0.tgz#1d2b298c32cfd330db0fe81a0b5bac319fd9eb65"
+
+ndarray@^1.0.16:
+  version "1.0.18"
+  resolved "https://registry.yarnpkg.com/ndarray/-/ndarray-1.0.18.tgz#b60d3a73224ec555d0faa79711e502448fd3f793"
+  dependencies:
+    iota-array "^1.0.0"
+    is-buffer "^1.0.2"
+
+poisson-disk-sampling@*:
+  version "1.0.2"
+  resolved "https://registry.yarnpkg.com/poisson-disk-sampling/-/poisson-disk-sampling-1.0.2.tgz#f5b2b1b286f988d6bd4f0018591bcf770d77eb3c"
+  dependencies:
+    moore "~1.0.0"
+    zeros "~1.0.0"
 
 regl@*:
   version "1.3.7"
@@ -109,3 +152,9 @@ uglifyify@*:
 webworkify@*:
   version "1.5.0"
   resolved "https://registry.yarnpkg.com/webworkify/-/webworkify-1.5.0.tgz#734ad87a774de6ebdd546e1d3e027da5b8f4a42c"
+
+zeros@~1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/zeros/-/zeros-1.0.0.tgz#64e2d83c0da8d322aa4cb882497b31b7dc33a540"
+  dependencies:
+    ndarray "^1.0.16"
