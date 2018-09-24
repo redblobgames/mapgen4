@@ -1,6 +1,5 @@
 /index.html
+build/
 node_modules/
-/js
-/_*
 blog/
-/noisy-edges.html
+/jsconfig.json

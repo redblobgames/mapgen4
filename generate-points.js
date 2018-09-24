@@ -19,7 +19,7 @@ const {makeRandFloat} = require('@redblobgames/prng');
 const Poisson = require('poisson-disk-sampling');
 const {seed, spacing, mountainSpacing} = require('./config');
 
-const filename = `points-${spacing.mesh}.data`;
+const filename = `build/points-${spacing}.data`;
 
 /* First generate the mountain points */
 let mountainPoints = new Poisson([1000, 1000], mountainSpacing, undefined, undefined, makeRandFloat(seed)).fill();

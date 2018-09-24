@@ -18,7 +18,7 @@
         "@types/browserify": "*"
     },
     "scripts": {
-        "build": "browserify mapgen4.js -g uglifyify -o _bundle.js",
-        "watch": "budo mapgen4:_bundle.js --dir . --dir ../../ --live --onupdate 'npm run build'"
+        "build": "browserify mapgen4.js -g uglifyify -o build/_bundle.js",
+        "watch": "budo mapgen4:build/_bundle.js --dir . --dir ../../ --live --onupdate 'npm run build'"
     }
 }

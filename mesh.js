@@ -81,7 +81,7 @@ async function choosePoints() {
     let points = undefined, peaks_index = undefined;
     const jitter = 0.5;
     if (param.spacing === 5) {
-        let buffer = await fetch("points-5.data").then(response => response.arrayBuffer());
+        let buffer = await fetch("build/points-5.data").then(response => response.arrayBuffer());
         let extraction = extractPoints(buffer);
         points = applyJitter(extraction.points, param.spacing * jitter * 0.5, makeRandFloat(param.seed));
         peaks_index = extraction.peaks_index;
