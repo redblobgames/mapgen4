@@ -11,6 +11,10 @@ const DualMesh = require('@redblobgames/dual-mesh');
 const Map      = require('./map');
 const Geometry = require('./geometry');
 
+/**
+ * @typedef { import("./types").Mesh } Mesh
+ */
+
 function Worker(self) {
     // This handler is for the initial message
     let handler = event => {
@@ -19,7 +23,7 @@ function Worker(self) {
         // NOTE: web worker messages only include the data; to
         // reconstruct the full object I call the constructor again
         // and then copy the data over
-        const mesh = new DualMesh(event.data.mesh);
+        const mesh = /** @type{Mesh} */(new DualMesh(event.data.mesh));
         Object.assign(mesh, event.data.mesh);
         
         const map = new Map(mesh, event.data.peaks_t, param);
@@ -28,17 +32,13 @@ function Worker(self) {
         handler = event => {
             let {constraints, quad_elements_buffer, a_quad_em_buffer, a_river_xyuv_buffer} = event.data;
 
-            console.time('MAP GENERATION');
             let start_time = performance.now();
             map.assignElevation(constraints);
             map.assignMoisture(constraints.windAngleDeg);
             map.assignRivers();
-            console.time('geometry');
             Geometry.setMapGeometry(map, new Int32Array(quad_elements_buffer), new Float32Array(a_quad_em_buffer));
             let numRiverTriangles = Geometry.setRiverTextures(map, param.spacing, new Float32Array(a_river_xyuv_buffer));
-            console.timeEnd('geometry');
             let elapsed = performance.now() - start_time;
-            console.timeEnd('MAP GENERATION');
 
             self.postMessage(
                 {elapsed,

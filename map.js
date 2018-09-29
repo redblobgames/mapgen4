@@ -1,3 +1,4 @@
+// @ts-check
 /*
  * From https://www.redblobgames.com/maps/mapgen4/
  * Copyright 2018 Red Blob Games <redblobgames@gmail.com>
@@ -14,20 +15,27 @@ const {makeRandInt, makeRandFloat} = require('@redblobgames/prng');
 const mountain = {
     slope: 20,
     density: 1500,
-}
+};
 
-/*
+/**
+ * @typedef { import("./types").Mesh } Mesh
+ */
+
+/**
  * Mountains are peaks surrounded by steep dropoffs. In the point
  * selection process (mesh.js) we pick the mountain peak locations.
- * Here we calculate the distance from every triangle to the nearest
- * peak.
+ * Here we calculate a distance field from peaks to all other points.
  *
  * We'll use breadth first search for this because it's simple and
  * fast. Dijkstra's Algorithm would produce a more accurate distance
  * field, but we only need an approximation.
+ *
+ * @param {Mesh} mesh
+ * @param {number[]} seeds_t - a list of triangles with mountain peaks
+ * @param {number} spacing - the global param.spacing value
+ * @return {Float32Array} - the distance field indexed by t
  */
 function calculateMountainDistance(mesh, seeds_t, spacing) {
-    console.time('   calculateMountainDistance');
     let {s_length} = mesh;
     let distance_t = new Float32Array(mesh.numTriangles);
     distance_t.fill(-1);
@@ -43,7 +51,6 @@ function calculateMountainDistance(mesh, seeds_t, spacing) {
             }
         }
     }
-    console.timeEnd('   calculateMountainDistance');
     // TODO: maybe switch to +1 instead of +spacing, and put spacing
     // into mountain_slope; that'd let me use 8-bit int; TODO: try
     // adding randomness to +spacing to see if the output looks more
@@ -51,8 +58,14 @@ function calculateMountainDistance(mesh, seeds_t, spacing) {
     return distance_t;
 }
 
+/**
+ * Save noise values in arrays.
+ *
+ * @param {SimplexNoise} noise - the noise generator
+ * @param {Mesh} mesh
+ * @returns {Float32Array[]} - noise indexed by triangle id, for several octaves
+ */ 
 function precalculateNoise(noise, mesh) {
-    console.time('   precalculateNoise');
     let {numTriangles} = mesh;
     let noise0 = new Float32Array(numTriangles),
         noise1 = new Float32Array(numTriangles),
@@ -68,17 +81,20 @@ function precalculateNoise(noise, mesh) {
         noise3[t] = noise.noise2D(8*nx + 9, 8*ny + 9);
         noise4[t] = noise.noise2D(16*nx + 15, 16*ny + 15);
     }
-    console.timeEnd('   precalculateNoise');
     return [noise0, noise1, noise2, noise3, noise4];
 }
 
         
 class Map {
+    /**
+     * @param {Mesh} mesh
+     * @param {number[]} peaks_t - array of triangle indices for mountain peaks
+     * @param {any} param - global parameters
+     */
     constructor (mesh, peaks_t, param) {
-        console.time('map-alloc');
         this.mesh = mesh;
         this.seed = param.seed;
-        this.spacing = param.spacing;
+        this.spacing = /** @type{number} */(param.spacing);
         this.noise = new SimplexNoise(makeRandFloat(param.seed));
         this.t_elevation = new Float32Array(mesh.numTriangles);
         this.r_elevation = new Float32Array(mesh.numRegions);
@@ -99,11 +115,9 @@ class Map {
         };
         this.seeds_t = [];
         this.coastline_t = [];
-        console.timeEnd('map-alloc');
     }
 
     assignTriangleElevation(constraints) {
-        console.time('map-elevation-1');
         let {mesh, noise, spacing, t_elevation, coastline_t, seeds_t} = this;
         let {numTriangles, numSolidTriangles, numRegions, numSides} = mesh;
 
@@ -164,7 +178,10 @@ class Map {
         // HACK: I'd like to perform the Dijkstra Search from the
         // coastal triangles, but that doesn't set t_downstream_s,
         // which I currently need for rendering. So instead I run the
-        // search from all ocean triangles.
+        // search from all ocean triangles. TODO: this may be good
+        // enough, and then I can skip the coastal triangle
+        // calculation, except that I need to reach the oceans a
+        // different way
         seeds_t.splice(0);
         for (let t = 0; t < numSolidTriangles; t++) {
             if (t_elevation[t] < 0) {
@@ -215,12 +232,9 @@ class Map {
             if (e > +1.0) { e = +1.0; }
             t_elevation[t] = e;
         }
-        
-        console.timeEnd('map-elevation-1');
     }
     
     assignRegionElevation(constraints) {
-        console.time('map-elevation-2');
         let {mesh, t_elevation, r_elevation, r_water} = this;
         let {numRegions, _r_in_s, _halfedges} = mesh;
         let out_t = [];
@@ -239,9 +253,8 @@ class Map {
             e /= count;
             if (water && e >= 0) { e = -0.001; }
             r_elevation[r] = e;
-            r_water[r] = water;
+            r_water[r] = water? 1 : 0;
         }
-        console.timeEnd('map-elevation-2');
     }
 
     assignElevation(constraints) {
@@ -254,7 +267,6 @@ class Map {
         const {numRegions, _r_in_s, _halfedges} = mesh;
 
         if (windAngleDeg != this.windAngleDeg) {
-            console.time('wind-init');
             this.windAngleDeg = windAngleDeg;
             const windAngleRad = Math.PI / 180 * windAngleDeg;
             const windAngleVec = [Math.cos(windAngleRad), Math.sin(windAngleRad)];
@@ -263,11 +275,9 @@ class Map {
                 r_wind_sort[r] = mesh.r_x(r) * windAngleVec[0] + mesh.r_y(r) * windAngleVec[1];
             }
             wind_order_r.sort((r1, r2) => r_wind_sort[r1] - r_wind_sort[r2]);
-            console.timeEnd('wind-init');
         }
 
         // TODO: rename moisture to rainfall
-        console.time('wind-flow');
         let out_r = [];
         for (let r of wind_order_r) {
             let count = 0, sum = 0.0;
@@ -302,30 +312,27 @@ class Map {
             r_moisture[r] = rainfall;
             r_humidity[r] = moisture;
         }
-        console.timeEnd('wind-flow');
     }
 
     assignRivers() {
         let {mesh, seeds_t, t_moisture, r_moisture, t_elevation, t_downslope_s, order_t, t_flow, s_flow} = this;
-        console.time('map-rivers-1');
         dijkstra_search(mesh, seeds_t, t_elevation, t_downslope_s, order_t);
-        console.timeEnd('map-rivers-1');
-        console.time('map-rivers-2');
         assign_t_moisture(mesh, r_moisture, t_moisture);
-        console.timeEnd('map-rivers-2');
-        console.time('map-rivers-3');
         assign_flow(mesh, order_t, t_elevation, t_moisture, t_downslope_s, t_flow, s_flow);
-        console.timeEnd('map-rivers-3');
     }
         
 }
 
 
 /**
- * seeds_t: array of int
- * t_elevation: Float32Array[numTriangles]
- * t_downflow_s: Int32Array[numTriangles]
- * order_t: Int32Array[numTriangles]
+ * Use Dijkstra's Algorithm (Uniform Cost Search) to assign river locations
+ *
+ * @param {Mesh} mesh
+ * @param {number[]} seeds_t - starting points for the search
+ * @param {Float32Array} t_elevation - elevation per triangle
+ * @param {Int32Array} t_downflow_s - OUT parameter - the side each triangle flows out of
+ * @param {Int32Array} order_t - OUT parameter - pre-order in which the graph was traversed,
+ *   so roots of the tree always get visited before leaves; use reverse to visit leaves before roots
  */
 let queue = new FlatQueue();
 function dijkstra_search(mesh, seeds_t, t_elevation, /* out */ t_downflow_s, /* out */ order_t) {
@@ -351,17 +358,15 @@ function dijkstra_search(mesh, seeds_t, t_elevation, /* out */ t_downflow_s, /* 
         }
     }
     if (queue.length !== 0) {
-        console.log('NOT EMPTY', queue.length, queue);
-        while (queue.length > 0) queue.pop();
+        throw "ERROR: queue should be empty";
     }
-    // order_t is the visit pre-order, so roots of the tree always get
-    // visited before leaves; we can use this in reverse to visit
-    // leaves before roots
 }
 
 
 /**
- * Assign t_moisture given r_moisture
+ * @param {Mesh} mesh
+ * @param {Float32Array} r_moisture - per region
+ * @param {Float32Array} t_moisture - OUT parameter - per triangle
  */
 function assign_t_moisture(mesh, r_moisture, /* out */ t_moisture) {
     const {numTriangles} = mesh;

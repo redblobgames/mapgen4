@@ -272,8 +272,6 @@ void main() {
 
 class Renderer {
     constructor (mesh) {
-        this.frame_number = 0;
-
         this.topdown = mat4.create();
         mat4.translate(this.topdown, this.topdown, [-1, -1, 0, 0]);
         mat4.scale(this.topdown, this.topdown, [1/500, 1/500, 1, 1]);
@@ -321,11 +319,10 @@ class Renderer {
         });
     }
 
-    time(label) { console.time(label); }
-    timeEnd(label) { console.timeEnd(label); }
-
-    /* Convert screen coordinates 0 ≤ x ≤ 1, 0 ≤ y ≤ 1 
-     * to world coords 0 ≤ x ≤ 1000, 0 ≤ y ≤ 1000 */
+    /**
+     * @param {[number, number]} coords - screen coordinates 0 ≤ x ≤ 1, 0 ≤ y ≤ 1
+     * @returns {[number, number]} - world coords 0 ≤ x ≤ 1000, 0 ≤ y ≤ 1000 
+     */
     screenToWorld(coords) {
         /* convert from screen 2d (inverted y) to 4d for matrix multiply */
         let glCoords = vec4.fromValues(
@@ -342,30 +339,24 @@ class Renderer {
     
     /* Update the buffers with the latest map data */
     updateMap() {
-        this.time('copy-mesh');
         this.buffer_quad_em.subdata(this.a_quad_em);
         this.buffer_quad_elements.subdata(this.quad_elements);
         this.buffer_river_xyuv.subdata(this.a_river_xyuv.subarray(0, 4 * 3 * this.numRiverTriangles));
-        this.timeEnd('copy-mesh');
     }
 
     updateView() {
-        this.time(`draw-land ${this.quad_elements.length/3} triangles`);
         drawLand({
             elements: this.buffer_quad_elements,
             a_xy: this.buffer_quad_xy,
             a_em: this.buffer_quad_em,
             u_projection: this.topdown,
         });
-        this.timeEnd(`draw-land ${this.quad_elements.length/3} triangles`);
 
-        this.time(`draw-rivers ${this.numRiverTriangles} triangles`);
         drawRivers({
             count: 3 * this.numRiverTriangles,
             a_xyuv: this.buffer_river_xyuv,
             u_projection: this.topdown,
         });
-        this.timeEnd(`draw-rivers ${this.numRiverTriangles} triangles`);
         
         /* Standard rotation for orthographic view */
         mat4.identity(this.projection);
@@ -388,7 +379,6 @@ class Renderer {
         /* Keep track of the inverse matrix for mapping mouse to world coordinates */
         mat4.invert(this.inverse_projection, this.projection);
 
-        this.time('draw-depth');
         if (param.drape.outline_depth > 0) {
             drawDepth({
                 elements: this.buffer_quad_elements,
@@ -397,9 +387,7 @@ class Renderer {
                 u_projection: this.projection
             });
         }
-        this.timeEnd('draw-depth');
         
-        this.time('draw-drape');
         regl.clear({color: [0, 0, 0, 1], depth: 1});
         drawDrape({
             elements: this.buffer_quad_elements,
@@ -409,9 +397,7 @@ class Renderer {
             u_depth: fbo_depth_texture,
             u_projection: this.projection,
         });
-        this.timeEnd('draw-drape');
 
-        this.time('clear-fb');
         // I don't have to clear fbo_em because it doesn't have depth
         // and will be redrawn every frame. I do have to clear
         // fbo_river because even though it doesn't have depth, it
@@ -422,11 +408,6 @@ class Renderer {
         fbo_z.use(() => {
             regl.clear({color: [0, 0, 0, 1], depth: 1});
         });
-        this.timeEnd('clear-fb');
-
-        if (this.frame_number++ > 2) {
-            this.time = this.timeEnd = () => {}; // only show performance the first few times
-        }
     }
 }
 

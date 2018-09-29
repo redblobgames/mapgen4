@@ -24,6 +24,19 @@ const DualMesh    = require('@redblobgames/dual-mesh');
 const MeshBuilder = require('@redblobgames/dual-mesh/create');
 const {makeRandInt, makeRandFloat} = require('@redblobgames/prng');
 
+
+/**
+ * @typedef { import("./types").Mesh } Mesh
+ */
+
+
+/**
+ * Apply random circular jitter to a set of points.
+ *
+ * @param {number[][]} points
+ * @param {number} dr
+ * @param {function(): number} randFloat
+ */
 function applyJitter(points, dr, randFloat) {
     let newPoints = [];
     for (let p of points) {
@@ -33,11 +46,19 @@ function applyJitter(points, dr, randFloat) {
         let dy = r * Math.sin(a);
         newPoints.push([p[0] + dx, p[1] + dy]);
     }
+
     return newPoints;
 }
 
+/**
+ * Generate a hexagonal grid with a given spacing. This is used when NOT
+ * reading points from a file.
+ *
+ * @param {number} spacing - horizontal spacing between adjacent hexagons
+ * @returns {[number, number][]} - list of [x, y] points
+ */
 function hexagonGrid(spacing) {
-    let points = [];
+    let points = /** @type{[number, number][]} */([]);
     let offset = 0;
     for (let y = spacing/2; y < 1000-spacing/2; y += spacing * 3/4) {
         offset = (offset === 0)? spacing/2 : 0;
@@ -48,6 +69,15 @@ function hexagonGrid(spacing) {
     return points;
 }
 
+/**
+ * Choose a random set of regions for mountain peaks. This is used
+ * when NOT reading points from a file.
+ *
+ * @param {number} numPoints
+ * @param {number} spacing - param.spacing parameter, used to calculate density
+ * @param {function(): number} randFloat - random number generator (0-1)
+ * @returns {number[]} - array of point indices
+ */
 function chooseMountainPeaks(numPoints, spacing, randFloat) {
     const fractionOfPeaks = spacing*spacing / param.mountainDensity;
     let peaks_r = [];
@@ -59,15 +89,22 @@ function chooseMountainPeaks(numPoints, spacing, randFloat) {
     return peaks_r;
 }
 
-/* The points are [x,y]; the peaks in the index are an index into the
+/**
+ * Read mesh and mountain peak points from a file saved by generate-points.js
+ *
+ * The points are [x,y]; the peaks in the index are an index into the
  * points[] array, *not* region ids. The mesh creation process can
  * insert new regions before and after this array, so these indices
- * have to be adjusted later. */
+ * have to be adjusted later.
+ *
+ * @param {ArrayBuffer} buffer - data read from the mesh file
+ * @returns {{points: number[][], peaks_index: number[]}}
+ */
 function extractPoints(buffer) {
     /* See file format in generate-points.js */
     const pointData = new Uint16Array(buffer);
     const numMountainPeaks = pointData[0];
-    let peaks_index = pointData.slice(1, 1 + numMountainPeaks);
+    let peaks_index = Array.from(pointData.slice(1, 1 + numMountainPeaks));
     const numRegions = (pointData.length - numMountainPeaks - 1) / 2;
     let points = [];
     for (let i = 0; i < numRegions; i++) {
@@ -77,6 +114,11 @@ function extractPoints(buffer) {
     return {points, peaks_index};
 }
 
+/**
+ * Either read mesh and mountain peak points, or generate locally.
+ *
+ * TODO: This hard-codes the spacing of 5; it should be a parameter
+ */
 async function choosePoints() {
     let points = undefined, peaks_index = undefined;
     const jitter = 0.5;
@@ -94,18 +136,13 @@ async function choosePoints() {
 
 
 async function makeMesh() {
-    console.time('points');
     let {points, peaks_index} = await choosePoints();
-    console.timeEnd('points');
 
-    console.time('mesh-init');
-    let mesh = new MeshBuilder({boundarySpacing: param.spacing * 1.5})
-        .addPoints(points)
-        .create(true);
-    console.timeEnd('mesh-init');
+    let builder = new MeshBuilder({boundarySpacing: param.spacing * 1.5})
+        .addPoints(points);
+    let mesh = /** @type {Mesh} */(builder.create());
     console.log(`triangles = ${mesh.numTriangles} regions = ${mesh.numRegions}`);
 
-    console.time('s_length');
     mesh.s_length = new Float32Array(mesh.numSides);
     for (let s = 0; s < mesh.numSides; s++) {
         let r1 = mesh.s_begin_r(s),
@@ -114,7 +151,6 @@ async function makeMesh() {
             dy = mesh.r_y(r1) - mesh.r_y(r2);
         mesh.s_length[s] = Math.sqrt(dx*dx + dy*dy);
     }
-    console.timeEnd('s_length');
 
     /* The input points get assigned to different positions in the
      * output mesh. The peaks_index has indices into the original

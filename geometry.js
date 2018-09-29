@@ -7,8 +7,18 @@
 
 let {vec2} = require('gl-matrix');
 
-/* Fill P:Float32Array with x,y data from mesh:TriangleMesh,
-   first region points then triangle points */
+/**
+ * @typedef { import("./types").Mesh } Mesh
+ * @typedef { import("./map") } Map
+ */
+
+
+/**
+ * Fill a buffer with data from the mesh.
+ *
+ * @param {Mesh} mesh
+ * @param {Float32Array} P - x,y for each region, then for each triangle
+ */
 exports.setMeshGeometry = function(mesh, P) {
     let {numRegions, numTriangles} = mesh;
     if (P.length !== 2 * (numRegions + numTriangles)) { throw "wrong size"; }
@@ -24,8 +34,13 @@ exports.setMeshGeometry = function(mesh, P) {
     }
 };
 
-/* Fill P:Float32Array with elevation,moisture data from mapgen4 map,
-   and also I:Int32Array with indices into this array */
+/**
+ * Fill an indexed buffer with data from the map.
+ *
+ * @param {Map} map
+ * @param {Int32Array} I - indices into the data array
+ * @param {Float32Array} P - elevation, moisture data
+ */
 exports.setMapGeometry = function(map, I, P) {
     // TODO: V should probably depend on the slope, or elevation, or maybe it should be 0.95 in mountainous areas and 0.99 elsewhere
     const V = 0.95; // reduce elevation in valleys
@@ -76,18 +91,18 @@ exports.setMapGeometry = function(map, I, P) {
         }
     }
 
-    console.log(`valleys = ${count_valley} ridges = ${count_ridge}`);
     if (I.length !== i) { throw "wrong size"; }
     if (P.length !== p) { throw "wrong size"; }
 };
 
 
-/* Create a bitmap that will be used for texture mapping
-   BEND textures will be ordered: {blank side, input side, output side}
-   FORK textures will be ordered: {passive input side, active input side, output side}
-
-   Cols will be the input flow rate
-   Rows will be the output flow rate
+/**
+ * Create a bitmap that will be used for texture mapping
+ *   BEND textures will be ordered: {blank side, input side, output side}
+ *   FORK textures will be ordered: {passive input side, active input side, output side}
+ *
+ * Cols will be the input flow rate
+ * Rows will be the output flow rate
 */
 function assignTextureCoordinates(numSizes, textureSize) {
     /* create (numSizes+1)^2 size combinations, each with two triangles */
@@ -191,9 +206,14 @@ function clamp(x, lo, hi) {
     return x;
 }
 
-/* Fill P:Float32Array with x,y,u,v data pointing to the river bitmap
-   created in createRiverBitmap(). Returns the number of triangles actually
-   needed, which will be at most numSolidTriangles.  */
+/**
+ * Fill a buffer with river geometry
+ *
+ * @param {Map} map
+ * @param {number} spacing - global param.spacing value
+ * @param {Float32Array} P - array of x,y,u,v triples for the river triangles
+ * @returns {number} - how many triangles were needed (at most numSolidTriangles)
+ */
 exports.setRiverTextures = function(map, spacing, P) {
     const MIN_FLOW = 15;  // TODO: this should be a parameter
     let {mesh, t_elevation, t_downslope_s, s_flow} = map;

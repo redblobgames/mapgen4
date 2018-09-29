@@ -14,25 +14,28 @@
  */
 'use strict';
 
-/* global dat */
-
 const param       = require('./config');
 const WebWorkify  = require('webworkify');
-const Mesh        = require('./mesh');
+const MakeMesh    = require('./mesh');
 const Map         = require('./map');
 const Painting    = require('./painting');
 const Render      = require('./render');
 
 
+/** @typedef { import("./types").Mesh } Mesh */
+
+/**
+ * Starts the UI, once the mesh has been loaded in.
+ *
+ * @param {{mesh: Mesh, peaks_t: number[]}} _
+ */
 function main({mesh, peaks_t}) {
-    console.time('static allocation');
     let render = new Render.Renderer(mesh);
-    console.timeEnd('static allocation');
 
     const gparam = Render.param;
     if (document.location.hostname === 'localhost') {
         /* Only inject this locally because it slows things down */
-        let G = new dat.GUI();
+        let G = new /** @type{any} */(window).dat.GUI();
         G.close();
         G.add(gparam, 'distance', 100, 1000);
         G.add(gparam, 'x', 0, 1000);
@@ -54,10 +57,10 @@ function main({mesh, peaks_t}) {
     function redraw() {
         // TODO: this should go inside requestAnimationFrame, and it
         // shouldn't trigger multiple times. However, I can't do this
-        // while a graphics buffer has been passed to the geometry module.
-        // Need to split up the map processing into stages so that the
-        // geometry is "locked" for as little time as possible, or
-        // alternatively, double buffer it.
+        // while a graphics buffer has been passed to the geometry
+        // module. I don't understand *why* this is the case though,
+        // as I thought render.updateMap() copied everything into GPU
+        // buffers. There must be something doing this asynchronously.
         render.updateView();
     }
 
@@ -70,13 +73,16 @@ function main({mesh, peaks_t}) {
         generate();
     };
 
-    const worker = WebWorkify(require('./worker.js'));
+    const worker = /** @type {Worker} */(WebWorkify(require('./worker.js')));
     let working = false;
+    let elapsedTimeHistory = [];
 
     worker.addEventListener('message', event => {
         working = false;
         let {elapsed, numRiverTriangles, quad_elements_buffer, a_quad_em_buffer, a_river_xyuv_buffer} = event.data;
-        document.getElementById('timing').innerText = `${elapsed.toFixed(2)} milliseconds`;
+        elapsedTimeHistory.push(elapsed | 0);
+        if (elapsedTimeHistory.length > 10) { elapsedTimeHistory.splice(0, 1); }
+        document.getElementById('timing').innerText = `${elapsedTimeHistory.join(' ')} milliseconds`;
         render.quad_elements = new Int32Array(quad_elements_buffer);
         render.a_quad_em = new Float32Array(a_quad_em_buffer);
         render.a_river_xyuv = new Float32Array(a_river_xyuv_buffer);
@@ -91,7 +97,7 @@ function main({mesh, peaks_t}) {
             worker.postMessage({
                 constraints: {
                     size: Painting.size,
-                    windAngleDeg: Painting.windAngleDeg,
+                    windAngleDeg: Painting.getWindAngleDeg(),
                     constraints: Painting.constraints,
                 },
                 quad_elements_buffer: render.quad_elements.buffer,
@@ -110,5 +116,5 @@ function main({mesh, peaks_t}) {
     generate();
 }
 
-Mesh.makeMesh().then(main);
+MakeMesh.makeMesh().then(main);
 

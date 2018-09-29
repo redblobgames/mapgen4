@@ -1,0 +1,13 @@
+{
+    "compilerOptions": {
+        "target": "es2017",
+        "allowSyntheticDefaultImports": true,
+        "moduleResolution": "node",
+        "typeRoots": ["./node_modules/@types"],
+        "noEmit": true,
+        "allowJs": true,
+        "checkJs": true,
+        "lib": [ "dom", "webworker", "es2017" ]
+    },
+    "include": ["*.js"]
+}

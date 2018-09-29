@@ -35,7 +35,7 @@ const _previousElevation = new Int8Array(CANVAS_SIZE * CANVAS_SIZE);
 const _paintingTime = new Float32Array(CANVAS_SIZE * CANVAS_SIZE);
 
 /* The elevation data is displayed on the screen with a colormap */
-const canvas = document.getElementById('paint');
+const canvas = /** @type{HTMLCanvasElement} */(document.getElementById('paint'));
 const output = document.getElementById('mapgen4');
 canvas.width = canvas.height = CANVAS_SIZE;
 const ctx = canvas.getContext('2d');
@@ -103,7 +103,15 @@ function paintCanvas() {
     exports.onUpdate();
 }
 
-/** x0,y0 should be 0-1 */
+/** 
+ * Paint a circular region
+ *
+ * @param {{elevation: number}} tool
+ * @param {number} x0 - should be 0 to 1
+ * @param {number} y0 - should be 0 to 1
+ * @param {{innerRadius: number, outerRadius: number, rate: number}} size
+ * @param {number} deltaTimeInMs
+ */
 function paintAt(tool, x0, y0, size, deltaTimeInMs) {
     /* This has two effects: first time you click the mouse it has a
      * strong effect, and it also limits the amount in case you
@@ -151,12 +159,13 @@ function displayCurrentTool() {
     document.getElementById('current-control').textContent = `${currentSize} ${currentTool}`;
 }
 
+/** @type {[string, string, function][]} */
 const controls = [
-    ['1', "small", () => { currentSize = 'small'; }],
-    ['2', "medium", () => { currentSize = 'medium'; }],
-    ['3', "large", () => { currentSize = 'large'; }],
-    ['q', "ocean", () => { currentTool = 'ocean'; }],
-    ['w', "valley", () => { currentTool = 'valley'; }],
+    ['1', "small",    () => { currentSize = 'small'; }],
+    ['2', "medium",   () => { currentSize = 'medium'; }],
+    ['3', "large",    () => { currentSize = 'large'; }],
+    ['q', "ocean",    () => { currentTool = 'ocean'; }],
+    ['w', "valley",   () => { currentTool = 'valley'; }],
     ['e', "mountain", () => { currentTool = 'mountain'; }],
 ];
 
@@ -175,9 +184,10 @@ for (let control of controls) {
 }
 displayCurrentTool();
 
-const slider = document.getElementById('wind-angle');
+const slider = /** @type{HTMLInputElement} */(document.getElementById('wind-angle'));
+let windAngleDeg = 0;
 slider.addEventListener('input', () => {
-    exports.windAngleDeg = slider.valueAsNumber;
+    exports.setWindAngleDeg(slider.valueAsNumber);
     exports.onUpdate();
 });
 
@@ -199,10 +209,11 @@ for (let element of [canvas, output]) {
 }
 
 exports.screenToWorldCoords = coords => coords;
+exports.getWindAngleDeg = () => windAngleDeg;
+exports.setWindAngleDeg = (angleDeg) => { windAngleDeg = angleDeg; };
 exports.onUpdate = () => {};
 exports.size = CANVAS_SIZE;
 exports.constraints = elevation;
-exports.windAngleDeg = 0;
 
 setInitialData();
 paintCanvas();
