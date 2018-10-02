@@ -10,19 +10,12 @@
 /* global makeDraggable */
 
 /*
- * Painting interface uses a <canvas>.
- *
- * As you drag the mouse it will
- * paint filled circles on the canvas.
- *
- * The canvas pixels are then used for determining
- * ocean/valley/mountain in the map generator module.
- *
- * This entire module acts as a global object.
+ * The painting interface uses a square array of elevations. As you
+ * drag the mouse it will paint filled circles into the elevation map,
+ * then send the elevation map to the generator to produce the output.
  */
 
 const SimplexNoise = require('simplex-noise');
-const Colormap = require('./colormap');
 const {makeRandInt, makeRandFloat} = require('@redblobgames/prng');
 
 const CANVAS_SIZE = 128;
@@ -33,27 +26,8 @@ const elevation = new Int8Array(CANVAS_SIZE * CANVAS_SIZE);
 const _previousElevation = new Int8Array(CANVAS_SIZE * CANVAS_SIZE);
 /* The painting time is how long, in milliseconds, was spent painting */
 const _paintingTime = new Float32Array(CANVAS_SIZE * CANVAS_SIZE);
+// TODO: _paintingTime needs to be reset at some point, right?
 
-/* The elevation data is displayed on the screen with a colormap */
-const canvas = /** @type{HTMLCanvasElement} */(document.getElementById('paint'));
-const output = document.getElementById('mapgen4');
-canvas.width = canvas.height = CANVAS_SIZE;
-const ctx = canvas.getContext('2d');
-const imageData = ctx.getImageData(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-const pixels = imageData.data;
-
-/** Set a single pixel in the minimap.
- *
- *  Before calling this function, set the corresponding pixel in the elevation[] array
- */
-function setMinimapPixel(x, y) {
-    const colormap = Colormap.data;
-    let p = y * CANVAS_SIZE + x;
-    let q = ((elevation[p] + 128) / 256) * Colormap.width | 0;
-    for (let i = 0; i < 4; i++) {
-        pixels[4*p + i] = colormap[4 * q + i];
-    }
-}
 
 /** Use a noise function to determine the initial shapes */
 function setInitialData() {
@@ -85,22 +59,8 @@ function setInitialData() {
                     elevation[p] = Math.max(e, Math.min(e * 10, mountain * 127 | 0));
                 }
             }
-            setMinimapPixel(x, y);
         }
     }
-}
-
-/** Convert elevation to colors on the canvas */
-let _paintQueued = 0; // >0 when there's a repaint queued
-function paintCanvas() {
-    if (!_paintQueued) {
-        _paintQueued = requestAnimationFrame(() => {
-            const colormap = Colormap.data;
-            _paintQueued = 0;
-            ctx.putImageData(imageData, 0, 0);
-        });
-    }
-    exports.onUpdate();
 }
 
 /** 
@@ -134,7 +94,6 @@ function paintAt(tool, x0, y0, size, deltaTimeInMs) {
             _paintingTime[p] += strength * (rate/1000 * deltaTimeInMs);
             strength = Math.min(1, _paintingTime[p]);
             elevation[p] = (1 - strength) * _previousElevation[p] + strength * newElevation;
-            setMinimapPixel(x, y);
         }
     }
 }
@@ -148,6 +107,7 @@ const SIZES = {
 
 const TOOLS = {
     ocean:    {elevation: -30},
+    shallow:  {elevation: -1},
     valley:   {elevation: 1},
     mountain: {elevation: 127},
 };
@@ -156,7 +116,12 @@ let currentTool = 'mountain';
 let currentSize = 'small';
 
 function displayCurrentTool() {
-    document.getElementById('current-control').textContent = `${currentSize} ${currentTool}`;
+    const className = 'current-control';
+    for (let c of document.querySelectorAll("."+className)) {
+        c.classList.remove(className);
+    }
+    document.getElementById(currentTool).classList.add(className);
+    document.getElementById(currentSize).classList.add(className);
 }
 
 /** @type {[string, string, function][]} */
@@ -165,8 +130,9 @@ const controls = [
     ['2', "medium",   () => { currentSize = 'medium'; }],
     ['3', "large",    () => { currentSize = 'large'; }],
     ['q', "ocean",    () => { currentTool = 'ocean'; }],
-    ['w', "valley",   () => { currentTool = 'valley'; }],
-    ['e', "mountain", () => { currentTool = 'mountain'; }],
+    ['w', "shallow",  () => { currentTool = 'shallow'; }],
+    ['e', "valley",   () => { currentTool = 'valley'; }],
+    ['r', "mountain", () => { currentTool = 'mountain'; }],
 ];
 
 window.addEventListener('keydown', e => {
@@ -176,11 +142,7 @@ window.addEventListener('keydown', e => {
 });
 
 for (let control of controls) {
-    let container = document.getElementById('buttons');
-    let button = document.createElement('button');
-    button.textContent = control[0].toUpperCase() + ": " + control[1];
-    button.addEventListener('click', () => { control[2](); displayCurrentTool(); } );
-    container.appendChild(button);
+    document.getElementById(control[1]).addEventListener('click', () => { control[2](); displayCurrentTool(); } );
 }
 displayCurrentTool();
 
@@ -191,22 +153,20 @@ slider.addEventListener('input', () => {
     exports.onUpdate();
 });
 
-for (let element of [canvas, output]) {
-    makeDraggable(element, element, (begin, current, state) => {
-        let nowMs = Date.now();
-        if (state === null) { state = 0; }
-        _previousElevation.set(elevation);
-        _paintingTime.fill(0);
-        let coords = [current.x/element.clientWidth,
-                      current.y/element.clientHeight];
-        if (element === output) {
-            coords = exports.screenToWorldCoords(coords);
-        }
-        paintAt(TOOLS[currentTool], coords[0], coords[1], SIZES[currentSize], nowMs - state);
-        paintCanvas();
-        return nowMs;
-    });
-}
+const output = document.getElementById('mapgen4');
+makeDraggable(output, output, (begin, current, state) => {
+    let nowMs = Date.now();
+    if (state === null) { state = 0; }
+    _previousElevation.set(elevation);
+    _paintingTime.fill(0);
+    let coords = [current.x/output.clientWidth,
+                  current.y/output.clientHeight];
+    coords = exports.screenToWorldCoords(coords);
+    paintAt(TOOLS[currentTool], coords[0], coords[1], SIZES[currentSize], nowMs - state);
+    exports.onUpdate();
+    return nowMs;
+});
+
 
 exports.screenToWorldCoords = coords => coords;
 exports.getWindAngleDeg = () => windAngleDeg;
@@ -216,4 +176,3 @@ exports.size = CANVAS_SIZE;
 exports.constraints = elevation;
 
 setInitialData();
-paintCanvas();

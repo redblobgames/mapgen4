@@ -37,13 +37,15 @@ const param = {
 exports.param = param;
 
 const river_texturemap = regl.texture({data: Geometry.createRiverBitmap(), mipmap: 'nice', min: 'mipmap', mag: 'linear', premultiplyAlpha: true});
-const fbo_texture_size = 2000;
+const fbo_texture_size = 2048;
 const fbo_land_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size});
 const fbo_land = regl.framebuffer({color: [fbo_land_texture]});
 const fbo_depth_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size});
 const fbo_z = regl.framebuffer({color: [fbo_depth_texture]});
 const fbo_river_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size});
 const fbo_river = regl.framebuffer({color: [fbo_river_texture]});
+const fbo_final_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size, min: 'linear', mag: 'linear'});
+const fbo_final = regl.framebuffer({color: [fbo_final_texture]});
 
 
 /* draw rivers to a texture, which will be draped on the map surface */
@@ -145,7 +147,6 @@ let drawDepth = regl({
 precision highp float;
 varying float v_z;
 void main() {
-   // TODO: add precision like I do to elevation
    gl_FragColor = vec4(fract(256.0*v_z), floor(256.0*v_z)/256.0, 0, 1);
 }`,
 
@@ -221,9 +222,8 @@ void main() {
                       decipher(texture2D(u_depth, v_pos + u_outline_depth*(-dy))));
    float outline = 1.0 + u_outline_strength * (max(u_outline_threshold, depth1-depth0) - u_outline_threshold);
 
-   // gl_FragColor = vec4(light/outline, light/outline, light/outline, 1);
-   // gl_FragColor = texture2D(u_mapdata, v_uv);
-   // gl_FragColor = vec4(mix(vec4(1,1,1,1), water_color, sqrt(water_color.a)).rgb, 1);
+   // gl_FragColor = vec4(0.9*light/outline, 0.8*light/outline, 0.7*light/outline, 1);
+   // gl_FragColor = vec4(vec3(0.1+0.8*em.x, sqrt(em.x)-0.2, 0.8-0.9*em.x) * light / outline, 1);
    gl_FragColor = vec4(mix(biome_color, water_color, water_color.a).rgb * light / outline, 1);
 }`,
 
@@ -242,6 +242,7 @@ void main() {
     gl_Position = pos;
 }`,
 
+    framebuffer: fbo_final,
     elements: regl.prop('elements'),
     attributes: {
         a_xy: regl.prop('a_xy'),
@@ -268,6 +269,42 @@ void main() {
         u_outline_threshold: () => param.drape.outline_threshold/1000,
     },
 });
+
+
+/* draw the high resolution final output to the screen, smoothed and resized */
+let drawFinal = regl({
+    frag: `
+precision mediump float;
+uniform sampler2D u_texture;
+uniform float u_texture_size;
+varying vec2 v_uv;
+const vec2 half_pixel_offset = vec2(0.5, 0.5); // for smoothing
+void main() {
+   gl_FragColor = texture2D(u_texture, v_uv + half_pixel_offset / u_texture_size);
+}`,
+
+    vert: `
+precision highp float;
+attribute vec2 a_uv;
+varying vec2 v_uv;
+void main() {
+  v_uv = a_uv;
+  gl_Position = vec4(2.0 * v_uv - 1.0, 0.0, 1.0);
+}`,
+    
+    uniforms:  {
+        u_texture: fbo_final_texture,
+        u_texture_size: fbo_texture_size,
+    },
+    depth: {
+        enable: false,
+    },
+    count: 3,
+    attributes: {
+        a_uv: [-2, 0, 0, -2, 2, 2]
+    },
+});
+
 
 
 class Renderer {
@@ -344,7 +381,20 @@ class Renderer {
         this.buffer_river_xyuv.subdata(this.a_river_xyuv.subarray(0, 4 * 3 * this.numRiverTriangles));
     }
 
+    /* Allow drawing at a different resolution than the internal texture size */
+    resizeCanvas() {
+        let canvas = /** @type{HTMLCanvasElement} */(document.getElementById('mapgen4'));
+        let size = canvas.clientWidth;
+        size = 2048; /* could be smaller to increase performance */
+        if (canvas.width !== size || canvas.height !== size) {
+            console.log(`Resizing canvas from ${canvas.width}x${canvas.height} to ${size}x${size}`);
+            canvas.width = canvas.height = size;
+            regl.poll();
+        }
+    }
+            
     updateView() {
+        this.resizeCanvas();
         drawLand({
             elements: this.buffer_quad_elements,
             a_xy: this.buffer_quad_xy,
@@ -388,7 +438,6 @@ class Renderer {
             });
         }
         
-        regl.clear({color: [0, 0, 0, 1], depth: 1});
         drawDrape({
             elements: this.buffer_quad_elements,
             a_xy: this.buffer_quad_xy,
@@ -398,6 +447,8 @@ class Renderer {
             u_projection: this.projection,
         });
 
+        drawFinal();
+            
         // I don't have to clear fbo_em because it doesn't have depth
         // and will be redrawn every frame. I do have to clear
         // fbo_river because even though it doesn't have depth, it
@@ -407,6 +458,9 @@ class Renderer {
         });
         fbo_z.use(() => {
             regl.clear({color: [0, 0, 0, 1], depth: 1});
+        });
+        fbo_final.use(() => {
+            regl.clear({color: [0.2, 0.3, 0.5, 1], depth: 1});
         });
     }
 }

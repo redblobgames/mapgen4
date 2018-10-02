@@ -4,44 +4,70 @@
   <address>20 Jul 2018</address>
 
   <style>
-      body.widthflex section > figure { width: unset; max-width: 100%; }
-      #paint { border: 1px dashed green; }
+      button { text-align: center; padding: 0; background: hsl(60,20%,90%); border-radius: 4px; }
+      button svg { width: 100%; height: 100%; }
+      button.current-control { background: hsl(60,100%,80%); }
+      button:focus { outline: none; }
+      body.widthflex section > #ui {
+          width: unset; max-width: 100%; /* break out of default width */
+      }
+      #ui {
+          display: grid;
+          min-height: calc(100vmin - 130px - var(--line-height));
+          grid-template-rows: repeat(3, 40px) 80px 1fr;
+          grid-template-columns: 1fr calc(100vmin - 130px - var(--line-height)) repeat(6, 20px) 1fr;
+          grid-row-gap: 10px;
+          grid-column-gap: 10px;
+      }
+      #map        { grid-area: 1 / 2 / span 5 / span 1; width:100%; height:100%; }
+      #small      { grid-area: 1 / 3 / span 1 / span 2; }
+      #medium     { grid-area: 1 / 5 / span 1 / span 2; }
+      #large      { grid-area: 1 / 7 / span 1 / span 2; }
+      #ocean      { grid-area: 2 / 3 / span 1 / span 3; }
+      #shallow    { grid-area: 2 / 6 / span 1 / span 3; }
+      #valley     { grid-area: 3 / 3 / span 1 / span 3; }
+      #mountain   { grid-area: 3 / 6 / span 1 / span 3; }
+      #wind-angle { grid-area: 4 / 3 / span 1 / span 6; width: 90%; }
+      #timing     { grid-area: 5 / 3 / span 1 / span 6; }
+
+      @media (orientation: portrait) {
+          /* Put the buttons on top instead of on the right */
+          #ui {
+              grid-template-rows: repeat(6, 20px) calc(100vmin);
+              grid-template-columns: 50px repeat(2, 70px) 80px 1fr;
+          }
+          #map { grid-area: 7 / 1 / span 1 / span 6; }
+          #small { grid-area: 1 / 1 / span 2 / span 1; }
+          #medium { grid-area: 3 / 1 / span 2 / span 1; }
+          #large { grid-area: 5 / 1 / span 2 / span 1; }
+          #ocean { grid-area: 1 / 2 / span 3 / span 1; }
+          #shallow { grid-area: 1 / 3 / span 3 / span 1; }
+          #valley { grid-area: 4 / 2 / span 3 / span 1; }
+          #mountain { grid-area: 4 / 3 / span 3 / span 1; }
+          #wind-angle { grid-area: 1 / 4 / span 6 / span 1; }
+          #timing { grid-area: 1 / 5 / span 6 / span 1; }
+      }
+
+      #mapgen4 { width: 100%; height: 100%; }
   </style>
 
-  <x:draft/>
-  
   <x:section>
 
-    <figure>
-      <canvas id="paint" width="256" height="256"/>
-      <div><span id="buttons"/><span id="current-control"/></div>
-      <div>Wind angle: <input id="wind-angle" type="range" value="0" min="0" max="360"/></div>
-      <canvas id="mapgen4" width="2000" height="2000" style="max-width:100vmin"/>
-      <br/>
-      <span id="timing">Loading</span>
-    </figure>
-
-    <p>
-      Mapgen4 was a new map generator project I was working on for <a href="https://www.reddit.com/r/acom/">A Chronicle of Misdeeds</a>. The goal was to use some of the ideas from my polygon map generator project (2010), but extend it with:
-    </p>
-
-    <ul>
-      <li>html5 output instead of Flash</li>
-      <li>continents instead of islands</li>
-      <li>continental mountain ranges instead of island volcanos</li>
-      <li>variable slopes instead of constant slope</li>
-      <li>climate systems (wind, rain)</li>
-      <li>rivers that can pass through deserts and other biomes instead of only going through forests</li>
-      <li>meandering rivers in addition to rivers that go straight down the side of a mountain</li>
-      <li>level designer control over coastlines, mountain ranges, biomes</li>
-      <li>towns</li>
-      <li>resources (iron, wood, stone, gold, etc.)</li>
-      <li>400,000 polygons instead of 4000 polygons</li>
-    </ul>
-
-    <p>
-      I worked on this for much of 2017. The game was cancelled at the end of 2017 so I put this on hold. I used the code I wrote for this project to build <a href="http://simblob.blogspot.com/2018/01/updating-mapgen2.html">an html5 version of mapgen2</a>. I linked to some of the experiments <a href="http://simblob.blogspot.com/2017/09/mapgen2-html5.html">in a blog post</a>. I pivoted a bit and turned it into a map painter in 2018.
-    </p>
+    <div id="ui">
+      <button id="small"><svg viewBox="-50 -50 100 100"><circle r="20"/></svg></button>
+      <button id="medium"><svg viewBox="-50 -50 100 100"><circle r="35"/></svg></button>
+      <button id="large"><svg viewBox="-50 -50 100 100"><circle r="50"/></svg></button>
+      
+      <button id="ocean"><svg viewBox="-50 -50 100 100"><path d="M -60,-30 Q 0,80 60,-30 z" fill="hsl(240,50%,40%)"/></svg></button>
+      <button id="shallow"><svg viewBox="-50 -50 100 100"><path d="M -60,-10 Q 0,30 60,-10 z" fill="hsl(200,50%,70%)"/></svg></button>
+      <button id="valley"><svg viewBox="-50 -50 100 100"><path d="M -60,10 L -50,-10 L 50,-10 L 60,10 z" fill="hsl(100,50%,70%)"/></svg></button>
+      <button id="mountain"><svg viewBox="-50 -50 100 100"><path d="M -60,30 L 0,-30 L 60,30 z" fill="hsl(60,50%,40%)"/></svg></button>
+      
+      <input id="wind-angle" type="range" value="0" min="0" max="360"/>
+      <div id="timing">Loading</div>
+      
+      <div id="map"><canvas id="mapgen4" width="2048" height="2048"/></div>
+    </div>
 
   </x:section>
   
@@ -51,7 +77,7 @@
     <script src="build/_bundle.js"/>
 
     Created 20 Jul 2018 with regl.js, dat.gui, delaunator, poisson-disk-sampling, simplex-noise, hash-int, gl-matrix, flatqueue, webworkify, and other libraries; &#160;
-    <!-- hhmts start -->Last modified: 24 Sep 2018<!-- hhmts end -->
+    <!-- hhmts start -->Last modified: 02 Oct 2018<!-- hhmts end -->
   </x:footer>
   
   
