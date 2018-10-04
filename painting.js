@@ -20,13 +20,16 @@ const {makeRandInt, makeRandFloat} = require('@redblobgames/prng');
 
 const CANVAS_SIZE = 128;
 
-/* The elevation is -128 to -1 → water, 0 to +127 → land */
-const elevation = new Int8Array(CANVAS_SIZE * CANVAS_SIZE);
-/* The previous elevation is the elevation before the current paint stroke began */
-const _previousElevation = new Int8Array(CANVAS_SIZE * CANVAS_SIZE);
-/* The painting time is how long, in milliseconds, was spent painting */
-const _paintingTime = new Float32Array(CANVAS_SIZE * CANVAS_SIZE);
-// TODO: _paintingTime needs to be reset at some point, right?
+/* The elevation is -1.0 to 0.0 → water, 0.0 to +1.0 → land */
+const elevation = new Float32Array(CANVAS_SIZE * CANVAS_SIZE);
+const currentStroke = {
+    /* elevation before the current paint stroke began */
+    previousElevation: new Float32Array(CANVAS_SIZE * CANVAS_SIZE),
+    /* how long, in milliseconds, was spent painting */
+    time: new Float32Array(CANVAS_SIZE * CANVAS_SIZE),
+    /* maximum strength applied */
+    strength: new Float32Array(CANVAS_SIZE * CANVAS_SIZE),
+};
 
 
 /** Use a noise function to determine the initial shapes */
@@ -48,15 +51,15 @@ function setInitialData() {
             let p = y * CANVAS_SIZE + x;
             let nx = 2 * (x/CANVAS_SIZE - 0.5),
                 ny = 2 * (y/CANVAS_SIZE - 0.5);
-            let e = 64 * (n(nx + n(nx+5, ny)*warp, ny + n(nx, ny+5)*warp) + 0.2) | 0;
-            if (e < -128) { e = -128; }
-            if (e > +127) { e = +127; }
+            let e = 0.5 * (n(nx + n(nx+5, ny)*warp, ny + n(nx, ny+5)*warp) + 0.2);
+            if (e < -1.0) { e = -1.0; }
+            if (e > +1.0) { e = +1.0; }
             elevation[p] = e;
-            if (e > 0) {
+            if (e > 0.0) {
                 let m = noise.noise2D(x/CANVAS_SIZE + 3, y/CANVAS_SIZE + 5);
                 let mountain = 1 - Math.abs(m) / 0.5;
-                if (mountain > 0) {
-                    elevation[p] = Math.max(e, Math.min(e * 10, mountain * 127 | 0));
+                if (mountain > 0.0) {
+                    elevation[p] = Math.max(e, Math.min(e * 10, mountain));
                 }
             }
         }
@@ -77,7 +80,7 @@ function paintAt(tool, x0, y0, size, deltaTimeInMs) {
      * strong effect, and it also limits the amount in case you
      * pause */
     deltaTimeInMs = Math.min(100, deltaTimeInMs);
-    
+
     let newElevation = tool.elevation;
     let {innerRadius, outerRadius, rate} = size;
     let xc = (x0 * CANVAS_SIZE) | 0, yc = (y0 * CANVAS_SIZE) | 0;
@@ -90,10 +93,14 @@ function paintAt(tool, x0, y0, size, deltaTimeInMs) {
         for (let x = left; x <= right; x++) {
             let p = y * CANVAS_SIZE + x;
             let distance = Math.sqrt((x - xc) * (x - xc) + (y - yc) * (y - yc));
-            let strength = 1.0 - Math.min(1, (distance - innerRadius) / outerRadius);
-            _paintingTime[p] += strength * (rate/1000 * deltaTimeInMs);
-            strength = Math.min(1, _paintingTime[p]);
-            elevation[p] = (1 - strength) * _previousElevation[p] + strength * newElevation;
+            let strength = 1.0 - Math.min(1, Math.max(0, (distance - innerRadius) / (outerRadius - innerRadius)));
+            let factor = rate/1000 * deltaTimeInMs;
+            currentStroke.time[p] += strength * factor;
+            if (strength > currentStroke.strength[p]) {
+                currentStroke.strength[p] = (1 - factor) * currentStroke.strength[p] + factor * strength;
+            }
+            let mix = currentStroke.strength[p] * Math.min(1, currentStroke.time[p]);
+            elevation[p] = (1 - mix) * currentStroke.previousElevation[p] + mix * newElevation;
         }
     }
 }
@@ -106,10 +113,10 @@ const SIZES = {
 };
 
 const TOOLS = {
-    ocean:    {elevation: -30},
-    shallow:  {elevation: -1},
-    valley:   {elevation: 1},
-    mountain: {elevation: 127},
+    ocean:    {elevation: -0.25},
+    shallow:  {elevation: -0.05},
+    valley:   {elevation: +0.05},
+    mountain: {elevation: +1.0},
 };
 
 let currentTool = 'mountain';
@@ -156,9 +163,12 @@ slider.addEventListener('input', () => {
 const output = document.getElementById('mapgen4');
 makeDraggable(output, output, (begin, current, state) => {
     let nowMs = Date.now();
-    if (state === null) { state = 0; }
-    _previousElevation.set(elevation);
-    _paintingTime.fill(0);
+    if (state === null) {
+        state = 0;
+        currentStroke.time.fill(0);
+        currentStroke.strength.fill(0);
+        currentStroke.previousElevation.set(elevation);
+    }
     let coords = [current.x/output.clientWidth,
                   current.y/output.clientHeight];
     coords = exports.screenToWorldCoords(coords);

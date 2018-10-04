@@ -136,11 +136,11 @@ class Map {
                 return ((e00 * (1 - xFrac) + e01 * xFrac) * (1 - yFrac)
                         + (e10 * (1 - xFrac) + e11 * xFrac) * yFrac);
             } else {
-                return -128;
+                return -1.0;
             }
         }
         for (let t = 0; t < numSolidTriangles; t++) {
-            t_elevation[t] = constraintAt(mesh.t_x(t)/1000, mesh.t_y(t)/1000) / 128.0;
+            t_elevation[t] = constraintAt(mesh.t_x(t)/1000, mesh.t_y(t)/1000);
         }
         
         // For land triangles, mix hill and mountain terrain together
