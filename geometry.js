@@ -44,7 +44,7 @@ exports.setMeshGeometry = function(mesh, P) {
 exports.setMapGeometry = function(map, I, P) {
     // TODO: V should probably depend on the slope, or elevation, or maybe it should be 0.95 in mountainous areas and 0.99 elsewhere
     const V = 0.95; // reduce elevation in valleys
-    let {mesh, r_water, s_flow, r_elevation, t_elevation, r_moisture} = map;
+    let {mesh, s_flow, r_elevation, t_elevation, r_moisture} = map;
     let {numSolidSides, numRegions, numTriangles} = mesh;
 
     if (I.length !== 3 * numSolidSides) { throw "wrong size"; }
@@ -79,7 +79,7 @@ exports.setMapGeometry = function(map, I, P) {
         // a quadrilateral. This is usually a nuisance but in this
         // case it's a feature. See the explanation here
         // https://www.redblobgames.com/x/1725-procedural-elevation/#rendering
-        let coast = r_water[r1] || r_water[r2];
+        let coast = r_elevation[r1] < 0.0 || r_elevation[r2] < 0.0;
         if (coast || s_flow[s] > 0 || s_flow[opposite_s] > 0) {
             // It's a coastal or river edge, forming a valley
             I[i++] = r1; I[i++] = numRegions+t2; I[i++] = numRegions+t1;
@@ -222,6 +222,7 @@ exports.setRiverTextures = function(map, spacing, P) {
     function riverSize(s, flow) {
         // TODO: performance: build a table of flow to width
         // TODO: magic number should be a parameter
+        if (s < 0) { return 1; }
         let width = Math.sqrt(flow - MIN_FLOW) * spacing / 15;
         let size = Math.ceil(width * numRiverSizes / s_length[s]);
         return clamp(size, 1, numRiverSizes);
@@ -230,7 +231,6 @@ exports.setRiverTextures = function(map, spacing, P) {
     let p = 0, uv = [0, 0, 0, 0, 0, 0];
     for (let t = 0; t < numSolidTriangles; t++) {
         let out_s = t_downslope_s[t];
-        if (t_elevation[t] < 0) continue;
         if (s_flow[out_s] < MIN_FLOW) continue;
         let r1 = mesh.s_begin_r(3*t    ),
             r2 = mesh.s_begin_r(3*t + 1),

@@ -64,7 +64,7 @@ function calculateMountainDistance(mesh, seeds_t, spacing) {
  * @param {SimplexNoise} noise - the noise generator
  * @param {Mesh} mesh
  * @returns {Float32Array[]} - noise indexed by triangle id, for several octaves
- */ 
+ */
 function precalculateNoise(noise, mesh) {
     let {numTriangles} = mesh;
     let noise0 = new Float32Array(numTriangles),
@@ -101,7 +101,6 @@ class Map {
         this.r_humidity = new Float32Array(mesh.numRegions);
         this.t_moisture = new Float32Array(mesh.numTriangles);
         this.r_moisture = new Float32Array(mesh.numRegions);
-        this.r_water = new Int8Array(mesh.numRegions);
         this.t_downslope_s = new Int32Array(mesh.numTriangles);
         this.order_t = new Int32Array(mesh.numTriangles);
         this.t_flow = new Float32Array(mesh.numTriangles);
@@ -113,12 +112,10 @@ class Map {
             noise: precalculateNoise(this.noise, mesh),
             t_mountain_distance: calculateMountainDistance(mesh, peaks_t, param.spacing),
         };
-        this.seeds_t = [];
-        this.coastline_t = [];
     }
 
     assignTriangleElevation(constraints) {
-        let {mesh, noise, spacing, t_elevation, coastline_t, seeds_t} = this;
+        let {mesh, noise, spacing, t_elevation} = this;
         let {numTriangles, numSolidTriangles, numRegions, numSides} = mesh;
 
         // Assign elevations to triangles
@@ -143,52 +140,9 @@ class Map {
             }
         }
         for (let t = 0; t < numSolidTriangles; t++) {
-            /* NOTE: I never want the original painted elevation to be 0,
-             * because I use 0 for coastal triangles, and need to determine
-             * them with an algorithm that looks at >0 vs <0 */
-            let e = constraintAt(mesh.t_x(t)/1000, mesh.t_y(t)/1000) / 128.0;
-            if (e === 0.0) { e = 0.001; }
-            t_elevation[t] = e;
+            t_elevation[t] = constraintAt(mesh.t_x(t)/1000, mesh.t_y(t)/1000) / 128.0;
         }
         
-        // Determine coastal triangles: those with some land and some
-        // ocean neighbors. Also set ghost triangles to be coastal.
-        seeds_t.splice(0);
-        for (let t = numSolidTriangles; t < numTriangles; t++) {
-            seeds_t.push(t);
-        }
-        for (let t = 0; t < numSolidTriangles; t++) {
-            let ocean = 0;
-            for (let i = 0; i < 3; i++) {
-                let s = 3 * t + i;
-                let opposite_s = mesh._halfedges[s];
-                let neighbor_t = (opposite_s / 3) | 0;
-                if (t_elevation[neighbor_t] < 0.0) { ocean++; }
-            }
-            if (ocean !== 0 && ocean !== 3) {
-                seeds_t.push(t);
-            }
-        }
-        // Set coastal triangles to have elevation 0. We can't do this
-        // in the above loop because we need to look at neighboring
-        // elevations.
-        for (let t of seeds_t) {
-            t_elevation[t] = 0.0;
-        }
-        // HACK: I'd like to perform the Dijkstra Search from the
-        // coastal triangles, but that doesn't set t_downstream_s,
-        // which I currently need for rendering. So instead I run the
-        // search from all ocean triangles. TODO: this may be good
-        // enough, and then I can skip the coastal triangle
-        // calculation, except that I need to reach the oceans a
-        // different way
-        seeds_t.splice(0);
-        for (let t = 0; t < numSolidTriangles; t++) {
-            if (t_elevation[t] < 0) {
-                seeds_t.push(t);
-            }
-        }
-
         // For land triangles, mix hill and mountain terrain together
         const mountain_slope = mountain.slope,
               t_mountain_distance = this.precomputed.t_mountain_distance,
@@ -223,10 +177,8 @@ class Map {
                 let weight = e * e;
                 e = (1-weight) * eh + weight * em;
             } else {
-                /* The water depth depends on distance to the coast
-                 * and also some noise. The purpose is to make the
-                 * shades of blue vary. */
-                e *= 2 + noise1[t];
+                /* Add noise to make it more interesting. */
+                e *= 1.5 + noise1[t]; // TODO: parameter
             }
             if (e < -1.0) { e = -1.0; }
             if (e > +1.0) { e = +1.0; }
@@ -235,7 +187,7 @@ class Map {
     }
     
     assignRegionElevation(constraints) {
-        let {mesh, t_elevation, r_elevation, r_water} = this;
+        let {mesh, t_elevation, r_elevation} = this;
         let {numRegions, _r_in_s, _halfedges} = mesh;
         let out_t = [];
         for (let r = 0; r < numRegions; r++) {
@@ -253,7 +205,6 @@ class Map {
             e /= count;
             if (water && e >= 0) { e = -0.001; }
             r_elevation[r] = e;
-            r_water[r] = water? 1 : 0;
         }
     }
 
@@ -315,37 +266,51 @@ class Map {
     }
 
     assignRivers() {
-        let {mesh, seeds_t, t_moisture, r_moisture, t_elevation, t_downslope_s, order_t, t_flow, s_flow} = this;
-        dijkstra_search(mesh, seeds_t, t_elevation, t_downslope_s, order_t);
-        assign_t_moisture(mesh, r_moisture, t_moisture);
-        assign_flow(mesh, order_t, t_elevation, t_moisture, t_downslope_s, t_flow, s_flow);
+        let {mesh, t_moisture, r_moisture, t_elevation, t_downslope_s, order_t, t_flow, s_flow} = this;
+        assignDownflow(mesh, t_elevation, t_downslope_s, order_t);
+        assignMoisture(mesh, r_moisture, t_moisture);
+        assignFlow(mesh, order_t, t_elevation, t_moisture, t_downslope_s, t_flow, s_flow);
     }
         
 }
 
 
 /**
- * Use Dijkstra's Algorithm (Uniform Cost Search) to assign river locations
+ * Use prioritized graph exploration to assign river flow direction
  *
  * @param {Mesh} mesh
- * @param {number[]} seeds_t - starting points for the search
  * @param {Float32Array} t_elevation - elevation per triangle
  * @param {Int32Array} t_downflow_s - OUT parameter - the side each triangle flows out of
  * @param {Int32Array} order_t - OUT parameter - pre-order in which the graph was traversed,
  *   so roots of the tree always get visited before leaves; use reverse to visit leaves before roots
  */
 let queue = new FlatQueue();
-function dijkstra_search(mesh, seeds_t, t_elevation, /* out */ t_downflow_s, /* out */ order_t) {
-    // TODO: no need to do this for oceans
-    let numSeeds = seeds_t.length,
-        {numTriangles} = mesh;
+function assignDownflow(mesh, t_elevation, /* out */ t_downflow_s, /* out */ order_t) {
+    /* Use a priority queue, starting with the ocean triangles and
+     * moving upwards using elevation as the priority, to visit all
+     * the land triangles */
+    let {numTriangles} = mesh,
+        queue_in = 0;
     t_downflow_s.fill(-999);
-    for (let t of seeds_t) {
-        t_downflow_s[t] = -1;
-        queue.push(t, t_elevation[t]);
-    };
-    order_t.set(seeds_t);
-    for (let queue_in = numSeeds, queue_out = 0; queue_out < numTriangles; queue_out++) {
+    /* Part 1: ocean triangles get downslope assigned to the lowest neighbor */
+    for (let t = 0; t < numTriangles; t++) {
+        if (t_elevation[t] < 0) {
+            let best_s = -1, best_e = t_elevation[t];
+            for (let j = 0; j < 3; j++) {
+                let s = 3 * t + j,
+                    e = t_elevation[mesh.s_outer_t(s)];
+                if (e < best_e) {
+                    best_e = e;
+                    best_s = s;
+                }
+            }
+            order_t[queue_in++] = t;
+            t_downflow_s[t] = best_s;
+            queue.push(t, t_elevation[t]);
+        }
+    }
+    /* Part 2: land triangles get visited in elevation priority */
+    for (let queue_out = 0; queue_out < numTriangles; queue_out++) {
         let current_t = queue.pop();
         for (let j = 0; j < 3; j++) {
             let s = 3 * current_t + j;
@@ -357,9 +322,6 @@ function dijkstra_search(mesh, seeds_t, t_elevation, /* out */ t_downflow_s, /* 
             }
         }
     }
-    if (queue.length !== 0) {
-        throw "ERROR: queue should be empty";
-    }
 }
 
 
@@ -368,7 +330,7 @@ function dijkstra_search(mesh, seeds_t, t_elevation, /* out */ t_downflow_s, /* 
  * @param {Float32Array} r_moisture - per region
  * @param {Float32Array} t_moisture - OUT parameter - per triangle
  */
-function assign_t_moisture(mesh, r_moisture, /* out */ t_moisture) {
+function assignMoisture(mesh, r_moisture, /* out */ t_moisture) {
     const {numTriangles} = mesh;
     for (let t = 0; t < numTriangles; t++) {
         let moisture = 0.0;
@@ -389,8 +351,7 @@ function assign_t_moisture(mesh, r_moisture, /* out */ t_moisture) {
  * t_flow:       Float32Array[numTriangles]
  * s_flow:       Float32Array[numSides]
  */
-function assign_flow(mesh, order_t, t_elevation, t_moisture, t_downflow_s, /* out */ t_flow, /* out */ s_flow) {
-    // TODO: no need to do this for oceans
+function assignFlow(mesh, order_t, t_elevation, t_moisture, t_downflow_s, /* out */ t_flow, /* out */ s_flow) {
     let {numTriangles, _halfedges} = mesh;
     s_flow.fill(0);
     for (let t = 0; t < numTriangles; t++) {
@@ -401,15 +362,14 @@ function assign_flow(mesh, order_t, t_elevation, t_moisture, t_downflow_s, /* ou
         }
     }
     for (let i = order_t.length-1; i >= 0; i--) {
-        // t1 is the tributary and t2 is the trunk
-        let t1 = order_t[i];
-        let s = t_downflow_s[t1];
-        let t2 = (_halfedges[s] / 3) | 0;
-        if (s >= 0 && t_elevation[t2] >= 0.0) {
-            t_flow[t2] += t_flow[t1];
-            s_flow[s] += t_flow[t1]; // TODO: isn't s_flow[s] === t_flow[?]
-            if (t_elevation[t2] > t_elevation[t1]) {
-                t_elevation[t2] = t_elevation[t1];
+        let tributary_t = order_t[i];
+        let flow_s = t_downflow_s[tributary_t];
+        let trunk_t = (_halfedges[flow_s] / 3) | 0;
+        if (flow_s >= 0) {
+            t_flow[trunk_t] += t_flow[tributary_t];
+            s_flow[flow_s] += t_flow[tributary_t]; // TODO: isn't s_flow[flow_s] === t_flow[?]
+            if (t_elevation[trunk_t] > t_elevation[tributary_t]) {
+                t_elevation[trunk_t] = t_elevation[tributary_t];
             }
         }
     }
