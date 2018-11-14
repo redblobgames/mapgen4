@@ -5,7 +5,7 @@
  */
 'use strict';
 
-/* Generate the biome colormap indexed by elevation -1:+1 and moisture 0:1 */
+/* Generate the biome colormap indexed by elevation -1:+1 and rainfall 0:1 */
 exports.width = 64,
 exports.height = 64;
 
@@ -38,7 +38,7 @@ function colormap() {
                 g = 64 + 64*e;
                 b = 127 + 127*e;
             } else { // adapted from terrain-from-noise article
-                m = m * (1-e); // colder areas can hold less moisture
+                m = m * (1-e); // higher elevation holds less moisture; TODO: should be based on slope, not elevation
                 
                 r = 210 - 100*m;
                 g = 185 - 45*m;

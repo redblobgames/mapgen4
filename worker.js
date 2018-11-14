@@ -28,16 +28,23 @@ function Worker(self) {
         
         const map = new Map(mesh, event.data.peaks_t, param);
 
+        // TODO: placeholder
+        const run = {elevation: true, biomes: true, rivers: true};
+        
         // This handler is for all subsequent messages
         handler = event => {
-            let {constraints, quad_elements_buffer, a_quad_em_buffer, a_river_xyuv_buffer} = event.data;
+            let {param, constraints, quad_elements_buffer, a_quad_em_buffer, a_river_xyuv_buffer} = event.data;
 
+            let numRiverTriangles = 0;
             let start_time = performance.now();
-            map.assignElevation(constraints);
-            map.assignMoisture(constraints.windAngleDeg);
-            map.assignRivers();
-            Geometry.setMapGeometry(map, new Int32Array(quad_elements_buffer), new Float32Array(a_quad_em_buffer));
-            let numRiverTriangles = Geometry.setRiverTextures(map, param.spacing, new Float32Array(a_river_xyuv_buffer));
+            
+            if (run.elevation) { map.assignElevation(param.elevation, constraints); }
+            if (run.biomes) { map.assignRainfall(param.biomes); }
+            if (run.rivers) { map.assignRivers(param.rivers); }
+            if (run.elevation || run.rivers) {
+                Geometry.setMapGeometry(map, new Int32Array(quad_elements_buffer), new Float32Array(a_quad_em_buffer));
+            }
+            if (run.rivers) { numRiverTriangles = Geometry.setRiverTextures(map, param.spacing, param.rivers, new Float32Array(a_river_xyuv_buffer)); }
             let elapsed = performance.now() - start_time;
 
             self.postMessage(

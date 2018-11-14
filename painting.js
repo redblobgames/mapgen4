@@ -7,7 +7,7 @@
  */
 'use strict';
 
-/* global makeDraggable */
+/* global Draggable */
 
 /*
  * The painting interface uses a square array of elevations. As you
@@ -16,12 +16,10 @@
  */
 
 const SimplexNoise = require('simplex-noise');
-const {makeRandInt, makeRandFloat} = require('@redblobgames/prng');
+const {makeRandFloat} = require('@redblobgames/prng');
 
 const CANVAS_SIZE = 128;
 
-/* The elevation is -1.0 to 0.0 → water, 0.0 to +1.0 → land */
-const elevation = new Float32Array(CANVAS_SIZE * CANVAS_SIZE);
 const currentStroke = {
     /* elevation before the current paint stroke began */
     previousElevation: new Float32Array(CANVAS_SIZE * CANVAS_SIZE),
@@ -32,78 +30,104 @@ const currentStroke = {
 };
 
 
-/** Use a noise function to determine the initial shapes */
-function setInitialData() {
-    const noise = new SimplexNoise(makeRandFloat(188)); // TODO: seed
-    function n(nx, ny) {
-        // A bunch of tweaks; TODO: this should be more principled, or parameterized
-        let a = noise.noise2D(nx, ny),
-            b = noise.noise2D(2*nx + 5, 2*ny + 5),
-            c = noise.noise2D(4*nx + 7, 4*ny + 7),
-            d = noise.noise2D(8*nx + 9, 8*ny + 9);
-        let ia = 1 - Math.abs(a);
-        return (0.75 * a + 0.5 * a * b + 0.25 * ia * c + 0.125 * ia * d);
+/* The elevation is -1.0 to 0.0 → water, 0.0 to +1.0 → land */
+class Generator {
+    constructor () {
+        this.elevation = new Float32Array(CANVAS_SIZE * CANVAS_SIZE);
     }
 
-    const warp = 0.2;
-    for (let y = 0; y < CANVAS_SIZE; y++) {
-        for (let x = 0; x < CANVAS_SIZE; x++) {
-            let p = y * CANVAS_SIZE + x;
-            let nx = 2 * (x/CANVAS_SIZE - 0.5),
-                ny = 2 * (y/CANVAS_SIZE - 0.5);
-            let e = 0.5 * (n(nx + n(nx+5, ny)*warp, ny + n(nx, ny+5)*warp) + 0.2);
-            if (e < -1.0) { e = -1.0; }
-            if (e > +1.0) { e = +1.0; }
-            elevation[p] = e;
-            if (e > 0.0) {
-                let m = noise.noise2D(x/CANVAS_SIZE + 3, y/CANVAS_SIZE + 5);
-                let mountain = 1 - Math.abs(m) / 0.5;
-                if (mountain > 0.0) {
-                    elevation[p] = Math.max(e, Math.min(e * 10, mountain));
+    setElevationParam(elevationParam) {
+        if (   elevationParam.seed    !== this.seed
+            || elevationParam.inflate !== this.inflate
+            || elevationParam.round   !== this.round) {
+            this.seed    = elevationParam.seed;
+            this.inflate = elevationParam.inflate;
+            this.round   = elevationParam.round;
+            this.generate();
+        }
+    }
+    
+    /** Use a noise function to determine the shape */
+    generate() {
+        const {elevation, inflate, round} = this;
+        const noise = new SimplexNoise(makeRandFloat(this.seed));
+        const persistence = 1/2;
+        const amplitudes = Array.from({length: 5}, (_, octave) => Math.pow(persistence, octave));
+
+        function fbm_noise(nx, ny) {
+            let sum = 0, sumOfAmplitudes = 0;
+            for (let octave = 0; octave < amplitudes.length; octave++) {
+                let frequency = 1 << octave;
+                sum += amplitudes[octave] * noise.noise2D(nx * frequency, ny * frequency);
+                sumOfAmplitudes += amplitudes[octave];
+            }
+            return sum / sumOfAmplitudes;
+        }
+
+        for (let y = 0; y < CANVAS_SIZE; y++) {
+            for (let x = 0; x < CANVAS_SIZE; x++) {
+                let p = y * CANVAS_SIZE + x;
+                let nx = 2 * x/CANVAS_SIZE - 1,
+                    ny = 2 * y/CANVAS_SIZE - 1;
+                let distance = Math.max(Math.abs(nx), Math.abs(ny));
+                let e = ((1-round) * fbm_noise(nx, ny) + round * 0.5) - (1.0 - inflate) * distance * distance;
+                if (e < -1.0) { e = -1.0; }
+                if (e > +1.0) { e = +1.0; }
+                elevation[p] = e;
+                if (e > 0.0) {
+                    let m = (0.5 * noise.noise2D(nx + 30, ny + 50)
+                             + 0.5 * noise.noise2D(2*nx + 33, 2*ny + 55));
+                    let mountain = Math.min(1.0, e * 5.0) * (1 - Math.abs(m) / 0.5);
+                    if (mountain > 0.0) {
+                        elevation[p] = Math.max(e, Math.min(e * 10, mountain));
+                    }
                 }
             }
         }
     }
-}
 
-/** 
- * Paint a circular region
- *
- * @param {{elevation: number}} tool
- * @param {number} x0 - should be 0 to 1
- * @param {number} y0 - should be 0 to 1
- * @param {{innerRadius: number, outerRadius: number, rate: number}} size
- * @param {number} deltaTimeInMs
- */
-function paintAt(tool, x0, y0, size, deltaTimeInMs) {
-    /* This has two effects: first time you click the mouse it has a
-     * strong effect, and it also limits the amount in case you
-     * pause */
-    deltaTimeInMs = Math.min(100, deltaTimeInMs);
+    /**
+     * Paint a circular region
+     *
+     * @param {{elevation: number}} tool
+     * @param {number} x0 - should be 0 to 1
+     * @param {number} y0 - should be 0 to 1
+     * @param {{innerRadius: number, outerRadius: number, rate: number}} size
+     * @param {number} deltaTimeInMs
+     */
+    paintAt(tool, x0, y0, size, deltaTimeInMs) {
+        let {elevation} = this;
+        /* This has two effects: first time you click the mouse it has a
+         * strong effect, and it also limits the amount in case you
+         * pause */
+        deltaTimeInMs = Math.min(100, deltaTimeInMs);
 
-    let newElevation = tool.elevation;
-    let {innerRadius, outerRadius, rate} = size;
-    let xc = (x0 * CANVAS_SIZE) | 0, yc = (y0 * CANVAS_SIZE) | 0;
-    let top = Math.max(0, yc - outerRadius),
-        bottom = Math.min(CANVAS_SIZE-1, yc + outerRadius);
-    for (let y = top; y <= bottom; y++) {
-        let s = Math.sqrt(outerRadius * outerRadius - (y - yc) * (y - yc)) | 0;
-        let left = Math.max(0, xc - s),
-            right = Math.min(CANVAS_SIZE-1, xc + s);
-        for (let x = left; x <= right; x++) {
-            let p = y * CANVAS_SIZE + x;
-            let distance = Math.sqrt((x - xc) * (x - xc) + (y - yc) * (y - yc));
-            let strength = 1.0 - Math.min(1, Math.max(0, (distance - innerRadius) / (outerRadius - innerRadius)));
-            let factor = rate/1000 * deltaTimeInMs;
-            currentStroke.time[p] += strength * factor;
-            if (strength > currentStroke.strength[p]) {
-                currentStroke.strength[p] = (1 - factor) * currentStroke.strength[p] + factor * strength;
+        let newElevation = tool.elevation;
+        let {innerRadius, outerRadius, rate} = size;
+        let xc = (x0 * CANVAS_SIZE) | 0, yc = (y0 * CANVAS_SIZE) | 0;
+        let top = Math.max(0, yc - outerRadius),
+            bottom = Math.min(CANVAS_SIZE-1, yc + outerRadius);
+        for (let y = top; y <= bottom; y++) {
+            let s = Math.sqrt(outerRadius * outerRadius - (y - yc) * (y - yc)) | 0;
+            let left = Math.max(0, xc - s),
+                right = Math.min(CANVAS_SIZE-1, xc + s);
+            for (let x = left; x <= right; x++) {
+                let p = y * CANVAS_SIZE + x;
+                let distance = Math.sqrt((x - xc) * (x - xc) + (y - yc) * (y - yc));
+                let strength = 1.0 - Math.min(1, Math.max(0, (distance - innerRadius) / (outerRadius - innerRadius)));
+                let factor = rate/1000 * deltaTimeInMs;
+                currentStroke.time[p] += strength * factor;
+                if (strength > currentStroke.strength[p]) {
+                    currentStroke.strength[p] = (1 - factor) * currentStroke.strength[p] + factor * strength;
+                }
+                let mix = currentStroke.strength[p] * Math.min(1, currentStroke.time[p]);
+                elevation[p] = (1 - mix) * currentStroke.previousElevation[p] + mix * newElevation;
             }
-            let mix = currentStroke.strength[p] * Math.min(1, currentStroke.time[p]);
-            elevation[p] = (1 - mix) * currentStroke.previousElevation[p] + mix * newElevation;
         }
     }
 }
+let heightMap = new Generator();
+
 
 const SIZES = {
     // rate is effect per second
@@ -153,36 +177,29 @@ for (let control of controls) {
 }
 displayCurrentTool();
 
-const slider = /** @type{HTMLInputElement} */(document.getElementById('wind-angle'));
-let windAngleDeg = 0;
-slider.addEventListener('input', () => {
-    exports.setWindAngleDeg(slider.valueAsNumber);
-    exports.onUpdate();
-});
-
 const output = document.getElementById('mapgen4');
-makeDraggable(output, output, (begin, current, state) => {
-    let nowMs = Date.now();
-    if (state === null) {
-        state = 0;
+new Draggable({
+    el: output,
+    start(event) {
+        this.timestamp = Date.now();
         currentStroke.time.fill(0);
         currentStroke.strength.fill(0);
-        currentStroke.previousElevation.set(elevation);
-    }
-    let coords = [current.x/output.clientWidth,
-                  current.y/output.clientHeight];
-    coords = exports.screenToWorldCoords(coords);
-    paintAt(TOOLS[currentTool], coords[0], coords[1], SIZES[currentSize], nowMs - state);
-    exports.onUpdate();
-    return nowMs;
+        currentStroke.previousElevation.set(heightMap.elevation);
+        this.drag(event);
+    },
+    drag(event) {
+        const nowMs = Date.now();
+        let coords = [event.x / output.clientWidth,
+                      event.y / output.clientHeight];
+        coords = exports.screenToWorldCoords(coords);
+        heightMap.paintAt(TOOLS[currentTool], coords[0], coords[1], SIZES[currentSize], nowMs - this.timestamp);
+        this.timestamp = nowMs;
+        exports.onUpdate();
+    },
 });
 
-
 exports.screenToWorldCoords = coords => coords;
-exports.getWindAngleDeg = () => windAngleDeg;
-exports.setWindAngleDeg = (angleDeg) => { windAngleDeg = angleDeg; };
 exports.onUpdate = () => {};
 exports.size = CANVAS_SIZE;
-exports.constraints = elevation;
-
-setInitialData();
+exports.constraints = heightMap.elevation;
+exports.setElevationParam = elevationParam => heightMap.setElevationParam(elevationParam);

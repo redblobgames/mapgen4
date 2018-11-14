@@ -16,25 +16,6 @@ const regl = require('regl')({
     extensions: ['OES_element_index_uint']
 });
 
-const param = {
-    distance: 480,
-    x: 500,
-    y: 500,
-    drape: {
-        light_angle_deg: 80,
-        slope: 2,
-        flat: 2.5,
-        c: 0.25,
-        d: 30,
-        rotate_x_deg: 0,
-        rotate_z_deg: 0,
-        mountain_height: 50, /* map is 1000x1000; how tall should mountains be? */
-        outline_depth: 1,
-        outline_strength: 15,
-        outline_threshold: 0,
-    },
-};
-exports.param = param;
 
 const river_texturemap = regl.texture({data: Geometry.createRiverBitmap(), mipmap: 'nice', min: 'mipmap', mag: 'linear', premultiplyAlpha: true});
 const fbo_texture_size = 2048;
@@ -49,7 +30,7 @@ const fbo_final = regl.framebuffer({color: [fbo_final_texture]});
 
 
 /* draw rivers to a texture, which will be draped on the map surface */
-let drawRivers = regl({
+const drawRivers = regl({
     frag: `
 precision mediump float;
 uniform sampler2D u_rivertexturemap;
@@ -97,12 +78,13 @@ void main() {
 
 
 /* write 16-bit elevation to a texture's G,R channels; the B,A channels are empty */
-let drawLand = regl({
+const drawLand = regl({
     frag: `
 precision highp float;
 varying float v_e;
 void main() {
    float e = 0.5 * (1.0 + v_e);
+   // TODO: param:
    if (e < 0.5) { e -= 0.005; } // produces the border
    gl_FragColor = vec4(fract(256.0*e), e, 0, 1);
    // NOTE: it should be using the floor instead of rounding, but
@@ -142,7 +124,7 @@ void main() {
 
 /* using the same perspective as the final output, write the depth
    to a texture, G,R channels; used for outline shader */
-let drawDepth = regl({
+const drawDepth = regl({
     frag: `
 precision highp float;
 varying float v_z;
@@ -177,7 +159,7 @@ void main() {
 /* draw the final image by draping the biome colors over the geometry;
    note that u_depth and u_mapdata are both encoded with G,R channels
    for 16 bits */
-let drawDrape = regl({
+const drawDrape = regl({
     frag: `
 precision highp float;
 uniform sampler2D u_colormap;
@@ -249,30 +231,26 @@ void main() {
         a_em: regl.prop('a_em'),
     },
     uniforms: {
-        u_exponent: () => param.exponent,
         u_projection: regl.prop('u_projection'),
         u_depth: regl.prop('u_depth'),
         u_colormap: regl.texture({width: colormap.width, height: colormap.height, data: colormap.data, wrapS: 'clamp', wrapT: 'clamp'}),
         u_mapdata: () => fbo_land_texture,
         u_water: regl.prop('u_water'),
         u_inverse_texture_size: 1.5 / fbo_texture_size,
-        u_light_angle: () => [
-            Math.cos(Math.PI/180 * (param.drape.light_angle_deg + param.drape.rotate_z_deg)),
-            Math.sin(Math.PI/180 * (param.drape.light_angle_deg + param.drape.rotate_z_deg)),
-        ],
-        u_slope: () => param.drape.slope,
-        u_flat: () => param.drape.flat,
-        u_c: () => param.drape.c,
-        u_d: () => param.drape.d,
-        u_outline_depth: () => param.drape.outline_depth * 500 / param.distance,
-        u_outline_strength: () => param.drape.outline_strength,
-        u_outline_threshold: () => param.drape.outline_threshold/1000,
+        u_light_angle: regl.prop('u_light_angle'),
+        u_slope: regl.prop('u_slope'),
+        u_flat: regl.prop('u_flat'),
+        u_c: regl.prop('u_c'),
+        u_d: regl.prop('u_d'),
+        u_outline_depth: regl.prop('u_outline_depth'),
+        u_outline_strength: regl.prop('u_outline_strength'),
+        u_outline_threshold: regl.prop('u_outline_threshold'),
     },
 });
 
 
 /* draw the high resolution final output to the screen, smoothed and resized */
-let drawFinal = regl({
+const drawFinal = regl({
     frag: `
 precision mediump float;
 uniform sampler2D u_texture;
@@ -309,6 +287,8 @@ void main() {
 
 class Renderer {
     constructor (mesh) {
+        this.resizeCanvas();
+        
         this.topdown = mat4.create();
         mat4.translate(this.topdown, this.topdown, [-1, -1, 0, 0]);
         mat4.scale(this.topdown, this.topdown, [1/500, 1/500, 1, 1]);
@@ -354,6 +334,9 @@ class Renderer {
             type: 'float',
             length: 4 * this.a_river_xyuv.length,
         });
+
+        this.renderParam = undefined;
+        this.startDrawingLoop();
     }
 
     /**
@@ -365,7 +348,7 @@ class Renderer {
         let glCoords = vec4.fromValues(
             coords[0] * 2 - 1,
             1 - coords[1] * 2,
-            /* TODO: z should be 0 only when rotate_x_deg is 0;
+            /* TODO: z should be 0 only when tilt_deg is 0;
              * need to figure out the proper z value here */
             0,
             1
@@ -392,78 +375,102 @@ class Renderer {
             regl.poll();
         }
     }
-            
-    updateView() {
-        this.resizeCanvas();
-        drawLand({
-            elements: this.buffer_quad_elements,
-            a_xy: this.buffer_quad_xy,
-            a_em: this.buffer_quad_em,
-            u_projection: this.topdown,
-        });
 
-        drawRivers({
-            count: 3 * this.numRiverTriangles,
-            a_xyuv: this.buffer_river_xyuv,
-            u_projection: this.topdown,
-        });
-        
-        /* Standard rotation for orthographic view */
-        mat4.identity(this.projection);
-        mat4.rotateX(this.projection, this.projection, (180 + param.drape.rotate_x_deg) * Math.PI/180);
-        mat4.rotateZ(this.projection, this.projection, param.drape.rotate_z_deg * Math.PI/180);
-        
-        /* Top-down oblique copies column 2 (y input) to row 3 (z
-         * output). Typical matrix libraries such as glm's mat4 or
-         * Unity's Matrix4x4 or Unreal's FMatrix don't have this
-         * this.projection built-in. For mapgen4 I merge orthographic
-         * (which will *move* part of y-input to z-output) and
-         * top-down oblique (which will *copy* y-input to z-output).
-         * <https://en.wikipedia.org/wiki/Oblique_projection> */
-        this.projection[9] = 1;
-        
-        /* Scale and translate works on the hybrid this.projection */
-        mat4.scale(this.projection, this.projection, [1/param.distance, 1/param.distance, param.drape.mountain_height/param.distance, 1]);
-        mat4.translate(this.projection, this.projection, [-param.x, -param.y, 0, 0]);
+    startDrawingLoop() {
+        /* Only draw when render parameters have been passed in;
+         * otherwise skip the render and wait for the next tick */
+        regl.frame(context => {
+            const renderParam = this.renderParam;
+            if (!renderParam) { return; }
+            this.renderParam = undefined;
 
-        /* Keep track of the inverse matrix for mapping mouse to world coordinates */
-        mat4.invert(this.inverse_projection, this.projection);
-
-        if (param.drape.outline_depth > 0) {
-            drawDepth({
+            drawLand({
                 elements: this.buffer_quad_elements,
                 a_xy: this.buffer_quad_xy,
                 a_em: this.buffer_quad_em,
-                u_projection: this.projection
+                u_projection: this.topdown,
             });
-        }
-        
-        drawDrape({
-            elements: this.buffer_quad_elements,
-            a_xy: this.buffer_quad_xy,
-            a_em: this.buffer_quad_em,
-            u_water: fbo_river_texture,
-            u_depth: fbo_depth_texture,
-            u_projection: this.projection,
-        });
 
-        drawFinal();
+            if (this.numRiverTriangles > 0) {
+                drawRivers({
+                    count: 3 * this.numRiverTriangles,
+                    a_xyuv: this.buffer_river_xyuv,
+                    u_projection: this.topdown,
+                });
+            }
             
-        // I don't have to clear fbo_em because it doesn't have depth
-        // and will be redrawn every frame. I do have to clear
-        // fbo_river because even though it doesn't have depth, it
-        // doesn't draw all triangles.
-        fbo_river.use(() => {
-            regl.clear({color: [0, 0, 0, 0]});
+            /* Standard rotation for orthographic view */
+            mat4.identity(this.projection);
+            mat4.rotateX(this.projection, this.projection, (180 + renderParam.tilt_deg) * Math.PI/180);
+            mat4.rotateZ(this.projection, this.projection, renderParam.rotate_deg * Math.PI/180);
+            
+            /* Top-down oblique copies column 2 (y input) to row 3 (z
+             * output). Typical matrix libraries such as glm's mat4 or
+             * Unity's Matrix4x4 or Unreal's FMatrix don't have this
+             * this.projection built-in. For mapgen4 I merge orthographic
+             * (which will *move* part of y-input to z-output) and
+             * top-down oblique (which will *copy* y-input to z-output).
+             * <https://en.wikipedia.org/wiki/Oblique_projection> */
+            this.projection[9] = 1;
+            
+            /* Scale and translate works on the hybrid this.projection */
+            mat4.scale(this.projection, this.projection, [1/renderParam.distance, 1/renderParam.distance, renderParam.mountain_height/renderParam.distance, 1]);
+            mat4.translate(this.projection, this.projection, [-renderParam.x, -renderParam.y, 0, 0]);
+
+            /* Keep track of the inverse matrix for mapping mouse to world coordinates */
+            mat4.invert(this.inverse_projection, this.projection);
+
+            if (renderParam.outline_depth > 0) {
+                drawDepth({
+                    elements: this.buffer_quad_elements,
+                    a_xy: this.buffer_quad_xy,
+                    a_em: this.buffer_quad_em,
+                    u_projection: this.projection
+                });
+            }
+            
+            drawDrape({
+                elements: this.buffer_quad_elements,
+                a_xy: this.buffer_quad_xy,
+                a_em: this.buffer_quad_em,
+                u_water: fbo_river_texture,
+                u_depth: fbo_depth_texture,
+                u_projection: this.projection,
+                u_light_angle: [
+                    Math.cos(Math.PI/180 * (renderParam.light_angle_deg + renderParam.rotate_deg)),
+                    Math.sin(Math.PI/180 * (renderParam.light_angle_deg + renderParam.rotate_deg)),
+                ],
+                u_slope: renderParam.slope,
+                u_flat: renderParam.flat,
+                u_c: renderParam.c,
+                u_d: renderParam.d,
+                u_outline_depth: renderParam.outline_depth * 500 / renderParam.distance,
+                u_outline_strength: renderParam.outline_strength,
+                u_outline_threshold: renderParam.outline_threshold / 1000,
+            });
+
+            drawFinal();
+            
+            // I don't have to clear fbo_em because it doesn't have depth
+            // and will be redrawn every frame. I do have to clear
+            // fbo_river because even though it doesn't have depth, it
+            // doesn't draw all triangles.
+            fbo_river.use(() => {
+                regl.clear({color: [0, 0, 0, 0]});
+            });
+            fbo_z.use(() => {
+                regl.clear({color: [0, 0, 0, 1], depth: 1});
+            });
+            fbo_final.use(() => {
+                regl.clear({color: [0.2, 0.3, 0.5, 1], depth: 1});
+            });
         });
-        fbo_z.use(() => {
-            regl.clear({color: [0, 0, 0, 1], depth: 1});
-        });
-        fbo_final.use(() => {
-            regl.clear({color: [0.2, 0.3, 0.5, 1], depth: 1});
-        });
+    }
+    
+
+    updateView(renderParam) {
+        this.renderParam = renderParam;
     }
 }
 
-Renderer.param = param;
 exports.Renderer = Renderer;

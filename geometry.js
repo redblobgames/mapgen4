@@ -39,12 +39,12 @@ exports.setMeshGeometry = function(mesh, P) {
  *
  * @param {Map} map
  * @param {Int32Array} I - indices into the data array
- * @param {Float32Array} P - elevation, moisture data
+ * @param {Float32Array} P - elevation, rainfall data
  */
 exports.setMapGeometry = function(map, I, P) {
     // TODO: V should probably depend on the slope, or elevation, or maybe it should be 0.95 in mountainous areas and 0.99 elsewhere
     const V = 0.95; // reduce elevation in valleys
-    let {mesh, s_flow, r_elevation, t_elevation, r_moisture} = map;
+    let {mesh, s_flow, r_elevation, t_elevation, r_rainfall} = map;
     let {numSolidSides, numRegions, numTriangles} = mesh;
 
     if (I.length !== 3 * numSolidSides) { throw "wrong size"; }
@@ -53,7 +53,7 @@ exports.setMapGeometry = function(map, I, P) {
     let p = 0;
     for (let r = 0; r < numRegions; r++) {
         P[p++] = r_elevation[r];
-        P[p++] = r_moisture[r];
+        P[p++] = r_rainfall[r];
     }
     for (let t = 0; t < numTriangles; t++) {
         P[p++] = V * t_elevation[t];
@@ -61,11 +61,11 @@ exports.setMapGeometry = function(map, I, P) {
         let r1 = mesh.s_begin_r(s0),
             r2 = mesh.s_begin_r(s0+1),
             r3 = mesh.s_begin_r(s0+2);
-        P[p++] = 1/3 * (r_moisture[r1] + r_moisture[r2] + r_moisture[r3]);
+        P[p++] = 1/3 * (r_rainfall[r1] + r_rainfall[r2] + r_rainfall[r3]);
     }
 
     // TODO: split this into its own function; it can be updated separately, and maybe not as often
-    let i = 0, count_valley = 0, count_ridge = 0;
+    let i = 0;
     let {_halfedges, _triangles} = mesh;
     for (let s = 0; s < numSolidSides; s++) {
         let opposite_s = mesh.s_opposite_s(s),
@@ -83,11 +83,9 @@ exports.setMapGeometry = function(map, I, P) {
         if (coast || s_flow[s] > 0 || s_flow[opposite_s] > 0) {
             // It's a coastal or river edge, forming a valley
             I[i++] = r1; I[i++] = numRegions+t2; I[i++] = numRegions+t1;
-            count_valley++;
         } else {
             // It's a ridge
             I[i++] = r1; I[i++] = r2; I[i++] = numRegions+t1;
-            count_ridge++;
         }
     }
 
@@ -104,13 +102,12 @@ exports.setMapGeometry = function(map, I, P) {
  * Cols will be the input flow rate
  * Rows will be the output flow rate
 */
-function assignTextureCoordinates(numSizes, textureSize) {
+function assignTextureCoordinates(spacing, numSizes, textureSize) {
     /* create (numSizes+1)^2 size combinations, each with two triangles */
     function UV(x, y) {
         return {xy: [x, y], uv: [(x+0.5)/textureSize, (y+0.5)/textureSize]};
     }
-    
-    const spacing = 10;
+
     let triangles = [[]];
     let width = Math.floor((textureSize - 2*spacing) / (2*numSizes+3)) - spacing,
         height = Math.floor((textureSize - 2*spacing) / (numSizes+1)) - spacing;
@@ -134,9 +131,10 @@ function assignTextureCoordinates(numSizes, textureSize) {
 
 
 // TODO: turn this into an object :-/
-const numRiverSizes = 20;
+const riverTextureSpacing = 40;
+const numRiverSizes = 12;
 const riverTextureSize = 4096;
-let riverTexturePositions = assignTextureCoordinates(numRiverSizes, riverTextureSize);
+const riverTexturePositions = assignTextureCoordinates(riverTextureSpacing, numRiverSizes, riverTextureSize);
 exports.createRiverBitmap = function() {
     let canvas = document.createElement('canvas');
     canvas.width = canvas.height = riverTextureSize;
@@ -153,11 +151,9 @@ exports.createRiverBitmap = function() {
                 let pos = riverTexturePositions[row][col][type];
                 ctx.save();
                 ctx.beginPath();
-                ctx.moveTo(pos[0].xy[0], pos[0].xy[1]);
-                ctx.lineTo(pos[1].xy[0], pos[1].xy[1]);
-                ctx.lineTo(pos[2].xy[0], pos[2].xy[1]);
-                ctx.lineTo(pos[0].xy[0], pos[0].xy[1]);
-                // ctx.clip(); // TODO: need a clip region larger than the triangle to handle texture lookups
+                ctx.rect(pos[1].xy[0] - riverTextureSpacing/2, pos[0].xy[1] - riverTextureSpacing/2,
+                         pos[2].xy[0] - pos[1].xy[0] + riverTextureSpacing, pos[2].xy[1] - pos[0].xy[1] + riverTextureSpacing);
+                // ctx.clip(); // TODO: to make this work right, the spacing needs to vary based on the river size, I think
                 
                 let center = [(pos[0].xy[0] + pos[1].xy[0] + pos[2].xy[0]) / 3,
                               (pos[0].xy[1] + pos[1].xy[1] + pos[2].xy[1]) / 3];
@@ -211,19 +207,20 @@ function clamp(x, lo, hi) {
  *
  * @param {Map} map
  * @param {number} spacing - global param.spacing value
+ * @param {any} riversParam - global param.rivers
  * @param {Float32Array} P - array of x,y,u,v triples for the river triangles
  * @returns {number} - how many triangles were needed (at most numSolidTriangles)
  */
-exports.setRiverTextures = function(map, spacing, P) {
-    const MIN_FLOW = 15;  // TODO: this should be a parameter
+exports.setRiverTextures = function(map, spacing, riversParam, P) {
+    const MIN_FLOW = Math.exp(riversParam.lg_min_flow);
+    const RIVER_WIDTH = Math.exp(riversParam.lg_river_width);
     let {mesh, t_elevation, t_downslope_s, s_flow} = map;
     let {numSolidTriangles, s_length} = mesh;
 
     function riverSize(s, flow) {
         // TODO: performance: build a table of flow to width
-        // TODO: magic number should be a parameter
         if (s < 0) { return 1; }
-        let width = Math.sqrt(flow - MIN_FLOW) * spacing / 15;
+        let width = Math.sqrt(flow - MIN_FLOW) * spacing * RIVER_WIDTH;
         let size = Math.ceil(width * numRiverSizes / s_length[s]);
         return clamp(size, 1, numRiverSizes);
     }
@@ -265,9 +262,6 @@ exports.setRiverTextures = function(map, spacing, P) {
         if (in2_flow >= MIN_FLOW) {
             add(textureRow, riverSize(in2_s, in2_flow), 2, 1, 0);
         }
-
-        // TODO: handle springs and deltas
-        // add(textureRow, 0, 0, 2, 1);
     }
 
     return p / 12;

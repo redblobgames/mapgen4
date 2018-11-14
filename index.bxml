@@ -1,6 +1,7 @@
 <x:document xmlns:x="http://local/" width="flex"
             title="Mapgen4">
 
+  <x:draft text="BETA"/>
   <address>20 Jul 2018</address>
 
   <style>
@@ -14,12 +15,12 @@
       #ui {
           display: grid;
           min-height: calc(100vmin - 130px - var(--line-height));
-          grid-template-rows: repeat(3, 40px) 80px 1fr;
+          grid-template-rows: repeat(3, 40px) calc(100vmin - 130px - var(--line-height) - 120px - 40px);
           grid-template-columns: 1fr calc(100vmin - 130px - var(--line-height)) repeat(6, 20px) 1fr;
           grid-row-gap: 10px;
           grid-column-gap: 10px;
       }
-      #map        { grid-area: 1 / 2 / span 5 / span 1; width:100%; height:100%; }
+      #map        { grid-area: 1 / 2 / span 4 / span 1; width:100%; height:100%; }
       #small      { grid-area: 1 / 3 / span 1 / span 2; }
       #medium     { grid-area: 1 / 5 / span 1 / span 2; }
       #large      { grid-area: 1 / 7 / span 1 / span 2; }
@@ -27,14 +28,13 @@
       #shallow    { grid-area: 2 / 6 / span 1 / span 3; }
       #valley     { grid-area: 3 / 3 / span 1 / span 3; }
       #mountain   { grid-area: 3 / 6 / span 1 / span 3; }
-      #wind-angle { grid-area: 4 / 3 / span 1 / span 6; width: 90%; }
-      #timing     { grid-area: 5 / 3 / span 1 / span 6; }
+      #sliders     { grid-area: 4 / 3 / span 1 / span 6; overflow-y: scroll; }
 
       @media (orientation: portrait) {
           /* Put the buttons on top instead of on the right */
           #ui {
               grid-template-rows: repeat(6, 20px) calc(100vmin);
-              grid-template-columns: 50px repeat(2, 70px) 80px 1fr;
+              grid-template-columns: 50px repeat(2, 70px) calc(100vmin - 50px - 140px - 40px);
           }
           #map { grid-area: 7 / 1 / span 1 / span 6; }
           #small { grid-area: 1 / 1 / span 2 / span 1; }
@@ -44,15 +44,35 @@
           #shallow { grid-area: 1 / 3 / span 3 / span 1; }
           #valley { grid-area: 4 / 2 / span 3 / span 1; }
           #mountain { grid-area: 4 / 3 / span 3 / span 1; }
-          #wind-angle { grid-area: 1 / 4 / span 6 / span 1; }
-          #timing { grid-area: 1 / 5 / span 6 / span 1; }
+          #sliders { grid-area: 1 / 4 / span 6 / span 1; justify-self: end; }
       }
 
       #mapgen4 { width: 100%; height: 100%; }
+      #sliders h3 {
+          margin: 0;
+          font-size: 66%;
+      }
+      #sliders label {
+          display: block;
+          font-size: 66%;
+      }
+      #sliders label span {
+          font-family: var(--monospace);
+          display: inline-block;
+          width: 17ch;
+      }
   </style>
 
   <x:section>
 
+    <p>
+      <b>Paint</b> mountains, valleys, and oceans on the map, and it will simulate evaporation, wind, and rainfall to determine biomes and rivers.
+    </p>
+    
+    <p>
+      Status: I was hoping to release this late October but I'm still seeing occasional UI freezes. There are also some important features I haven't finished implementing yet. If you experience a freeze where it won't draw anymore, please email me.
+    </p>
+    
     <div id="ui">
       <button id="small"><svg viewBox="-50 -50 100 100"><circle r="20"/></svg></button>
       <button id="medium"><svg viewBox="-50 -50 100 100"><circle r="35"/></svg></button>
@@ -63,21 +83,25 @@
       <button id="valley"><svg viewBox="-50 -50 100 100"><path d="M -60,10 L -50,-10 L 50,-10 L 60,10 z" fill="hsl(100,50%,70%)"/></svg></button>
       <button id="mountain"><svg viewBox="-50 -50 100 100"><path d="M -60,30 L 0,-30 L 60,30 z" fill="hsl(60,50%,40%)"/></svg></button>
       
-      <input id="wind-angle" type="range" value="0" min="0" max="360"/>
-      <div id="timing">Loading</div>
-      
+      <div id="sliders"/>
+    
       <div id="map"><canvas id="mapgen4" width="2048" height="2048"/></div>
     </div>
+    <div id="timing">Loading</div>
+    <div id="messages">-</div>
 
+    <p>
+      Right click on the map to save as an image.
+    </p>
+    
   </x:section>
   
   <x:footer>
-    <script src="/js/dat.gui.min.js"/>
     <script src="/js/draggable.js"/>
     <script src="build/_bundle.js"/>
 
     Created 20 Jul 2018 with regl.js, dat.gui, delaunator, poisson-disk-sampling, simplex-noise, hash-int, gl-matrix, flatqueue, webworkify, and other libraries; &#160;
-    <!-- hhmts start -->Last modified: 02 Oct 2018<!-- hhmts end -->
+    <!-- hhmts start -->Last modified: 13 Nov 2018<!-- hhmts end -->
   </x:footer>
   
   

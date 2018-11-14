@@ -28,60 +28,62 @@ const mountain = {
  *
  * We'll use breadth first search for this because it's simple and
  * fast. Dijkstra's Algorithm would produce a more accurate distance
- * field, but we only need an approximation.
+ * field, but we only need an approximation. For increased
+ * interestingness, we add some randomness to the distance field.
  *
  * @param {Mesh} mesh
  * @param {number[]} seeds_t - a list of triangles with mountain peaks
  * @param {number} spacing - the global param.spacing value
- * @return {Float32Array} - the distance field indexed by t
+ * @param {number} jaggedness - how much randomness to mix into the distances
+ * @param {function(): number} randFloat - random number generator
+ * @param {Float32Array} t_distance - the distance field indexed by t, OUTPUT
  */
-function calculateMountainDistance(mesh, seeds_t, spacing) {
+function calculateMountainDistance(mesh, seeds_t, spacing, jaggedness, randFloat, t_distance) {
     let {s_length} = mesh;
-    let distance_t = new Float32Array(mesh.numTriangles);
-    distance_t.fill(-1);
+    t_distance.fill(-1);
     let queue_t = seeds_t.concat([]);
     for (let i = 0; i < queue_t.length; i++) {
         let current_t = queue_t[i];
         for (let j = 0; j < 3; j++) {
             let s = 3 * current_t + j;
             let neighbor_t = mesh.s_outer_t(s);
-            if (distance_t[neighbor_t] === -1) {
-                distance_t[neighbor_t] = distance_t[current_t] + spacing;
+            if (t_distance[neighbor_t] === -1) {
+                let increment = spacing * (1 + jaggedness * (randFloat() - randFloat()));
+                t_distance[neighbor_t] = t_distance[current_t] + increment;
                 queue_t.push(neighbor_t);
             }
         }
     }
-    // TODO: maybe switch to +1 instead of +spacing, and put spacing
-    // into mountain_slope; that'd let me use 8-bit int; TODO: try
-    // adding randomness to +spacing to see if the output looks more
-    // interesting
-    return distance_t;
 }
 
 /**
  * Save noise values in arrays.
  *
- * @param {SimplexNoise} noise - the noise generator
+ * @param {function(): number} randFloat - random number generator
  * @param {Mesh} mesh
- * @returns {Float32Array[]} - noise indexed by triangle id, for several octaves
  */
-function precalculateNoise(noise, mesh) {
+function precalculateNoise(randFloat, mesh) {
+    const noise = new SimplexNoise(randFloat);
     let {numTriangles} = mesh;
-    let noise0 = new Float32Array(numTriangles),
-        noise1 = new Float32Array(numTriangles),
-        noise2 = new Float32Array(numTriangles),
-        noise3 = new Float32Array(numTriangles),
-        noise4 = new Float32Array(numTriangles);
+    let t_noise0 = new Float32Array(numTriangles),
+        t_noise1 = new Float32Array(numTriangles),
+        t_noise2 = new Float32Array(numTriangles),
+        t_noise3 = new Float32Array(numTriangles),
+        t_noise4 = new Float32Array(numTriangles),
+        t_noise5 = new Float32Array(numTriangles),
+        t_noise6 = new Float32Array(numTriangles);
     for (let t = 0; t < numTriangles; t++) {
         let nx = (mesh.t_x(t)-500) / 500,
             ny = (mesh.t_y(t)-500) / 500;
-        noise0[t] = noise.noise2D(nx, ny);
-        noise1[t] = noise.noise2D(2*nx + 5, 2*ny + 5);
-        noise2[t] = noise.noise2D(4*nx + 7, 4*ny + 7);
-        noise3[t] = noise.noise2D(8*nx + 9, 8*ny + 9);
-        noise4[t] = noise.noise2D(16*nx + 15, 16*ny + 15);
+        t_noise0[t] = noise.noise2D(nx, ny);
+        t_noise1[t] = noise.noise2D(2*nx + 5, 2*ny + 5);
+        t_noise2[t] = noise.noise2D(4*nx + 7, 4*ny + 7);
+        t_noise3[t] = noise.noise2D(8*nx + 9, 8*ny + 9);
+        t_noise4[t] = noise.noise2D(16*nx + 15, 16*ny + 15);
+        t_noise5[t] = noise.noise2D(32*nx + 31, 32*ny + 31);
+        t_noise6[t] = noise.noise2D(64*nx + 67, 64*ny + 67);
     }
-    return [noise0, noise1, noise2, noise3, noise4];
+    return {t_noise0, t_noise1, t_noise2, t_noise3, t_noise4, t_noise5, t_noise6};
 }
 
         
@@ -93,32 +95,36 @@ class Map {
      */
     constructor (mesh, peaks_t, param) {
         this.mesh = mesh;
-        this.seed = param.seed;
-        this.spacing = /** @type{number} */(param.spacing);
-        this.noise = new SimplexNoise(makeRandFloat(param.seed));
+        this.peaks_t = peaks_t;
+        this.seed = -1;
+        this.spacing = param.spacing;
+        this.mountainJaggedness = -Infinity;
+        this.windAngleDeg = Infinity;
         this.t_elevation = new Float32Array(mesh.numTriangles);
         this.r_elevation = new Float32Array(mesh.numRegions);
         this.r_humidity = new Float32Array(mesh.numRegions);
         this.t_moisture = new Float32Array(mesh.numTriangles);
-        this.r_moisture = new Float32Array(mesh.numRegions);
+        this.r_rainfall = new Float32Array(mesh.numRegions);
         this.t_downslope_s = new Int32Array(mesh.numTriangles);
         this.order_t = new Int32Array(mesh.numTriangles);
         this.t_flow = new Float32Array(mesh.numTriangles);
         this.s_flow = new Float32Array(mesh.numSides);
         this.wind_order_r = new Int32Array(mesh.numRegions);
         this.r_wind_sort = new Float32Array(mesh.numRegions);
-        this.windAngleDeg = undefined;
-        this.precomputed = {
-            noise: precalculateNoise(this.noise, mesh),
-            t_mountain_distance: calculateMountainDistance(mesh, peaks_t, param.spacing),
-        };
+        this.t_mountain_distance = new Float32Array(mesh.numTriangles);
     }
 
-    assignTriangleElevation(constraints) {
-        let {mesh, noise, spacing, t_elevation} = this;
+    assignTriangleElevation(elevationParam, constraints) {
+        let {mesh, t_elevation, t_mountain_distance, precomputed} = this;
         let {numTriangles, numSolidTriangles, numRegions, numSides} = mesh;
 
-        // Assign elevations to triangles
+        // Assign elevations to triangles TODO: separate message,
+        // store the interpolated values in an array, or maybe for
+        // each painted cell store which triangle elevations have to
+        // be updated, so that we don't have to recalculate the entire
+        // map's interpolated values each time (involves copying 50k
+        // floats instead of 16k floats), or maybe send a message with
+        // the bounding box of the painted area
         function constraintAt(x, y) {
             // https://en.wikipedia.org/wiki/Bilinear_interpolation
             const C = constraints.constraints, size = constraints.size;
@@ -140,16 +146,13 @@ class Map {
             }
         }
         for (let t = 0; t < numSolidTriangles; t++) {
-            t_elevation[t] = constraintAt(mesh.t_x(t)/1000, mesh.t_y(t)/1000);
+            let e = constraintAt(mesh.t_x(t)/1000, mesh.t_y(t)/1000);
+            t_elevation[t] = e + elevationParam.noisy_coastlines * (1 - e*e*e*e) * (precomputed.t_noise4[t] + precomputed.t_noise5[t]/2 + precomputed.t_noise6[t]/4);
         }
         
         // For land triangles, mix hill and mountain terrain together
         const mountain_slope = mountain.slope,
-              t_mountain_distance = this.precomputed.t_mountain_distance,
-              noise0 = this.precomputed.noise[0],
-              noise1 = this.precomputed.noise[1],
-              noise2 = this.precomputed.noise[2],
-              noise4 = this.precomputed.noise[4];
+              {t_noise0, t_noise1, t_noise2, t_noise4} = precomputed;
         for (let t = 0; t < numTriangles; t++) {
             let e = t_elevation[t];
             if (e > 0) {
@@ -167,10 +170,9 @@ class Map {
                  *    worley noise. These form distinct peaks, with
                  *    varying distance between them.
                  */
-                // TODO: these noise parameters should be exposed in UI - lower numbers mean more meandering in rivers
                 // TODO: precompute eh, em per triangle
-                let noisiness = 1.0 - 0.5 * (1 + noise0[t]);
-                let eh = (1 + noisiness * noise4[t] + (1 - noisiness) * noise2[t]) / 50;
+                let noisiness = 1.0 - 0.5 * (1 + t_noise0[t]);
+                let eh = (1 + noisiness * t_noise4[t] + (1 - noisiness) * t_noise2[t]) * elevationParam.hill_height;
                 if (eh < 0.01) { eh = 0.01; }
                 let em = 1 - mountain_slope/1000 * t_mountain_distance[t];
                 if (em < 0.01) { em = 0.01; }
@@ -178,7 +180,7 @@ class Map {
                 e = (1-weight) * eh + weight * em;
             } else {
                 /* Add noise to make it more interesting. */
-                e *= 1.5 + noise1[t]; // TODO: parameter
+                e *= elevationParam.ocean_depth + t_noise1[t];
             }
             if (e < -1.0) { e = -1.0; }
             if (e > +1.0) { e = +1.0; }
@@ -186,7 +188,7 @@ class Map {
         }
     }
     
-    assignRegionElevation(constraints) {
+    assignRegionElevation(elevationParam, constraints) {
         let {mesh, t_elevation, r_elevation} = this;
         let {numRegions, _r_in_s, _halfedges} = mesh;
         let out_t = [];
@@ -208,18 +210,33 @@ class Map {
         }
     }
 
-    assignElevation(constraints) {
-        this.assignTriangleElevation(constraints);
-        this.assignRegionElevation();
+    assignElevation(elevationParam, constraints) {
+        if (this.seed !== elevationParam.seed || this.mountainJaggedness !== elevationParam.mountain_jagged) {
+            this.mountainJaggedness = elevationParam.mountain_jagged;
+            calculateMountainDistance(
+                this.mesh, this.peaks_t, this.spacing,
+                this.mountainJaggedness, makeRandFloat(elevationParam.seed),
+                this.t_mountain_distance
+            );
+        }
+        
+        if (this.seed !== elevationParam.seed) {
+            // TODO: function should reuse existing arrays
+            this.seed = elevationParam.seed;
+            this.precomputed = precalculateNoise(makeRandFloat(elevationParam.seed), this.mesh);
+        }
+        
+        this.assignTriangleElevation(elevationParam, constraints);
+        this.assignRegionElevation(elevationParam);
     }
 
-    assignMoisture(windAngleDeg) {
-        const {mesh, wind_order_r, r_wind_sort, r_humidity, r_moisture, r_elevation} = this;
+    assignRainfall(biomesParam) {
+        const {mesh, wind_order_r, r_wind_sort, r_humidity, r_rainfall, r_elevation} = this;
         const {numRegions, _r_in_s, _halfedges} = mesh;
 
-        if (windAngleDeg != this.windAngleDeg) {
-            this.windAngleDeg = windAngleDeg;
-            const windAngleRad = Math.PI / 180 * windAngleDeg;
+        if (biomesParam.wind_angle_deg != this.windAngleDeg) {
+            this.windAngleDeg = biomesParam.wind_angle_deg;
+            const windAngleRad = Math.PI / 180 * this.windAngleDeg;
             const windAngleVec = [Math.cos(windAngleRad), Math.sin(windAngleRad)];
             for (let r = 0; r < numRegions; r++) {
                 wind_order_r[r] = r;
@@ -228,7 +245,6 @@ class Map {
             wind_order_r.sort((r1, r2) => r_wind_sort[r1] - r_wind_sort[r2]);
         }
 
-        // TODO: rename moisture to rainfall
         let out_r = [];
         for (let r of wind_order_r) {
             let count = 0, sum = 0.0;
@@ -243,33 +259,33 @@ class Map {
                 incoming = _halfedges[outgoing];
             } while (incoming !== s0);
             
-            let moisture = 0.0, rainfall = 0.0;
+            let humidity = 0.0, rainfall = 0.0;
             if (count > 0) {
-                moisture = sum / count;
-                rainfall += 0.9 * moisture; // TODO: param
+                humidity = sum / count;
+                rainfall += biomesParam.raininess * humidity;
             }
             if (mesh.r_boundary(r)) {
-                moisture = 1.0;
+                humidity = 1.0;
             }
             if (r_elevation[r] < 0.0) {
-                let evaporation = 0.5 * -r_elevation[r];
-                moisture += evaporation;
+                let evaporation = biomesParam.evaporation * -r_elevation[r];
+                humidity += evaporation;
             }
-            if (moisture > 1.0 - r_elevation[r]) {
-                let orographicRainfall = 0.5 * (moisture - (1.0 - r_elevation[r])); // TODO: parameter, should also depend on param.spacing
-                rainfall += 2 * orographicRainfall; // TODO: parameter: mountains cause a lot more rainfall than plains
-                moisture -= orographicRainfall;
+            if (humidity > 1.0 - r_elevation[r]) {
+                let orographicRainfall = biomesParam.rain_shadow * (humidity - (1.0 - r_elevation[r]));
+                rainfall += biomesParam.raininess * orographicRainfall;
+                humidity -= orographicRainfall;
             }
-            r_moisture[r] = rainfall;
-            r_humidity[r] = moisture;
+            r_rainfall[r] = rainfall;
+            r_humidity[r] = humidity;
         }
     }
 
-    assignRivers() {
-        let {mesh, t_moisture, r_moisture, t_elevation, t_downslope_s, order_t, t_flow, s_flow} = this;
+    assignRivers(riversParam) {
+        let {mesh, t_moisture, r_rainfall, t_elevation, t_downslope_s, order_t, t_flow, s_flow} = this;
         assignDownflow(mesh, t_elevation, t_downslope_s, order_t);
-        assignMoisture(mesh, r_moisture, t_moisture);
-        assignFlow(mesh, order_t, t_elevation, t_moisture, t_downslope_s, t_flow, s_flow);
+        assignMoisture(mesh, r_rainfall, t_moisture);
+        assignFlow(mesh, riversParam, order_t, t_elevation, t_moisture, t_downslope_s, t_flow, s_flow);
     }
         
 }
@@ -327,17 +343,17 @@ function assignDownflow(mesh, t_elevation, /* out */ t_downflow_s, /* out */ ord
 
 /**
  * @param {Mesh} mesh
- * @param {Float32Array} r_moisture - per region
+ * @param {Float32Array} r_rainfall - per region
  * @param {Float32Array} t_moisture - OUT parameter - per triangle
  */
-function assignMoisture(mesh, r_moisture, /* out */ t_moisture) {
+function assignMoisture(mesh, r_rainfall, /* out */ t_moisture) {
     const {numTriangles} = mesh;
     for (let t = 0; t < numTriangles; t++) {
         let moisture = 0.0;
         for (let i = 0; i < 3; i++) {
             let s = 3 * t + i,
                 r = mesh.s_begin_r(s);
-            moisture += r_moisture[r] / 3;
+            moisture += r_rainfall[r] / 3;
         }
         t_moisture[t] = moisture;
     }
@@ -345,18 +361,19 @@ function assignMoisture(mesh, r_moisture, /* out */ t_moisture) {
 
 
 /**
- * order_t:      Int32Array[numTriangles]
- * t_elevation:  Float32Array[numTriangles]
- * t_moisture:   Float32Array[numTriangles]
- * t_flow:       Float32Array[numTriangles]
- * s_flow:       Float32Array[numSides]
+ * @param {Int32Array} order_t
+ * @param {any} riversParam
+ * @param {Float32Array} t_elevation
+ * @param {Float32Array} t_moisture
+ * @param {Int32Array} t_downflow_s
+ * @param {Float32Array} s_flow
  */
-function assignFlow(mesh, order_t, t_elevation, t_moisture, t_downflow_s, /* out */ t_flow, /* out */ s_flow) {
+function assignFlow(mesh, riversParam, order_t, t_elevation, t_moisture, t_downflow_s, /* out */ t_flow, /* out */ s_flow) {
     let {numTriangles, _halfedges} = mesh;
     s_flow.fill(0);
     for (let t = 0; t < numTriangles; t++) {
         if (t_elevation[t] >= 0.0) {
-            t_flow[t] = 0.2 * t_moisture[t] * t_moisture[t]; // TODO: nonlinear mapping should be a parameter
+            t_flow[t] = riversParam.flow * t_moisture[t] * t_moisture[t];
         } else {
             t_flow[t] = 0;
         }

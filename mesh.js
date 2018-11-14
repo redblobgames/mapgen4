@@ -125,11 +125,11 @@ async function choosePoints() {
     if (param.spacing === 5) {
         let buffer = await fetch("build/points-5.data").then(response => response.arrayBuffer());
         let extraction = extractPoints(buffer);
-        points = applyJitter(extraction.points, param.spacing * jitter * 0.5, makeRandFloat(param.seed));
+        points = applyJitter(extraction.points, param.spacing * jitter * 0.5, makeRandFloat(param.mesh.seed));
         peaks_index = extraction.peaks_index;
     } else {
-        points = applyJitter(hexagonGrid(1.5 * param.spacing), param.spacing * jitter, makeRandFloat(param.seed));
-        peaks_index = chooseMountainPeaks(points.length, param.spacing, makeRandFloat(param.seed));
+        points = applyJitter(hexagonGrid(1.5 * param.spacing), param.spacing * jitter, makeRandFloat(param.mesh.seed));
+        peaks_index = chooseMountainPeaks(points.length, param.spacing, makeRandFloat(param.mesh.seed));
     };
     return {points, peaks_index};
 }

@@ -22,6 +22,46 @@ const Painting    = require('./painting');
 const Render      = require('./render');
 
 
+const initialParams = {
+    elevation: [
+        ['seed', 187, 1, 1 << 30],
+        ['noisy_coastlines', 0.01, 0, 0.1],
+        ['hill_height', 0.02, 0, 0.1],
+        ['ocean_depth', 1.5, 1, 3],
+        ['mountain_jagged', 0, 0, 1],
+        ['inflate', 0.4, 0, 1],
+        ['round', 0.5, 0, 1],
+    ],
+    biomes: [
+        ['wind_angle_deg', 0, 0, 360],
+        ['raininess', 0.9, 0, 2],
+        ['rain_shadow', 0.5, 0.1, 2],
+        ['evaporation', 0.5, 0, 1],
+    ],
+    rivers: [
+        ['lg_min_flow', 2.7, -5, 5],
+        ['lg_river_width', -2.7, -5, 5],
+        ['flow', 0.2, 0, 1],
+    ],
+    render: [
+        ['distance', 480, 100, 1000],
+        ['x', 500, 0, 1000],
+        ['y', 500, 0, 1000],
+        ['light_angle_deg', 80, 0, 360],
+        ['slope', 2, 0, 5],
+        ['flat', 2.5, 0, 5],
+        ['c', 0.25, 0, 1],
+        ['d', 30, 0, 40],
+        ['tilt_deg', 0, 0, 90],
+        ['rotate_deg', 0, -180, 180],
+        ['mountain_height', 50, 0, 250],
+        ['outline_depth', 1, 0, 2],
+        ['outline_strength', 15, 0, 30],
+        ['outline_threshold', 0, 0, 100],
+    ],
+};
+
+    
 /** @typedef { import("./types").Mesh } Mesh */
 
 /**
@@ -32,36 +72,43 @@ const Render      = require('./render');
 function main({mesh, peaks_t}) {
     let render = new Render.Renderer(mesh);
 
-    const gparam = Render.param;
-    if (document.location.hostname === 'localhost') {
-        /* Only inject this locally because it slows things down */
-        let G = new /** @type{any} */(window).dat.GUI();
-        G.close();
-        G.add(gparam, 'distance', 100, 1000);
-        G.add(gparam, 'x', 0, 1000);
-        G.add(gparam, 'y', 0, 1000);
-        G.add(gparam.drape, 'light_angle_deg', 0, 360);
-        G.add(gparam.drape, 'slope', 0, 5);
-        G.add(gparam.drape, 'flat', 0, 5);
-        G.add(gparam.drape, 'c', 0, 1);
-        G.add(gparam.drape, 'd', 0, 40);
-        G.add(gparam.drape, 'rotate_x_deg', 0, 90);
-        G.add(gparam.drape, 'rotate_z_deg', -180, 180);
-        G.add(gparam.drape, 'mountain_height', 0, 250);
-        G.add(gparam.drape, 'outline_depth', 0, 2);
-        G.add(gparam.drape, 'outline_strength', 0, 30);
-        G.add(gparam.drape, 'outline_threshold', 0, 100);
-        for (let c of G.__controllers) c.listen().onChange(redraw);
-    }
+    /* set initial parameters */
+    for (let phase of ['elevation', 'biomes', 'rivers', 'render']) {
+        const container = document.createElement('div');
+        const header = document.createElement('h3');
+        header.appendChild(document.createTextNode(phase));
+        container.appendChild(header);
+        document.getElementById('sliders').appendChild(container);
+        for (let [name, initialValue, min, max] of initialParams[phase]) {
+            param[phase][name] = initialValue;
 
+            let span = document.createElement('span');
+            span.appendChild(document.createTextNode(name));
+            
+            let slider = document.createElement('input');
+            slider.setAttribute('type', 'range');
+            slider.setAttribute('min', min);
+            slider.setAttribute('max', max);
+            slider.setAttribute('step', 0.01);
+            slider.addEventListener('input', event => {
+                param[phase][name] = slider.valueAsNumber;
+                requestAnimationFrame(() => {
+                    if (phase == 'render') { redraw(); }
+                    else { generate(); }
+                });
+            });
+
+            let label = document.createElement('label');
+            label.appendChild(span);
+            label.appendChild(slider);
+
+            container.appendChild(label);
+            slider.value = initialValue;
+        }
+    }
+    
     function redraw() {
-        // TODO: this should go inside requestAnimationFrame, and it
-        // shouldn't trigger multiple times. However, I can't do this
-        // while a graphics buffer has been passed to the geometry
-        // module. I don't understand *why* this is the case though,
-        // as I thought render.updateMap() copied everything into GPU
-        // buffers. There must be something doing this asynchronously.
-        render.updateView();
+        render.updateView(param.render);
     }
 
     Painting.screenToWorldCoords = (coords) => {
@@ -75,8 +122,13 @@ function main({mesh, peaks_t}) {
 
     const worker = /** @type {Worker} */(WebWorkify(require('./worker.js')));
     let working = false;
+    let workRequested = false;
     let elapsedTimeHistory = [];
 
+    worker.addEventListener('messageerror', event => {
+        console.log("WORKER ERROR", event);
+    });
+    
     worker.addEventListener('message', event => {
         working = false;
         let {elapsed, numRiverTriangles, quad_elements_buffer, a_quad_em_buffer, a_river_xyuv_buffer} = event.data;
@@ -89,15 +141,22 @@ function main({mesh, peaks_t}) {
         render.numRiverTriangles = numRiverTriangles;
         render.updateMap();
         redraw();
+        if (workRequested) {
+            requestAnimationFrame(() => {
+                workRequested = false;
+                generate();
+            });
+        }
     });
 
     function generate() {
         if (!working) {
             working = true;
+            Painting.setElevationParam(param.elevation);
             worker.postMessage({
+                param,
                 constraints: {
                     size: Painting.size,
-                    windAngleDeg: Painting.getWindAngleDeg(),
                     constraints: Painting.constraints,
                 },
                 quad_elements_buffer: render.quad_elements.buffer,
@@ -109,6 +168,8 @@ function main({mesh, peaks_t}) {
                 render.a_river_xyuv.buffer,
             ]
                               );
+        } else {
+            workRequested = true;
         }
     }
 
