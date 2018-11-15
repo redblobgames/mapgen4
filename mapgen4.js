@@ -55,9 +55,10 @@ const initialParams = {
         ['rotate_deg', 0, -180, 180],
         ['mountain_height', 50, 0, 250],
         ['outline_depth', 1, 0, 2],
-        ['outline_coast', 1, 0, 5],
         ['outline_strength', 15, 0, 30],
         ['outline_threshold', 0, 0, 100],
+        ['outline_coast', 0, 0, 5],
+        ['outline_water', 10.0, 0, 20], // things start going wrong when this is high
         ['biome_colors', 1, 0, 1],
     ],
 };

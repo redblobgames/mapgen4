@@ -8,7 +8,7 @@
 
 'use strict';
 
-const {vec3, vec4, mat4} = require('gl-matrix');
+const {vec4, mat4} = require('gl-matrix');
 const colormap = require('./colormap');
 const Geometry = require('./geometry');
 const regl = require('regl')({
@@ -81,9 +81,20 @@ void main() {
 const drawLand = regl({
     frag: `
 precision highp float;
+uniform sampler2D u_water;
+uniform float u_outline_water;
 varying float v_e;
+varying vec2 v_xy;
 void main() {
    float e = 0.5 * (1.0 + v_e);
+   float river = texture2D(u_water, v_xy).a;
+   if (e >= 0.5) {
+      float bump = u_outline_water / 256.0;
+      float L1 = e + bump;
+      float L2 = (e - 0.5) * (bump * 100.0) + 0.5;
+      // TODO: simplify equation
+      e = min(L1, mix(L1, L2, river));
+   }
    gl_FragColor = vec4(fract(256.0*e), e, 0, 1);
    // NOTE: it should be using the floor instead of rounding, but
    // rounding produces a nice looking artifact, so I'll keep that
@@ -98,14 +109,19 @@ uniform mat4 u_projection;
 attribute vec2 a_xy;
 attribute vec2 a_em; // NOTE: moisture channel unused
 varying float v_e;
+varying vec2 v_xy;
 void main() {
     vec4 pos = vec4(u_projection * vec4(a_xy, 0, 1));
+    v_xy = (1.0 + pos.xy) * 0.5;
     v_e = a_em.x;
     gl_Position = pos;
 }`,
 
     uniforms:  {
         u_projection: regl.prop('u_projection'),
+        u_water: regl.prop('u_water'),
+        u_outline_water: regl.prop('u_outline_water'),
+        u_m: regl.prop('u_m'),
     },
 
     framebuffer: fbo_land,
@@ -168,7 +184,7 @@ uniform vec2 u_light_angle;
 uniform float u_inverse_texture_size, 
               u_slope, u_flat,
               u_ambient, u_overhead,
-              u_outline_strength, u_outline_coast,
+              u_outline_strength, u_outline_coast, u_outline_water,
               u_outline_depth, u_outline_threshold,
               u_biome_colors;
 varying vec2 v_uv, v_xy, v_em;
@@ -197,8 +213,9 @@ void main() {
    vec2 em = texture2D(u_mapdata, pos).yz;
    em.y = v_em.y;
    vec3 neutral_biome_color = neutral_land_biome;
-   vec3 biome_color = texture2D(u_colormap, em).rgb;
    vec4 water_color = texture2D(u_water, pos);
+   if (em.x >= 0.5) { em.x -= u_outline_water / 256.0 * (1.0 - water_color.a); }
+   vec3 biome_color = texture2D(u_colormap, em).rgb;
    if (em.x < 0.5) { water_color.a = 0.0; neutral_biome_color = neutral_water_biome; } // don't draw rivers in the ocean
    water_color = mix(vec4(neutral_water_biome * (1.2 - water_color.a), water_color.a), water_color, u_biome_colors);
    biome_color = mix(neutral_biome_color, biome_color, u_biome_colors);
@@ -267,10 +284,11 @@ void main() {
         u_ambient: regl.prop('u_ambient'),
         u_overhead: regl.prop('u_overhead'),
         u_outline_depth: regl.prop('u_outline_depth'),
+        u_outline_coast: regl.prop('u_outline_coast'),
+        u_outline_water: regl.prop('u_outline_water'),
         u_outline_strength: regl.prop('u_outline_strength'),
         u_outline_threshold: regl.prop('u_outline_threshold'),
         u_biome_colors: regl.prop('u_biome_colors'),
-        u_outline_coast: regl.prop('u_outline_coast'),
     },
 });
 
@@ -423,6 +441,8 @@ class Renderer {
                 a_xy: this.buffer_quad_xy,
                 a_em: this.buffer_quad_em,
                 u_projection: this.topdown,
+                u_water: fbo_river_texture,
+                u_outline_water: renderParam.outline_water,
             });
 
             /* Standard rotation for orthographic view */
@@ -472,6 +492,7 @@ class Renderer {
                 u_overhead: renderParam.overhead,
                 u_outline_depth: renderParam.outline_depth * 5 * renderParam.zoom,
                 u_outline_coast: renderParam.outline_coast,
+                u_outline_water: renderParam.outline_water,
                 u_outline_strength: renderParam.outline_strength,
                 u_outline_threshold: renderParam.outline_threshold / 1000,
                 u_biome_colors: renderParam.biome_colors,

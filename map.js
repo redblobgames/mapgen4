@@ -147,6 +147,9 @@ class Map {
         }
         for (let t = 0; t < numSolidTriangles; t++) {
             let e = constraintAt(mesh.t_x(t)/1000, mesh.t_y(t)/1000);
+            // TODO: e*e*e*e seems too steep for this, as I want this
+            // to apply mostly at the original coastlines and not
+            // elsewhere
             t_elevation[t] = e + elevationParam.noisy_coastlines * (1 - e*e*e*e) * (precomputed.t_noise4[t] + precomputed.t_noise5[t]/2 + precomputed.t_noise6[t]/4);
         }
         
