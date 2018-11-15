@@ -25,12 +25,11 @@ const Render      = require('./render');
 const initialParams = {
     elevation: [
         ['seed', 187, 1, 1 << 30],
+        ['island', 0.5, 0, 1],
         ['noisy_coastlines', 0.01, 0, 0.1],
         ['hill_height', 0.02, 0, 0.1],
-        ['ocean_depth', 1.5, 1, 3],
         ['mountain_jagged', 0, 0, 1],
-        ['inflate', 0.4, 0, 1],
-        ['round', 0.5, 0, 1],
+        ['ocean_depth', 1.5, 1, 3],
     ],
     biomes: [
         ['wind_angle_deg', 0, 0, 360],
@@ -44,20 +43,22 @@ const initialParams = {
         ['flow', 0.2, 0, 1],
     ],
     render: [
-        ['distance', 480, 100, 1000],
+        ['zoom', 100/480, 100/1000, 100/50],
         ['x', 500, 0, 1000],
         ['y', 500, 0, 1000],
         ['light_angle_deg', 80, 0, 360],
         ['slope', 2, 0, 5],
         ['flat', 2.5, 0, 5],
-        ['c', 0.25, 0, 1],
-        ['d', 30, 0, 40],
+        ['ambient', 0.25, 0, 1],
+        ['overhead', 30, 0, 60],
         ['tilt_deg', 0, 0, 90],
         ['rotate_deg', 0, -180, 180],
         ['mountain_height', 50, 0, 250],
         ['outline_depth', 1, 0, 2],
+        ['outline_coast', 1, 0, 5],
         ['outline_strength', 15, 0, 30],
         ['outline_threshold', 0, 0, 100],
+        ['biome_colors', 1, 0, 1],
     ],
 };
 

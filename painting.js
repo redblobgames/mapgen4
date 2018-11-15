@@ -37,19 +37,17 @@ class Generator {
     }
 
     setElevationParam(elevationParam) {
-        if (   elevationParam.seed    !== this.seed
-            || elevationParam.inflate !== this.inflate
-            || elevationParam.round   !== this.round) {
-            this.seed    = elevationParam.seed;
-            this.inflate = elevationParam.inflate;
-            this.round   = elevationParam.round;
+        if (   elevationParam.seed   !== this.seed
+            || elevationParam.island !== this.island) {
+            this.seed   = elevationParam.seed;
+            this.island = elevationParam.island;
             this.generate();
         }
     }
     
     /** Use a noise function to determine the shape */
     generate() {
-        const {elevation, inflate, round} = this;
+        const {elevation, island} = this;
         const noise = new SimplexNoise(makeRandFloat(this.seed));
         const persistence = 1/2;
         const amplitudes = Array.from({length: 5}, (_, octave) => Math.pow(persistence, octave));
@@ -70,16 +68,17 @@ class Generator {
                 let nx = 2 * x/CANVAS_SIZE - 1,
                     ny = 2 * y/CANVAS_SIZE - 1;
                 let distance = Math.max(Math.abs(nx), Math.abs(ny));
-                let e = ((1-round) * fbm_noise(nx, ny) + round * 0.5) - (1.0 - inflate) * distance * distance;
+                let e = 0.5 * (fbm_noise(nx, ny) + island * (0.75 - 2 * distance * distance));
                 if (e < -1.0) { e = -1.0; }
                 if (e > +1.0) { e = +1.0; }
                 elevation[p] = e;
                 if (e > 0.0) {
                     let m = (0.5 * noise.noise2D(nx + 30, ny + 50)
                              + 0.5 * noise.noise2D(2*nx + 33, 2*ny + 55));
+                    // TODO: make some of these into parameters
                     let mountain = Math.min(1.0, e * 5.0) * (1 - Math.abs(m) / 0.5);
                     if (mountain > 0.0) {
-                        elevation[p] = Math.max(e, Math.min(e * 10, mountain));
+                        elevation[p] = Math.max(e, Math.min(e * 3, mountain));
                     }
                 }
             }

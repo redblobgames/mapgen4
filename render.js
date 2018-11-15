@@ -84,15 +84,13 @@ precision highp float;
 varying float v_e;
 void main() {
    float e = 0.5 * (1.0 + v_e);
-   // TODO: param:
-   if (e < 0.5) { e -= 0.005; } // produces the border
    gl_FragColor = vec4(fract(256.0*e), e, 0, 1);
    // NOTE: it should be using the floor instead of rounding, but
    // rounding produces a nice looking artifact, so I'll keep that
    // until I can produce the artifact properly (e.g. bug → feature).
    // Using linear filtering on the texture also smooths out the artifacts.
    //  gl_FragColor = vec4(fract(256.0*e), floor(256.0*e)/256.0, 0, 1);
-}`, // TODO: < 0.5 vs <= 0.5 produce significantly different results
+}`,
 
     vert: `
 precision highp float;
@@ -169,14 +167,19 @@ uniform sampler2D u_depth;
 uniform vec2 u_light_angle;
 uniform float u_inverse_texture_size, 
               u_slope, u_flat,
-              u_c, u_d,
-              u_outline_strength, u_outline_depth, u_outline_threshold;
-varying vec2 v_uv, v_pos, v_em;
+              u_ambient, u_overhead,
+              u_outline_strength, u_outline_coast,
+              u_outline_depth, u_outline_threshold,
+              u_biome_colors;
+varying vec2 v_uv, v_xy, v_em;
 
 const vec2 _decipher = vec2(1.0/256.0, 1);
 float decipher(vec4 v) {
    return dot(_decipher, v.xy);
 }
+
+const vec3 neutral_land_biome = vec3(0.9, 0.8, 0.7);
+const vec3 neutral_water_biome = 0.8 * neutral_land_biome;
 
 void main() {
    vec2 sample_offset = vec2(0.5*u_inverse_texture_size, 0.5*u_inverse_texture_size);
@@ -188,25 +191,46 @@ void main() {
    float zN = decipher(texture2D(u_mapdata, pos - dy));
    float zW = decipher(texture2D(u_mapdata, pos - dx));
    float zS = decipher(texture2D(u_mapdata, pos + dy));
-   vec3 slope_vector = normalize(vec3(zS-zN, zE-zW, u_d*2.0*u_inverse_texture_size));
+   vec3 slope_vector = normalize(vec3(zS-zN, zE-zW, u_overhead*2.0*u_inverse_texture_size));
    vec3 light_vector = normalize(vec3(u_light_angle, mix(u_slope, u_flat, slope_vector.z)));
-   float light = u_c + max(0.0, dot(light_vector, slope_vector));
+   float light = u_ambient + max(0.0, dot(light_vector, slope_vector));
    vec2 em = texture2D(u_mapdata, pos).yz;
    em.y = v_em.y;
-   vec4 biome_color = texture2D(u_colormap, em);
+   vec3 neutral_biome_color = neutral_land_biome;
+   vec3 biome_color = texture2D(u_colormap, em).rgb;
    vec4 water_color = texture2D(u_water, pos);
-   if (em.x < 0.5) { water_color.a = 0.0; } // don't draw rivers in the ocean
-   // if (fract(v_e * 10.0) < 10.0 * fwidth(v_e)) { biome_color = vec4(0,0,0,1); } // contour lines
+   if (em.x < 0.5) { water_color.a = 0.0; neutral_biome_color = neutral_water_biome; } // don't draw rivers in the ocean
+   water_color = mix(vec4(neutral_water_biome * (1.2 - water_color.a), water_color.a), water_color, u_biome_colors);
+   biome_color = mix(neutral_biome_color, biome_color, u_biome_colors);
+   // if (fract(em.x * 10.0) < 10.0 * fwidth(em.x)) { biome_color = vec3(0,0,0); } // contour lines
 
-   float depth0 = decipher(texture2D(u_depth, v_pos)),
-         depth1 = max(max(decipher(texture2D(u_depth, v_pos + u_outline_depth*(-dy-dx))),
-                          decipher(texture2D(u_depth, v_pos + u_outline_depth*(-dy+dx)))),
-                      decipher(texture2D(u_depth, v_pos + u_outline_depth*(-dy))));
+   // TODO: add noise texture based on biome
+
+   // TODO: once I remove the elevation rounding artifact I can simplify
+   // this by taking the max first and then deciphering
+   float depth0 = decipher(texture2D(u_depth, v_xy)),
+         depth1 = max(max(decipher(texture2D(u_depth, v_xy + u_outline_depth*(-dy-dx))),
+                          decipher(texture2D(u_depth, v_xy + u_outline_depth*(-dy+dx)))),
+                      decipher(texture2D(u_depth, v_xy + u_outline_depth*(-dy)))),
+         depth2 = max(max(decipher(texture2D(u_depth, v_xy + u_outline_depth*(dy-dx))),
+                          decipher(texture2D(u_depth, v_xy + u_outline_depth*(dy+dx)))),
+                      decipher(texture2D(u_depth, v_xy + u_outline_depth*(dy))));
    float outline = 1.0 + u_outline_strength * (max(u_outline_threshold, depth1-depth0) - u_outline_threshold);
 
-   // gl_FragColor = vec4(0.9*light/outline, 0.8*light/outline, 0.7*light/outline, 1);
-   // gl_FragColor = vec4(vec3(0.1+0.8*em.x, sqrt(em.x)-0.2, 0.8-0.9*em.x) * light / outline, 1);
-   gl_FragColor = vec4(mix(biome_color, water_color, water_color.a).rgb * light / outline, 1);
+   // Add coast outline, but avoid it if there's a river nearby
+   float neighboring_river = max(
+       max(
+          texture2D(u_water, pos + u_outline_depth * dx).a,
+          texture2D(u_water, pos - u_outline_depth * dx).a
+       ),
+       max(
+          texture2D(u_water, pos + u_outline_depth * dy).a,
+          texture2D(u_water, pos - u_outline_depth * dy).a
+       )
+   );
+   if (em.x <= 0.5 && max(depth1, depth2) > 1.0/256.0 && neighboring_river <= 0.2) { outline += u_outline_coast * 256.0 * (max(depth1, depth2) - 2.0*(em.x - 0.5)); }
+
+   gl_FragColor = vec4(mix(biome_color, water_color.rgb, water_color.a) * light / outline, 1);
 }`,
 
     vert: `
@@ -214,13 +238,13 @@ precision highp float;
 uniform mat4 u_projection;
 attribute vec2 a_xy;
 attribute vec2 a_em;
-varying vec2 v_em, v_uv, v_pos;
+varying vec2 v_em, v_uv, v_xy;
 varying float v_e, v_m;
 void main() {
     vec4 pos = vec4(u_projection * vec4(a_xy, max(0.0, a_em.x), 1));
     v_uv = a_xy / 1000.0;
     v_em = a_em;
-    v_pos = (1.0 + pos.xy) * 0.5;
+    v_xy = (1.0 + pos.xy) * 0.5;
     gl_Position = pos;
 }`,
 
@@ -240,11 +264,13 @@ void main() {
         u_light_angle: regl.prop('u_light_angle'),
         u_slope: regl.prop('u_slope'),
         u_flat: regl.prop('u_flat'),
-        u_c: regl.prop('u_c'),
-        u_d: regl.prop('u_d'),
+        u_ambient: regl.prop('u_ambient'),
+        u_overhead: regl.prop('u_overhead'),
         u_outline_depth: regl.prop('u_outline_depth'),
         u_outline_strength: regl.prop('u_outline_strength'),
         u_outline_threshold: regl.prop('u_outline_threshold'),
+        u_biome_colors: regl.prop('u_biome_colors'),
+        u_outline_coast: regl.prop('u_outline_coast'),
     },
 });
 
@@ -384,13 +410,6 @@ class Renderer {
             if (!renderParam) { return; }
             this.renderParam = undefined;
 
-            drawLand({
-                elements: this.buffer_quad_elements,
-                a_xy: this.buffer_quad_xy,
-                a_em: this.buffer_quad_em,
-                u_projection: this.topdown,
-            });
-
             if (this.numRiverTriangles > 0) {
                 drawRivers({
                     count: 3 * this.numRiverTriangles,
@@ -399,6 +418,13 @@ class Renderer {
                 });
             }
             
+            drawLand({
+                elements: this.buffer_quad_elements,
+                a_xy: this.buffer_quad_xy,
+                a_em: this.buffer_quad_em,
+                u_projection: this.topdown,
+            });
+
             /* Standard rotation for orthographic view */
             mat4.identity(this.projection);
             mat4.rotateX(this.projection, this.projection, (180 + renderParam.tilt_deg) * Math.PI/180);
@@ -414,7 +440,7 @@ class Renderer {
             this.projection[9] = 1;
             
             /* Scale and translate works on the hybrid this.projection */
-            mat4.scale(this.projection, this.projection, [1/renderParam.distance, 1/renderParam.distance, renderParam.mountain_height/renderParam.distance, 1]);
+            mat4.scale(this.projection, this.projection, [renderParam.zoom/100, renderParam.zoom/100, renderParam.mountain_height * renderParam.zoom/100, 1]);
             mat4.translate(this.projection, this.projection, [-renderParam.x, -renderParam.y, 0, 0]);
 
             /* Keep track of the inverse matrix for mapping mouse to world coordinates */
@@ -442,11 +468,13 @@ class Renderer {
                 ],
                 u_slope: renderParam.slope,
                 u_flat: renderParam.flat,
-                u_c: renderParam.c,
-                u_d: renderParam.d,
-                u_outline_depth: renderParam.outline_depth * 500 / renderParam.distance,
+                u_ambient: renderParam.ambient,
+                u_overhead: renderParam.overhead,
+                u_outline_depth: renderParam.outline_depth * 5 * renderParam.zoom,
+                u_outline_coast: renderParam.outline_coast,
                 u_outline_strength: renderParam.outline_strength,
                 u_outline_threshold: renderParam.outline_threshold / 1000,
+                u_biome_colors: renderParam.biome_colors,
             });
 
             drawFinal();

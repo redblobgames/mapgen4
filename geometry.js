@@ -131,9 +131,10 @@ function assignTextureCoordinates(spacing, numSizes, textureSize) {
 
 
 // TODO: turn this into an object :-/
-const riverTextureSpacing = 40;
-const numRiverSizes = 12;
+const riverTextureSpacing = 40; // TODO: should depend on river size
+const numRiverSizes = 24; // NOTE: too high and rivers are low quality; too low and there's not enough variation
 const riverTextureSize = 4096;
+const riverMaximumFractionOfWidth = 0.5;
 const riverTexturePositions = assignTextureCoordinates(riverTextureSpacing, numRiverSizes, riverTextureSize);
 exports.createRiverBitmap = function() {
     let canvas = document.createElement('canvas');
@@ -142,7 +143,7 @@ exports.createRiverBitmap = function() {
 
     function lineWidth(i) {
         const spriteSize = riverTexturePositions[0][1][0][0].xy[0] - riverTexturePositions[0][0][0][0].xy[0];
-        return i / numRiverSizes * spriteSize * 0.5; // TODO: parameter
+        return i / numRiverSizes * spriteSize * riverMaximumFractionOfWidth;
     }
     ctx.lineCap = "round";
     for (let row = 0; row <= numRiverSizes; row++) {
@@ -157,9 +158,8 @@ exports.createRiverBitmap = function() {
                 
                 let center = [(pos[0].xy[0] + pos[1].xy[0] + pos[2].xy[0]) / 3,
                               (pos[0].xy[1] + pos[1].xy[1] + pos[2].xy[1]) / 3];
-                let midpoint1 = vec2.lerp([], pos[1].xy, pos[2].xy, 0.5);
-                let midpoint0 = vec2.lerp([], pos[0].xy, pos[1].xy, 0.5);
-                let midpoint2 = vec2.lerp([], pos[2].xy, pos[0].xy, 0.5);
+                let midpoint12 = vec2.lerp([], pos[1].xy, pos[2].xy, 0.5);
+                let midpoint20 = vec2.lerp([], pos[2].xy, pos[0].xy, 0.5);
 
                 ctx.strokeStyle = "hsl(200,50%,35%)";
                 if (type === 1) {
@@ -176,14 +176,14 @@ exports.createRiverBitmap = function() {
                     if (col > 0) {
                         ctx.lineWidth = Math.min(lineWidth(col), lineWidth(row));
                         ctx.beginPath();
-                        ctx.moveTo(midpoint1[0], midpoint1[1]);
-                        ctx.quadraticCurveTo(center[0], center[1], midpoint2[0], midpoint2[1]);
+                        ctx.moveTo(midpoint12[0], midpoint12[1]);
+                        ctx.quadraticCurveTo(center[0], center[1], midpoint20[0], midpoint20[1]);
                         ctx.stroke();
                     } else {
                         ctx.lineWidth = lineWidth(row);
                         ctx.beginPath();
                         ctx.moveTo(center[0], center[1]);
-                        ctx.lineTo(midpoint2[0], midpoint2[1]);
+                        ctx.lineTo(midpoint20[0], midpoint20[1]);
                         ctx.stroke();
                     }
                 }
