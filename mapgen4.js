@@ -57,7 +57,7 @@ const initialParams = {
         ['outline_depth', 1, 0, 2],
         ['outline_strength', 15, 0, 30],
         ['outline_threshold', 0, 0, 100],
-        ['outline_coast', 0, 0, 5],
+        ['outline_coast', 0, 0, 1],
         ['outline_water', 10.0, 0, 20], // things start going wrong when this is high
         ['biome_colors', 1, 0, 1],
     ],
@@ -82,16 +82,17 @@ function main({mesh, peaks_t}) {
         container.appendChild(header);
         document.getElementById('sliders').appendChild(container);
         for (let [name, initialValue, min, max] of initialParams[phase]) {
+            const step = name === 'seed'? 1 : 0.001;
             param[phase][name] = initialValue;
 
             let span = document.createElement('span');
             span.appendChild(document.createTextNode(name));
             
             let slider = document.createElement('input');
-            slider.setAttribute('type', 'range');
+            slider.setAttribute('type', name === 'seed'? 'number' : 'range');
             slider.setAttribute('min', min);
             slider.setAttribute('max', max);
-            slider.setAttribute('step', 0.01);
+            slider.setAttribute('step', step);
             slider.addEventListener('input', event => {
                 param[phase][name] = slider.valueAsNumber;
                 requestAnimationFrame(() => {
@@ -99,6 +100,22 @@ function main({mesh, peaks_t}) {
                     else { generate(); }
                 });
             });
+
+            /* improve slider behavior on iOS */
+            function handleTouch(e) {
+                let rect = slider.getBoundingClientRect();
+                let value = (e.changedTouches[0].clientX - rect.left) / rect.width;
+                value = min + value * (max - min);
+                value = Math.round(value / step) * step;
+                if (value < min) { value = min; }
+                if (value > max) { value = max; }
+                slider.value = value.toString();
+                slider.dispatchEvent(new Event('input'));
+                e.preventDefault();
+                e.stopPropagation();
+            };
+            slider.addEventListener('touchmove', handleTouch);
+            slider.addEventListener('touchstart', handleTouch);
 
             let label = document.createElement('label');
             label.appendChild(span);
