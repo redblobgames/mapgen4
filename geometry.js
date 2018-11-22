@@ -214,7 +214,7 @@ function clamp(x, lo, hi) {
 exports.setRiverTextures = function(map, spacing, riversParam, P) {
     const MIN_FLOW = Math.exp(riversParam.lg_min_flow);
     const RIVER_WIDTH = Math.exp(riversParam.lg_river_width);
-    let {mesh, t_elevation, t_downslope_s, s_flow} = map;
+    let {mesh, t_downslope_s, s_flow} = map;
     let {numSolidTriangles, s_length} = mesh;
 
     function riverSize(s, flow) {
@@ -228,7 +228,8 @@ exports.setRiverTextures = function(map, spacing, riversParam, P) {
     let p = 0, uv = [0, 0, 0, 0, 0, 0];
     for (let t = 0; t < numSolidTriangles; t++) {
         let out_s = t_downslope_s[t];
-        if (s_flow[out_s] < MIN_FLOW) continue;
+        let out_flow = s_flow[out_s];
+        if (out_s < 0 || out_flow < MIN_FLOW) continue;
         let r1 = mesh.s_begin_r(3*t    ),
             r2 = mesh.s_begin_r(3*t + 1),
             r3 = mesh.s_begin_r(3*t + 2);
@@ -236,7 +237,6 @@ exports.setRiverTextures = function(map, spacing, riversParam, P) {
         let in2_s = mesh.s_next_s(in1_s);
         let in1_flow = s_flow[mesh.s_opposite_s(in1_s)];
         let in2_flow = s_flow[mesh.s_opposite_s(in2_s)];
-        let out_flow = s_flow[out_s];
         let textureRow = riverSize(out_s, out_flow);
         
         function add(r, c, i, j, k) {

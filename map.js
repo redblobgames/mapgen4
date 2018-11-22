@@ -286,7 +286,7 @@ class Map {
 
     assignRivers(riversParam) {
         let {mesh, t_moisture, r_rainfall, t_elevation, t_downslope_s, order_t, t_flow, s_flow} = this;
-        assignDownflow(mesh, t_elevation, t_downslope_s, order_t);
+        assignDownslope(mesh, t_elevation, t_downslope_s, order_t);
         assignMoisture(mesh, r_rainfall, t_moisture);
         assignFlow(mesh, riversParam, order_t, t_elevation, t_moisture, t_downslope_s, t_flow, s_flow);
     }
@@ -299,21 +299,21 @@ class Map {
  *
  * @param {Mesh} mesh
  * @param {Float32Array} t_elevation - elevation per triangle
- * @param {Int32Array} t_downflow_s - OUT parameter - the side each triangle flows out of
+ * @param {Int32Array} t_downslope_s - OUT parameter - the side each triangle flows out of
  * @param {Int32Array} order_t - OUT parameter - pre-order in which the graph was traversed,
  *   so roots of the tree always get visited before leaves; use reverse to visit leaves before roots
  */
 let queue = new FlatQueue();
-function assignDownflow(mesh, t_elevation, /* out */ t_downflow_s, /* out */ order_t) {
+function assignDownslope(mesh, t_elevation, /* out */ t_downslope_s, /* out */ order_t) {
     /* Use a priority queue, starting with the ocean triangles and
      * moving upwards using elevation as the priority, to visit all
      * the land triangles */
     let {numTriangles} = mesh,
         queue_in = 0;
-    t_downflow_s.fill(-999);
-    /* Part 1: ocean triangles get downslope assigned to the lowest neighbor */
+    t_downslope_s.fill(-999);
+    /* Part 1: non-shallow ocean triangles get downslope assigned to the lowest neighbor */
     for (let t = 0; t < numTriangles; t++) {
-        if (t_elevation[t] < 0) {
+        if (t_elevation[t] < -0.1) {
             let best_s = -1, best_e = t_elevation[t];
             for (let j = 0; j < 3; j++) {
                 let s = 3 * t + j,
@@ -324,7 +324,7 @@ function assignDownflow(mesh, t_elevation, /* out */ t_downflow_s, /* out */ ord
                 }
             }
             order_t[queue_in++] = t;
-            t_downflow_s[t] = best_s;
+            t_downslope_s[t] = best_s;
             queue.push(t, t_elevation[t]);
         }
     }
@@ -334,8 +334,8 @@ function assignDownflow(mesh, t_elevation, /* out */ t_downflow_s, /* out */ ord
         for (let j = 0; j < 3; j++) {
             let s = 3 * current_t + j;
             let neighbor_t = mesh.s_outer_t(s); // uphill from current_t
-            if (t_downflow_s[neighbor_t] === -999 && t_elevation[neighbor_t] >= 0.0) {
-                t_downflow_s[neighbor_t] = mesh.s_opposite_s(s);
+            if (t_downslope_s[neighbor_t] === -999) {
+                t_downslope_s[neighbor_t] = mesh.s_opposite_s(s);
                 order_t[queue_in++] = neighbor_t;
                 queue.push(neighbor_t, t_elevation[neighbor_t]);
             }
@@ -368,10 +368,10 @@ function assignMoisture(mesh, r_rainfall, /* out */ t_moisture) {
  * @param {any} riversParam
  * @param {Float32Array} t_elevation
  * @param {Float32Array} t_moisture
- * @param {Int32Array} t_downflow_s
- * @param {Float32Array} s_flow
+ * @param {Int32Array} t_downslope_s
+ * @param {Float32Array} t_flow
  */
-function assignFlow(mesh, riversParam, order_t, t_elevation, t_moisture, t_downflow_s, /* out */ t_flow, /* out */ s_flow) {
+function assignFlow(mesh, riversParam, order_t, t_elevation, t_moisture, t_downslope_s, /* out */ t_flow, /* out */ s_flow) {
     let {numTriangles, _halfedges} = mesh;
     s_flow.fill(0);
     for (let t = 0; t < numTriangles; t++) {
@@ -383,12 +383,12 @@ function assignFlow(mesh, riversParam, order_t, t_elevation, t_moisture, t_downf
     }
     for (let i = order_t.length-1; i >= 0; i--) {
         let tributary_t = order_t[i];
-        let flow_s = t_downflow_s[tributary_t];
+        let flow_s = t_downslope_s[tributary_t];
         let trunk_t = (_halfedges[flow_s] / 3) | 0;
         if (flow_s >= 0) {
             t_flow[trunk_t] += t_flow[tributary_t];
-            s_flow[flow_s] += t_flow[tributary_t]; // TODO: isn't s_flow[flow_s] === t_flow[?]
-            if (t_elevation[trunk_t] > t_elevation[tributary_t]) {
+            s_flow[flow_s] += t_flow[tributary_t]; // TODO: s_flow[t_downslope_s[t]] === t_flow[t]; redundant?
+            if (t_elevation[trunk_t] > t_elevation[tributary_t] && t_elevation[tributary_t] >= 0.0) {
                 t_elevation[trunk_t] = t_elevation[tributary_t];
             }
         }
