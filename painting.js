@@ -33,6 +33,7 @@ const currentStroke = {
 /* The elevation is -1.0 to 0.0 → water, 0.0 to +1.0 → land */
 class Generator {
     constructor () {
+        this.userHasPainted = false;
         this.elevation = new Float32Array(CANVAS_SIZE * CANVAS_SIZE);
     }
 
@@ -83,6 +84,8 @@ class Generator {
                 }
             }
         }
+
+        this.userHasPainted = false;
     }
 
     /**
@@ -123,9 +126,16 @@ class Generator {
                 elevation[p] = (1 - mix) * currentStroke.previousElevation[p] + mix * newElevation;
             }
         }
+
+        this.userHasPainted = true;
     }
 }
 let heightMap = new Generator();
+
+document.getElementById('button-reset').addEventListener('click', () => {
+    heightMap.generate();
+    exports.onUpdate();
+});
 
 
 const SIZES = {
@@ -202,3 +212,4 @@ exports.onUpdate = () => {};
 exports.size = CANVAS_SIZE;
 exports.constraints = heightMap.elevation;
 exports.setElevationParam = elevationParam => heightMap.setElevationParam(elevationParam);
+exports.userHasPainted = () => heightMap.userHasPainted;

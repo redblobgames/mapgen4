@@ -118,6 +118,7 @@ function main({mesh, peaks_t}) {
             slider.addEventListener('touchstart', handleTouch);
 
             let label = document.createElement('label');
+            label.setAttribute('id', `slider-${name}`);
             label.appendChild(span);
             label.appendChild(slider);
 
@@ -168,10 +169,18 @@ function main({mesh, peaks_t}) {
         }
     });
 
+    function updateUI() {
+        let userHasPainted = Painting.userHasPainted();
+        document.querySelector("#slider-seed input").disabled = userHasPainted;
+        document.querySelector("#slider-island input").disabled = userHasPainted;
+        document.querySelector("#button-reset").disabled = !userHasPainted;
+    }
+    
     function generate() {
         if (!working) {
             working = true;
             Painting.setElevationParam(param.elevation);
+            updateUI();
             worker.postMessage({
                 param,
                 constraints: {
@@ -186,7 +195,7 @@ function main({mesh, peaks_t}) {
                 render.a_quad_em.buffer,
                 render.a_river_xyuv.buffer,
             ]
-                              );
+            );
         } else {
             workRequested = true;
         }
@@ -197,4 +206,3 @@ function main({mesh, peaks_t}) {
 }
 
 MakeMesh.makeMesh().then(main);
-
