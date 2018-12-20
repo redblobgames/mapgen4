@@ -97,8 +97,13 @@
     <div id="timing">Loading</div>
 
     <p>
-      Treat this as a tool. Everything you create with it is yours to do with as you please. In Chrome you can right click on the map to save a high resolution image (but <a href="https://bugzilla.mozilla.org/show_bug.cgi?id=749824">not in Firefox</a>). Credit is appreciated but not required.
+      Treat this as a tool. Everything you create with it is yours to do with as you please.  Credit is appreciated but not required. Download a high resolution version:
     </p>
+
+    <ul>
+      <li>Chrome/desktop, Safari/desktop, Safari mobile: <button id="button-download">Download</button></li>
+      <li>Chrome/mobile, Firefox/mobile, Firefox/desktop: I haven't gotten this to work (<a href="https://bugzilla.mozilla.org/show_bug.cgi?id=749824">also see</a>)</li>
+    </ul>
 
     <p>
       Goals for this project:
@@ -138,7 +143,7 @@
     <script src="build/_bundle.js"/>
 
     Created 20 Jul 2018 with regl.js, dat.gui, delaunator, poisson-disk-sampling, simplex-noise, hash-int, gl-matrix, flatqueue, webworkify, and other libraries; &#160;
-    <!-- hhmts start -->Last modified: 04 Dec 2018<!-- hhmts end -->
+    <!-- hhmts start -->Last modified: 20 Dec 2018<!-- hhmts end -->
   </x:footer>
   
   

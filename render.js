@@ -298,11 +298,10 @@ const drawFinal = regl({
     frag: `
 precision mediump float;
 uniform sampler2D u_texture;
-uniform float u_texture_size;
+uniform vec2 u_offset;
 varying vec2 v_uv;
-const vec2 half_pixel_offset = vec2(0.5, 0.5); // for smoothing
 void main() {
-   gl_FragColor = texture2D(u_texture, v_uv + half_pixel_offset / u_texture_size);
+   gl_FragColor = texture2D(u_texture, v_uv + u_offset);
 }`,
 
     vert: `
@@ -316,7 +315,7 @@ void main() {
     
     uniforms:  {
         u_texture: fbo_final_texture,
-        u_texture_size: fbo_texture_size,
+        u_offset: regl.prop('u_offset'),
     },
     depth: {
         enable: false,
@@ -379,6 +378,11 @@ class Renderer {
             length: 4 * this.a_river_xyuv.length,
         });
 
+        this.screenshotCanvas = document.createElement('canvas');
+        this.screenshotCanvas.width = fbo_texture_size;
+        this.screenshotCanvas.height = fbo_texture_size;
+        this.screenshotCallback = null;
+        
         this.renderParam = undefined;
         this.startDrawingLoop();
     }
@@ -498,8 +502,30 @@ class Renderer {
                 u_biome_colors: renderParam.biome_colors,
             });
 
-            drawFinal();
-            
+            drawFinal({
+                u_offset: [0.5 / fbo_texture_size, 0.5 / fbo_texture_size],
+            });
+
+            if (this.screenshotCallback) {
+                // TODO: regl says I need to use preserveDrawingBuffer
+                const gl = regl._gl;
+                const ctx = this.screenshotCanvas.getContext('2d');
+                const imageData = ctx.getImageData(0, 0, fbo_texture_size, fbo_texture_size);
+                const bytesPerRow = 4 * fbo_texture_size;
+                const buffer = new Uint8Array(bytesPerRow * fbo_texture_size);
+                gl.readPixels(0, 0, fbo_texture_size, fbo_texture_size, gl.RGBA, gl.UNSIGNED_BYTE, buffer);
+
+                // Flip row order from WebGL to Canvas
+                for (let y = 0; y < fbo_texture_size; y++) {
+                    const rowBuffer = new Uint8Array(buffer.buffer, y * bytesPerRow, bytesPerRow);
+                    imageData.data.set(rowBuffer, (fbo_texture_size-y-1) * bytesPerRow);
+                }
+                ctx.putImageData(imageData, 0, 0);
+
+                this.screenshotCallback();
+                this.screenshotCallback = null;
+            }
+                
             // I don't have to clear fbo_em because it doesn't have depth
             // and will be redrawn every frame. I do have to clear
             // fbo_river because even though it doesn't have depth, it

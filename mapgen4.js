@@ -131,6 +131,21 @@ function main({mesh, peaks_t}) {
         render.updateView(param.render);
     }
 
+    /* Ask render module to copy WebGL into Canvas */
+    function download() {
+        render.screenshotCallback = () => {
+            let a = document.createElement('a');
+            render.screenshotCanvas.toBlob(blob => {
+                // TODO: Firefox doesn't seem to allow a.click() to
+                // download; is it everyone or just my setup?
+                a.href = URL.createObjectURL(blob);
+                a.setAttribute('download', `mapgen4-${param.elevation.seed}.png`);
+                a.click();
+            });
+        };
+        render.updateView(param.render);
+    }
+    
     Painting.screenToWorldCoords = (coords) => {
         let out = render.screenToWorld(coords);
         return [out[0] / 1000, out[1] / 1000];
@@ -203,6 +218,9 @@ function main({mesh, peaks_t}) {
 
     worker.postMessage({mesh, peaks_t, param});
     generate();
+
+    const downloadButton = document.getElementById('button-download');
+    if (downloadButton) downloadButton.addEventListener('click', download);
 }
 
 MakeMesh.makeMesh().then(main);
