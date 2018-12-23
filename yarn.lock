@@ -2,13 +2,15 @@
 # yarn lockfile v1
 
 
-"@redblobgames/dual-mesh@file:../../../../Projects/redblobgames/1735-dual-mesh":
+"@redblobgames/dual-mesh@https://github.com/redblobgames/dual-mesh":
   version "2.0.0"
+  resolved "https://github.com/redblobgames/dual-mesh#a0e9604c9b3e87117f1120d012b42cd923f8e62e"
   dependencies:
-    delaunator "^2.0.0"
+    delaunator "^3.0.0"
 
-"@redblobgames/prng@file:../../../../Projects/redblobgames/1742-prng":
+"@redblobgames/prng@https://github.com/redblobgames/prng":
   version "1.0.0"
+  resolved "https://github.com/redblobgames/prng#1104cf92f9824d71cf631eeeedd5866e9b62ea9f"
   dependencies:
     hash-int "*"
 
@@ -65,10 +67,10 @@ convert-source-map@~1.1.0:
   resolved "https://registry.yarnpkg.com/convert-source-map/-/convert-source-map-1.1.3.tgz#4829c877e9fe49b3161f3bf3673888e204699860"
   integrity sha1-SCnId+n+SbMWHzvzZziI4gRpmGA=
 
-delaunator@^2.0.0:
-  version "2.0.3"
-  resolved "https://registry.yarnpkg.com/delaunator/-/delaunator-2.0.3.tgz#315676e628519ff7c8a8537259f3018a67437388"
-  integrity sha512-jHi7rPdAk9AqKFj+AZBchYgckSlVANdY8OMxhPmS24pRDFsJWuNoRyPxvPxOwaS6DWhy4/OOCthiuQmXI3QtKQ==
+delaunator@^3.0.0:
+  version "3.0.2"
+  resolved "https://registry.yarnpkg.com/delaunator/-/delaunator-3.0.2.tgz#62d5d9699cd64a736a2bb9c4d957d662452808d0"
+  integrity sha512-GNSex8jhF1mcqtNAMYvdZ6Ng7YieYNlbOq2xshyZhLc98P8y5O7Vm6buw4A60wGOd9qvK9RcIMm5qoe4PncAPw==
 
 extend@^1.2.1:
   version "1.3.0"

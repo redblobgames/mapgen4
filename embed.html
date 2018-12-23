@@ -1,0 +1,91 @@
+<div class="width-unlimited">
+<style>
+    button { text-align: center; padding: 0; background: hsl(60,20%,90%); border-radius: 4px; cursor: pointer; }
+    button svg { width: 100%; height: 100%; }
+    button text { text-anchor: middle; font-size: 24px; font-family: Arial; font-family: var(--sans-serif); }
+    button.current-control { background: hsl(60,100%,80%); }
+    button:focus { outline: none; }
+    input[type="range"] { cursor: ew-resize; }
+    button:disabled, input:disabled { cursor: unset; opacity: 0.25; }
+    #ui {
+        display: grid;
+        min-height: calc(100vmin - 130px);
+        grid-template-rows: repeat(3, 40px) calc(100vmin - 130px - 120px - 40px);
+        grid-template-columns: 1fr calc(100vmin - 130px) repeat(6, 20px) 1fr;
+        grid-row-gap: 10px;
+        grid-column-gap: 10px;
+    }
+    #map        { grid-area: 1 / 2 / span 4 / span 1; width:100%; height:100%; }
+    #small      { grid-area: 1 / 3 / span 1 / span 2; }
+    #medium     { grid-area: 1 / 5 / span 1 / span 2; }
+    #large      { grid-area: 1 / 7 / span 1 / span 2; }
+    #ocean      { grid-area: 2 / 3 / span 1 / span 3; }
+    #shallow    { grid-area: 2 / 6 / span 1 / span 3; }
+    #valley     { grid-area: 3 / 3 / span 1 / span 3; }
+    #mountain   { grid-area: 3 / 6 / span 1 / span 3; }
+    #sliders    { grid-area: 4 / 3 / span 1 / span 6; overflow-y: scroll; line-height: 1.0; }
+
+    @media (orientation: portrait) {
+        /* Put the buttons on top instead of on the right */
+        #ui {
+            grid-template-rows: repeat(6, 20px) calc(100vmin);
+            grid-template-columns: 50px repeat(2, 70px) calc(100vmin - 50px - 140px - 40px);
+        }
+        #map { grid-area: 7 / 1 / span 1 / span 6; }
+        #small { grid-area: 1 / 1 / span 2 / span 1; }
+        #medium { grid-area: 3 / 1 / span 2 / span 1; }
+        #large { grid-area: 5 / 1 / span 2 / span 1; }
+        #ocean { grid-area: 1 / 2 / span 3 / span 1; }
+        #shallow { grid-area: 1 / 3 / span 3 / span 1; }
+        #valley { grid-area: 4 / 2 / span 3 / span 1; }
+        #mountain { grid-area: 4 / 3 / span 3 / span 1; }
+        #sliders { grid-area: 1 / 4 / span 6 / span 1; justify-self: end; }
+    }
+
+    #mapgen4 { width: 100%; height: 100%; }
+    #sliders h3 {
+        background-color: hsl(60,20%,90%);
+        margin: 0.5em 0;
+        padding: 0.5em;
+        font-size: 66%;
+    }
+    #sliders label {
+        display: block;
+        font-size: 66%;
+    }
+    #sliders label span {
+        font-family: monospace;
+        font-family: var(--monospace);
+        display: inline-block;
+        width: 17ch;
+    }
+    #button-reset {
+        display: inline-block;
+        margin-left: auto;
+        margin-right: auto;
+        width: 100%;
+        height: 2em;
+    }
+</style>
+
+  <div id="ui" class="width-unlimited">
+  
+  <button id="small"><svg viewBox="-50 -50 100 100"><circle r="20"/></svg></button>
+  <button id="medium"><svg viewBox="-50 -50 100 100"><circle r="35"/></svg></button>
+  <button id="large"><svg viewBox="-50 -50 100 100"><circle r="50"/></svg></button>
+  
+  <button id="ocean" title="Ocean"><svg viewBox="-50 -50 100 100"><text y="45">Ocean</text><path d="M -60,-30 Q 0,80 60,-30 z" fill="hsl(240,50%,40%)"/></svg></button>
+  <button id="shallow" title="Water"><svg viewBox="-50 -50 100 100"><text y="45">Water</text><path d="M -60,-10 Q 0,30 60,-10 z" fill="hsl(200,50%,70%)"/></svg></button>
+  <button id="valley" title="Valley"><svg viewBox="-50 -50 100 100"><text y="45">Valley</text><path d="M -60,10 L -50,-10 L 50,-10 L 60,10 z" fill="hsl(100,50%,70%)"/></svg></button>
+  <button id="mountain" title="Mountain"><svg viewBox="-50 -50 100 100"><text y="45">Mountain</text><path d="M -60,30 L 0,-30 L 60,30 z" fill="hsl(60,50%,40%)"/></svg></button>
+  
+  <div id="sliders">
+    <button id="button-reset">Reset</button>
+  </div>
+  
+  <div id="map"><canvas id="mapgen4" width="2048" height="2048"/></div>
+  </div>
+  <script defer="defer" src="draggable.v2.js"></script>
+  <script defer="defer" src="build/_bundle.js"></script>
+</div>
+

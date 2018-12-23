@@ -169,7 +169,8 @@ function main({mesh, peaks_t}) {
         let {elapsed, numRiverTriangles, quad_elements_buffer, a_quad_em_buffer, a_river_xyuv_buffer} = event.data;
         elapsedTimeHistory.push(elapsed | 0);
         if (elapsedTimeHistory.length > 10) { elapsedTimeHistory.splice(0, 1); }
-        document.getElementById('timing').innerText = `${elapsedTimeHistory.join(' ')} milliseconds`;
+        const timingDiv = document.getElementById('timing');
+        if (timingDiv) { timingDiv.innerText = `${elapsedTimeHistory.join(' ')} milliseconds`; }
         render.quad_elements = new Int32Array(quad_elements_buffer);
         render.a_quad_em = new Float32Array(a_quad_em_buffer);
         render.a_river_xyuv = new Float32Array(a_river_xyuv_buffer);
