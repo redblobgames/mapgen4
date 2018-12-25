@@ -1,0 +1,77 @@
+#+title: Mapgen4
+#+date: <2018-12-24>
+
+[[http://unmaintained.tech/badge.svg]]
+
+[[https://www.redblobgames.com/maps/mapgen4/][Mapgen4]] is a procedural wilderness map generator I wrote during 2017 and 2018. It's written in JavaScript and designed to:
+
+- run /fast/ enough to regenerate in real time as you paint terrain
+- look /pretty/ instead of generating realistic terrain
+
+[[https://www.redblobgames.com/maps/mapgen4/blog/screenshot15-small.jpg]]
+
+* Install
+
+If you like =yarn=:
+
+#+begin_src sh
+yarn global add browserify
+yarn install
+make build/points-5.data
+yarn build
+#+end_src
+
+If you like =npm=:
+
+#+begin_src sh
+npm -g install browserify
+npm install
+make build/points-5.data
+npm run build
+#+end_src
+
+Then run ~python -m SimpleHTTPServer 8000~ and visit http://localhost:8000/embed.html in your browser.
+
+* Background
+
+I have a [[http://simblob.blogspot.com/search/label/mapgen4][series of blog posts]] about how I made these maps:
+
+- [[http://simblob.blogspot.com/2018/08/mapgen4-goals.html][History]] of the project
+- [[https://www.redblobgames.com/x/1721-voronoi-alternative/][Alternative to Voronoi cells]]
+- [[https://www.redblobgames.com/x/1722-b-rep-triangle-meshes/][Compact data structure]] for the Delaunay+Voronoi mesh
+- [[http://simblob.blogspot.com/2018/08/mapgen4-elevation.html][Elevation]] to match the desired look instead of tweaking the look to match the elevation
+- [[http://simblob.blogspot.com/2018/09/mapgen4-elevation-painting.html][Distance fields for elevation]]
+- [[http://simblob.blogspot.com/2018/09/mapgen4-threads.html][Multithreading]] to make it run acceptably fast
+- Fixing the [[http://simblob.blogspot.com/2018/09/mapgen4-river-appearance.html][appearance of rivers]]
+- Revisiting [[http://simblob.blogspot.com/2018/09/mapgen4-elevation-painting-revisited.html][distance fields]], which didn't work out like I hoped
+- [[http://simblob.blogspot.com/2018/09/mapgen4-rainfall.html][Rainfall]], biomes, evaporation, wind
+- Rendering with an [[http://simblob.blogspot.com/2018/09/mapgen4-oblique-projection.html][oblique projection]], not the standard rotate+translate+scale
+- Rendering [[http://simblob.blogspot.com/2018/10/mapgen4-outlines.html][outlines]]
+- Some [[http://simblob.blogspot.com/2018/09/mapgen4-bug-fixes.html][bug fixes]]
+- River [[https://www.redblobgames.com/x/1723-procedural-river-growing/][generation]] and [[http://simblob.blogspot.com/2018/10/mapgen4-river-representation.html][data structures]]
+
+It's a continuation of ideas I developed for [[https://github.com/amitp/mapgen2/][mapgen2]] back in 2010, but at a much larger scale. The underlying code can support 1 million+ Voronoi cells (change =spacing= in config.js to 0.7), including [[https://www.redblobgames.com/maps/mapgen4/blog/3565944-triangles-600kregions.png][a very detailed river network]], but the rendering code and other parameters are designed to look prettiest around 25k cells.
+
+There's plenty more that could be done to make it even faster and prettier. There are plenty of features that could be added, such as [[https://www.redblobgames.com/x/1723-procedural-river-growing/#draw][drawing your own rivers]], [[https://www.redblobgames.com/x/1843-planet-generation/][sphere output]], [[https://www.redblobgames.com/x/1736-resource-placement/][natural resources]], towns, forests, names, roads, and nations, but I'm leaving those for a future project.
+
+* License
+
+Mapgen4 and helper libraries I wrote (dual-mesh, prng) are licensed under Apache v2. You can use this code in your own project, including commercial projects.
+
+The map generator uses these libraries:
+
+- [[https://github.com/mapbox/delaunator.git][Delaunator]] from MapBox is licensed under the ISC license.
+- [[https://github.com/kchapelier/poisson-disk-sampling][poisson-disk-sampling]] from Kevin Chapelier is licensed under the MIT license.
+- [[https://github.com/jwagner/simplex-noise.js][simple-noise]] from Jonas Wagner is licensed under the MIT license.
+- [[https://github.com/mourner/flatqueue][flatqueue]] from Vladimir Agafonkin is licensed under the ISC license.
+- [[https://github.com/mikolalysenko/hash-int][hash-int]] from Mikola Lysenko is licensed under the MIT license.
+
+The rendering code uses these libraries:
+
+- [[https://github.com/regl-project/regl][regl]] from Mikola Lysenko is licensed under the MIT license.
+- [[https://github.com/toji/gl-matrix][gl-matrix]] from Brandon Jones, Colin MacKenzie IV is licensed under the MIT license.
+
+The build step uses:
+
+- [[https://github.com/browserify/browserify][Browserify]] + [[https://github.com/substack/webworkify][Webworkify]] are licensed under the MIT license.
+- [[https://github.com/hughsk/uglifyify][Uglifyify]] from Hugh Kennedy is licensed under the MIT license.
