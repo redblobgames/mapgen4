@@ -101,6 +101,8 @@ void main() {
    // until I can produce the artifact properly (e.g. bug → feature).
    // Using linear filtering on the texture also smooths out the artifacts.
    //  gl_FragColor = vec4(fract(256.0*e), floor(256.0*e)/256.0, 0, 1);
+   // NOTE: need to use GL_NEAREST filtering for this texture because
+   // blending R,G channels independently isn't going to give the right answer
 }`,
 
     vert: `

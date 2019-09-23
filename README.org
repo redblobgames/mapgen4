@@ -1,7 +1,7 @@
 #+title: Mapgen4
 #+date: <2018-12-24>
 
-[[http://unmaintained.tech/badge.svg]]
+[[http://unmaintained.tech/][http://unmaintained.tech/badge.svg]]
 
 [[https://www.redblobgames.com/maps/mapgen4/][Mapgen4]] is a procedural wilderness map generator I wrote during 2017 and 2018. It's written in JavaScript and designed to:
 
