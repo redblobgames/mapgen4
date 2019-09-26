@@ -5,17 +5,17 @@
     "dependencies": {
         "@redblobgames/dual-mesh": "https://github.com/redblobgames/dual-mesh",
         "@redblobgames/prng": "https://github.com/redblobgames/prng",
-        "webworkify": "*",
         "flatqueue": "*",
         "gl-matrix": "*",
         "hash-int": "*",
         "regl": "*",
-        "simplex-noise": "*"
+        "simplex-noise": "*",
+        "webworkify": "*"
     },
     "devDependencies": {
+        "@types/browserify": "*",
         "poisson-disk-sampling": "*",
-        "uglifyify": "*",
-        "@types/browserify": "*"
+        "uglifyify": "*"
     },
     "scripts": {
         "build": "browserify mapgen4.js -g uglifyify -o build/_bundle.js",
