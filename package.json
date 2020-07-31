@@ -1,20 +1,20 @@
 {
     "name": "@redblobgames/mapgen4-ui",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "private": true,
     "dependencies": {
         "@redblobgames/dual-mesh": "https://github.com/redblobgames/dual-mesh",
         "@redblobgames/prng": "https://github.com/redblobgames/prng",
-        "flatqueue": "*",
-        "gl-matrix": "*",
-        "hash-int": "*",
-        "regl": "*",
-        "simplex-noise": "*",
-        "webworkify": "*"
+        "flatqueue": "^1",
+        "gl-matrix": "^3",
+        "hash-int": "^1",
+        "regl": "^1",
+        "simplex-noise": "^2",
+        "webworkify": "^1"
     },
     "devDependencies": {
         "@types/browserify": "*",
-        "poisson-disk-sampling": "*",
+        "poisson-disk-sampling": "^1",
         "uglifyify": "*"
     },
     "scripts": {
