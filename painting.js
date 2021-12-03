@@ -188,6 +188,7 @@ displayCurrentTool();
 
 const output = document.getElementById('mapgen4');
 new Draggable({
+    // TODO: replace with pointer events, now that they're widely supported
     el: output,
     start(event) {
         this.timestamp = Date.now();

@@ -66,7 +66,6 @@ exports.setMapGeometry = function(map, I, P) {
 
     // TODO: split this into its own function; it can be updated separately, and maybe not as often
     let i = 0;
-    let {_halfedges, _triangles} = mesh;
     for (let s = 0; s < numSolidSides; s++) {
         let opposite_s = mesh.s_opposite_s(s),
             r1 = mesh.s_begin_r(s),
