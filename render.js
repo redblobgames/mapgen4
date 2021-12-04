@@ -8,10 +8,11 @@
 
 'use strict';
 
-const {vec4, mat4} = require('gl-matrix');
-const colormap = require('./colormap');
-const Geometry = require('./geometry');
-const regl = require('regl')({
+import {vec4, mat4} from 'gl-matrix';
+import colormap from './colormap';
+import Geometry from './geometry';
+import createREGL from 'regl';
+const regl = createREGL({
     canvas: "#mapgen4",
     extensions: ['OES_element_index_uint']
 });
@@ -550,4 +551,4 @@ class Renderer {
     }
 }
 
-exports.Renderer = Renderer;
+export default Renderer;

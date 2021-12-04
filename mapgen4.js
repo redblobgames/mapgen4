@@ -14,12 +14,10 @@
  */
 'use strict';
 
-const param       = require('./config');
-const WebWorkify  = require('webworkify');
-const MakeMesh    = require('./mesh');
-const Map         = require('./map');
-const Painting    = require('./painting');
-const Render      = require('./render');
+import param from './config';
+import {makeMesh} from './mesh';
+import Painting from './painting';
+import Renderer from './render';
 
 
 const initialParams = {
@@ -72,7 +70,7 @@ const initialParams = {
  * @param {{mesh: Mesh, peaks_t: number[]}} _
  */
 function main({mesh, peaks_t}) {
-    let render = new Render.Renderer(mesh);
+    let render = new Renderer(mesh);
 
     /* set initial parameters */
     for (let phase of ['elevation', 'biomes', 'rivers', 'render']) {
@@ -155,7 +153,7 @@ function main({mesh, peaks_t}) {
         generate();
     };
 
-    const worker = /** @type {Worker} */(WebWorkify(require('./worker.js')));
+    const worker = new window.Worker("build/_worker.js");
     let working = false;
     let workRequested = false;
     let elapsedTimeHistory = [];
@@ -224,4 +222,4 @@ function main({mesh, peaks_t}) {
     if (downloadButton) downloadButton.addEventListener('click', download);
 }
 
-MakeMesh.makeMesh().then(main);
+makeMesh().then(main);

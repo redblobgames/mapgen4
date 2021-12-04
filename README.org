@@ -71,7 +71,4 @@ The rendering code uses these libraries:
 - [[https://github.com/regl-project/regl][regl]] from Mikola Lysenko is licensed under the MIT license.
 - [[https://github.com/toji/gl-matrix][gl-matrix]] from Brandon Jones, Colin MacKenzie IV is licensed under the MIT license.
 
-The build step uses:
-
-- [[https://github.com/browserify/browserify][Browserify]] + [[https://github.com/substack/webworkify][Webworkify]] are licensed under the MIT license.
-- [[https://github.com/hughsk/uglifyify][Uglifyify]] from Hugh Kennedy is licensed under the MIT license.
+The build step uses [[https://esbuild.github.io/][esbuild]] from Evan Wallace, licensed under the MIT license

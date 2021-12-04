@@ -8,9 +8,9 @@
  */
 'use strict';
 
-const SimplexNoise = require('simplex-noise');
-const FlatQueue = require('flatqueue');
-const {makeRandInt, makeRandFloat} = require('@redblobgames/prng');
+import SimplexNoise from 'simplex-noise';
+import FlatQueue from 'flatqueue';
+import {makeRandFloat} from '@redblobgames/prng';
 
 const mountain = {
     slope: 20,
@@ -39,7 +39,6 @@ const mountain = {
  * @param {Float32Array} t_distance - the distance field indexed by t, OUTPUT
  */
 function calculateMountainDistance(mesh, seeds_t, spacing, jaggedness, randFloat, t_distance) {
-    let {s_length} = mesh;
     t_distance.fill(-1);
     let queue_t = seeds_t.concat([]);
     for (let i = 0; i < queue_t.length; i++) {
@@ -87,7 +86,7 @@ function precalculateNoise(randFloat, mesh) {
 }
 
         
-class Map {
+export default class Map {
     /**
      * @param {Mesh} mesh
      * @param {number[]} peaks_t - array of triangle indices for mountain peaks
@@ -116,7 +115,7 @@ class Map {
 
     assignTriangleElevation(elevationParam, constraints) {
         let {mesh, t_elevation, t_mountain_distance, precomputed} = this;
-        let {numTriangles, numSolidTriangles, numRegions, numSides} = mesh;
+        let {numTriangles, numSolidTriangles} = mesh;
 
         // Assign elevations to triangles TODO: separate message,
         // store the interpolated values in an array, or maybe for
@@ -194,7 +193,6 @@ class Map {
     assignRegionElevation(elevationParam, constraints) {
         let {mesh, t_elevation, r_elevation} = this;
         let {numRegions, _r_in_s, _halfedges} = mesh;
-        let out_t = [];
         for (let r = 0; r < numRegions; r++) {
             let count = 0, e = 0, water = false;
             const s0 = _r_in_s[r];
@@ -248,7 +246,6 @@ class Map {
             wind_order_r.sort((r1, r2) => r_wind_sort[r1] - r_wind_sort[r2]);
         }
 
-        let out_r = [];
         for (let r of wind_order_r) {
             let count = 0, sum = 0.0;
             let s0 = _r_in_s[r], incoming = s0;
@@ -394,6 +391,3 @@ function assignFlow(mesh, riversParam, order_t, t_elevation, t_moisture, t_downs
         }
     }
 }
-
-
-module.exports = Map;

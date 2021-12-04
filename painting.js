@@ -15,8 +15,8 @@
  * then send the elevation map to the generator to produce the output.
  */
 
-const SimplexNoise = require('simplex-noise');
-const {makeRandFloat} = require('@redblobgames/prng');
+import SimplexNoise from 'simplex-noise';
+import {makeRandFloat} from '@redblobgames/prng';
 
 const CANVAS_SIZE = 128;
 
@@ -132,9 +132,18 @@ class Generator {
 }
 let heightMap = new Generator();
 
+let exported = {
+    size: CANVAS_SIZE,
+    onUpdate: () => {},
+    screenToWorldCoords: coords => coords,
+    constraints: heightMap.elevation,
+    setElevationParam: elevationParam => heightMap.setElevationParam(elevationParam),
+    userHasPainted: () => heightMap.userHasPainted,
+};
+
 document.getElementById('button-reset').addEventListener('click', () => {
     heightMap.generate();
-    exports.onUpdate();
+    exported.onUpdate();
 });
 
 
@@ -186,6 +195,7 @@ for (let control of controls) {
 }
 displayCurrentTool();
 
+
 const output = document.getElementById('mapgen4');
 new Draggable({
     // TODO: replace with pointer events, now that they're widely supported
@@ -201,16 +211,13 @@ new Draggable({
         const nowMs = Date.now();
         let coords = [event.x / output.clientWidth,
                       event.y / output.clientHeight];
-        coords = exports.screenToWorldCoords(coords);
+        coords = exported.screenToWorldCoords(coords);
         heightMap.paintAt(TOOLS[currentTool], coords[0], coords[1], SIZES[currentSize], nowMs - this.timestamp);
         this.timestamp = nowMs;
-        exports.onUpdate();
+        exported.onUpdate();
     },
 });
 
-exports.screenToWorldCoords = coords => coords;
-exports.onUpdate = () => {};
-exports.size = CANVAS_SIZE;
-exports.constraints = heightMap.elevation;
-exports.setElevationParam = elevationParam => heightMap.setElevationParam(elevationParam);
-exports.userHasPainted = () => heightMap.userHasPainted;
+
+
+export default exported;

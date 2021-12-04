@@ -17,12 +17,10 @@
  * uses async functions that build the mesh only after the points are
  * read in.
  */
-'use strict';
 
-const param       = require('./config');
-const DualMesh    = require('@redblobgames/dual-mesh');
-const MeshBuilder = require('@redblobgames/dual-mesh/create');
-const {makeRandInt, makeRandFloat} = require('@redblobgames/prng');
+import param from './config';
+import MeshBuilder from '@redblobgames/dual-mesh/create';
+import {makeRandFloat} from '@redblobgames/prng';
 
 
 /**
@@ -135,7 +133,7 @@ async function choosePoints() {
 }
 
 
-async function makeMesh() {
+export async function makeMesh() {
     let {points, peaks_index} = await choosePoints();
 
     let builder = new MeshBuilder({boundarySpacing: param.spacing * 1.5})
@@ -169,6 +167,3 @@ async function makeMesh() {
     
     return {mesh, peaks_t};
 }
-
-
-exports.makeMesh = makeMesh;

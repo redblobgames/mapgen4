@@ -3,13 +3,12 @@
  * Copyright 2017 Red Blob Games <redblobgames@gmail.com>
  * License: Apache v2.0 <http://www.apache.org/licenses/LICENSE-2.0.html>
  */
-'use strict';
 
-let {vec2} = require('gl-matrix');
+import {vec2} from 'gl-matrix';
+import Map from './map';
 
 /**
  * @typedef { import("./types").Mesh } Mesh
- * @typedef { import("./map") } Map
  */
 
 
@@ -19,7 +18,7 @@ let {vec2} = require('gl-matrix');
  * @param {Mesh} mesh
  * @param {Float32Array} P - x,y for each region, then for each triangle
  */
-exports.setMeshGeometry = function(mesh, P) {
+function setMeshGeometry(mesh, P) {
     let {numRegions, numTriangles} = mesh;
     if (P.length !== 2 * (numRegions + numTriangles)) { throw "wrong size"; }
 
@@ -41,7 +40,7 @@ exports.setMeshGeometry = function(mesh, P) {
  * @param {Int32Array} I - indices into the data array
  * @param {Float32Array} P - elevation, rainfall data
  */
-exports.setMapGeometry = function(map, I, P) {
+function setMapGeometry(map, I, P) {
     // TODO: V should probably depend on the slope, or elevation, or maybe it should be 0.95 in mountainous areas and 0.99 elsewhere
     const V = 0.95; // reduce elevation in valleys
     let {mesh, s_flow, r_elevation, t_elevation, r_rainfall} = map;
@@ -135,7 +134,7 @@ const numRiverSizes = 24; // NOTE: too high and rivers are low quality; too low 
 const riverTextureSize = 4096;
 const riverMaximumFractionOfWidth = 0.5;
 const riverTexturePositions = assignTextureCoordinates(riverTextureSpacing, numRiverSizes, riverTextureSize);
-exports.createRiverBitmap = function() {
+function createRiverBitmap() {
     let canvas = document.createElement('canvas');
     canvas.width = canvas.height = riverTextureSize;
     let ctx = canvas.getContext('2d');
@@ -210,7 +209,7 @@ function clamp(x, lo, hi) {
  * @param {Float32Array} P - array of x,y,u,v triples for the river triangles
  * @returns {number} - how many triangles were needed (at most numSolidTriangles)
  */
-exports.setRiverTextures = function(map, spacing, riversParam, P) {
+function setRiverTextures(map, spacing, riversParam, P) {
     const MIN_FLOW = Math.exp(riversParam.lg_min_flow);
     const RIVER_WIDTH = Math.exp(riversParam.lg_river_width);
     let {mesh, t_downslope_s, s_flow} = map;
@@ -265,3 +264,5 @@ exports.setRiverTextures = function(map, spacing, riversParam, P) {
 
     return p / 12;
 };
+
+export default {setMeshGeometry, createRiverBitmap, setMapGeometry, setRiverTextures};

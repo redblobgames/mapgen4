@@ -8,7 +8,7 @@
  * filled in by the map generator.
  */
 
-const config = {
+module.exports = {
     spacing: 5,
     mountainSpacing: 35,
     mountainDensity: 1500,
@@ -24,5 +24,3 @@ const config = {
     render: {
     },
 };
-
-module.exports = config;
