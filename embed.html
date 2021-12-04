@@ -2,10 +2,10 @@
 <style>
     button { text-align: center; padding: 0; background: hsl(60,20%,90%); border-radius: 4px; cursor: pointer; }
     button svg { width: 100%; height: 100%; }
-    button text { text-anchor: middle; font-size: 24px; font-family: Arial; font-family: var(--sans-serif); }
+    button text { text-anchor: middle; font-size: 24px; font-family: var(--sans-serif, Arial); }
     button.current-control { background: hsl(60,100%,80%); }
     button:focus { outline: none; }
-    input[type="range"] { cursor: ew-resize; }
+    input[type="range"] { cursor: ew-resize; margin-left: 0; margin-right: 0; }
     button:disabled, input:disabled { cursor: unset; opacity: 0.25; }
     #ui {
         display: grid;
@@ -23,7 +23,7 @@
     #shallow    { grid-area: 2 / 6 / span 1 / span 3; }
     #valley     { grid-area: 3 / 3 / span 1 / span 3; }
     #mountain   { grid-area: 3 / 6 / span 1 / span 3; }
-    #sliders    { grid-area: 4 / 3 / span 1 / span 6; overflow-y: scroll; line-height: 1.0; }
+    #sliders    { grid-area: 4 / 3 / span 1 / span 6; overflow-y: scroll; overflow-x: clip; line-height: 1.1; }
 
     @media (orientation: portrait) {
         /* Put the buttons on top instead of on the right */
@@ -47,17 +47,19 @@
         background-color: hsl(60,20%,90%);
         margin: 0.5em 0;
         padding: 0.5em;
+        font-family: var(--sans-serif, sans-serif);
         font-size: 66%;
     }
     #sliders label {
         display: block;
         font-size: 66%;
     }
+    #sliders label > * {
+        width: 99%;
+    }
     #sliders label span {
-        font-family: monospace;
-        font-family: var(--monospace);
+        font-family: var(--monospace, monospace);
         display: inline-block;
-        width: 17ch;
     }
     #button-reset {
         display: inline-block;
