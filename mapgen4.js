@@ -27,6 +27,7 @@ const initialParams = {
         ['noisy_coastlines', 0.01, 0, 0.1],
         ['hill_height', 0.02, 0, 0.1],
         ['mountain_jagged', 0, 0, 1],
+        ['mountain_sharpness', 10, 9.5, 12.5],
         ['ocean_depth', 1.5, 1, 3],
     ],
     biomes: [

@@ -154,6 +154,7 @@ export default class Map {
         
         // For land triangles, mix hill and mountain terrain together
         const mountain_slope = mountain.slope,
+              mountain_sharpness = Math.pow(2, elevationParam.mountain_sharpness),
               {t_noise0, t_noise1, t_noise2, t_noise4} = precomputed;
         for (let t = 0; t < numTriangles; t++) {
             let e = t_elevation[t];
@@ -176,7 +177,7 @@ export default class Map {
                 let noisiness = 1.0 - 0.5 * (1 + t_noise0[t]);
                 let eh = (1 + noisiness * t_noise4[t] + (1 - noisiness) * t_noise2[t]) * elevationParam.hill_height;
                 if (eh < 0.01) { eh = 0.01; }
-                let em = 1 - mountain_slope/1000 * t_mountain_distance[t];
+                let em = 1 - mountain_slope/mountain_sharpness * t_mountain_distance[t];
                 if (em < 0.01) { em = 0.01; }
                 let weight = e * e;
                 e = (1-weight) * eh + weight * em;
