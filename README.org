@@ -12,25 +12,23 @@
 
 * Install
 
-If you like =yarn=:
+If you use =yarn= 1:
 
 #+begin_src sh
-yarn global add browserify
+yarn global add esbuild
 yarn install
-make build/points-5.data
-yarn build
+make
 #+end_src
 
-If you like =npm=:
+If you use =npm=:
 
 #+begin_src sh
-npm -g install browserify
+npm install -g esbuild
 npm install
-make build/points-5.data
-npm run build
+make
 #+end_src
 
-Run ~python2 -m SimpleHTTPServer 8000~ or ~python3 -m http.server 8000~, then visit http://localhost:8000/embed.html in your browser.
+Run ~python3 -m http.server 8000~, then visit http://localhost:8000/embed.html in your browser.
 
 * Background
 
