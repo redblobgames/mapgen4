@@ -12,35 +12,37 @@
         display: grid;
         min-height: calc(100vmin - 130px);
         grid-template-rows: repeat(3, 40px) calc(100vmin - 130px - 120px - 40px);
-        grid-template-columns: 1fr calc(100vmin - 130px) repeat(6, 20px) 1fr;
+        grid-template-columns: 1fr calc(100vmin - 130px) repeat(4, 30px) 1fr;
         grid-row-gap: 10px;
         grid-column-gap: 10px;
     }
     #map        { grid-area: 1 / 2 / span 4 / span 1; width:100%; height:100%; }
-    #small      { grid-area: 1 / 3 / span 1 / span 2; }
-    #medium     { grid-area: 1 / 5 / span 1 / span 2; }
-    #large      { grid-area: 1 / 7 / span 1 / span 2; }
-    #ocean      { grid-area: 2 / 3 / span 1 / span 3; }
-    #shallow    { grid-area: 2 / 6 / span 1 / span 3; }
-    #valley     { grid-area: 3 / 3 / span 1 / span 3; }
-    #mountain   { grid-area: 3 / 6 / span 1 / span 3; }
-    #sliders    { grid-area: 4 / 3 / span 1 / span 6; overflow-y: scroll; overflow-x: clip; line-height: 1.1; }
+    #tiny       { grid-area: 1 / 3 / span 1 / span 1; }
+    #small      { grid-area: 1 / 4 / span 1 / span 1; }
+    #medium     { grid-area: 1 / 5 / span 1 / span 1; }
+    #large      { grid-area: 1 / 6 / span 1 / span 1; }
+    #ocean      { grid-area: 2 / 3 / span 1 / span 2; }
+    #shallow    { grid-area: 2 / 5 / span 1 / span 2; }
+    #valley     { grid-area: 3 / 3 / span 1 / span 2; }
+    #mountain   { grid-area: 3 / 5 / span 1 / span 2; }
+    #sliders    { grid-area: 4 / 3 / span 1 / span 4; overflow-y: scroll; overflow-x: clip; line-height: 1.1; }
 
     @media (orientation: portrait) {
         /* Put the buttons on bottom instead of on the right */
         #ui {
-            grid-template-rows: calc(100vmin) repeat(6, 20px) 1fr;
-            grid-template-columns: 50px repeat(2, 70px) calc(100vmin - 50px - 140px - 40px);
+            grid-template-rows: calc(100vmin) repeat(4, 40px) 1fr;
+            grid-template-columns: 70px 70px calc(100vmin - 50px - 140px - 40px);
         }
         #map { grid-area: 1 / 1 / span 1 / span 6; }
-        #small { grid-area: 2 / 1 / span 2 / span 1; }
-        #medium { grid-area: 4 / 1 / span 2 / span 1; }
-        #large { grid-area: 6 / 1 / span 2 / span 1; }
-        #ocean { grid-area: 2 / 2 / span 3 / span 1; }
-        #shallow { grid-area: 2 / 3 / span 3 / span 1; }
-        #valley { grid-area: 5 / 2 / span 3 / span 1; }
-        #mountain { grid-area: 5 / 3 / span 3 / span 1; }
-        #sliders { grid-area: 2 / 4 / span 7 / span 1; justify-self: end; width: 100%; column-width: 20ch; }
+        #tiny { grid-area: 2 / 1 / span 1 / span 1; }
+        #small { grid-area: 3 / 1 / span 1 / span 1; }
+        #medium { grid-area: 4 / 1 / span 1 / span 1; }
+        #large { grid-area: 5 / 1 / span 1 / span 1; }
+        #ocean { grid-area: 2 / 2 / span 1 / span 1; }
+        #shallow { grid-area: 3 / 2 / span 1 / span 1; }
+        #valley { grid-area: 4 / 2 / span 1 / span 1; }
+        #mountain { grid-area: 5 / 2 / span 1 / span 1; }
+        #sliders { grid-area: 2 / 3 / span 5 / span 1; justify-self: end; width: 100%; column-width: 20ch; }
     }
 
     #mapgen4 { width: 100%; height: 100%; cursor: crosshair; }
@@ -74,6 +76,7 @@
 
   <div id="ui">
   
+  <button id="tiny"><svg viewBox="-50 -50 100 100"><circle r="7"/></svg></button>
   <button id="small"><svg viewBox="-50 -50 100 100"><circle r="20"/></svg></button>
   <button id="medium"><svg viewBox="-50 -50 100 100"><circle r="35"/></svg></button>
   <button id="large"><svg viewBox="-50 -50 100 100"><circle r="50"/></svg></button>

@@ -107,8 +107,8 @@ class Generator {
         let newElevation = tool.elevation;
         let {innerRadius, outerRadius, rate} = size;
         let xc = (x0 * CANVAS_SIZE) | 0, yc = (y0 * CANVAS_SIZE) | 0;
-        let top = Math.max(0, yc - outerRadius),
-            bottom = Math.min(CANVAS_SIZE-1, yc + outerRadius);
+        let top = Math.ceil(Math.max(0, yc - outerRadius)),
+            bottom = Math.floor(Math.min(CANVAS_SIZE-1, yc + outerRadius));
         for (let y = top; y <= bottom; y++) {
             let s = Math.sqrt(outerRadius * outerRadius - (y - yc) * (y - yc)) | 0;
             let left = Math.max(0, xc - s),
@@ -149,9 +149,10 @@ document.getElementById('button-reset').addEventListener('click', () => {
 
 const SIZES = {
     // rate is effect per second
-    small:  {key: '1', rate: 8, innerRadius: 2, outerRadius: 6},
-    medium: {key: '2', rate: 5, innerRadius: 5, outerRadius: 10},
-    large:  {key: '3', rate: 3, innerRadius: 10, outerRadius: 16},
+    tiny:   {key: '1', rate: 9, innerRadius: 1.5, outerRadius: 2.5},
+    small:  {key: '2', rate: 8, innerRadius: 2, outerRadius: 6},
+    medium: {key: '3', rate: 5, innerRadius: 5, outerRadius: 10},
+    large:  {key: '4', rate: 3, innerRadius: 10, outerRadius: 16},
 };
 
 const TOOLS = {
@@ -175,9 +176,10 @@ function displayCurrentTool() {
 
 /** @type {[string, string, function][]} */
 const controls = [
-    ['1', "small",    () => { currentSize = 'small'; }],
-    ['2', "medium",   () => { currentSize = 'medium'; }],
-    ['3', "large",    () => { currentSize = 'large'; }],
+    ['1', "tiny",     () => { currentSize = 'tiny'; }],
+    ['2', "small",    () => { currentSize = 'small'; }],
+    ['3', "medium",   () => { currentSize = 'medium'; }],
+    ['4', "large",    () => { currentSize = 'large'; }],
     ['q', "ocean",    () => { currentTool = 'ocean'; }],
     ['w', "shallow",  () => { currentTool = 'shallow'; }],
     ['e', "valley",   () => { currentTool = 'valley'; }],
@@ -212,7 +214,22 @@ new Draggable({
         let coords = [event.x / output.clientWidth,
                       event.y / output.clientHeight];
         coords = exported.screenToWorldCoords(coords);
-        heightMap.paintAt(TOOLS[currentTool], coords[0], coords[1], SIZES[currentSize], nowMs - this.timestamp);
+        let brushSize = SIZES[currentSize];
+        if (event.touch && event.touch.force > 0) {
+            // Apple Stylus
+            let radius = Math.sqrt(event.touch.force);
+            brushSize = {
+                key: brushSize.key,
+                innerRadius: Math.max(1, brushSize.innerRadius * radius),
+                outerRadius: Math.max(2, brushSize.outerRadius * radius),
+                rate: brushSize.rate,
+            };
+        }
+        if (event.raw && event.raw.shiftKey) {
+            // Hold down shift to paint slowly
+            brushSize = {...brushSize, rate: brushSize.rate/4};
+        }
+        heightMap.paintAt(TOOLS[currentTool], coords[0], coords[1], brushSize, nowMs - this.timestamp);
         this.timestamp = nowMs;
         exported.onUpdate();
     },

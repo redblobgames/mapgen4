@@ -32,19 +32,16 @@ class Draggable {
             const rect = this.reference.getBoundingClientRect();
             let operation = Object.create(this);
             operation.mouse_button = event.button;
-            operation.raw = event;
-            operation.start(operation.coords(rect, event));
+            operation.start({raw: event, ...operation.coords(rect, event)});
             
             function mouseMove(event) {
-                operation.raw = event;
-                operation.drag(operation.coords(rect, event));
+                operation.drag({raw: event, ...operation.coords(rect, event)});
                 event.preventDefault();
                 event.stopPropagation();
             }
 
             function mouseUp(event) {
-                operation.raw = event;
-                operation.end(operation.coords(rect, event));
+                operation.end({raw: event, ...operation.coords(rect, event)});
                 mouse_cleanup();
                 event.preventDefault();
                 event.stopPropagation();
@@ -67,8 +64,7 @@ class Draggable {
             const rect = this.reference.getBoundingClientRect();
             for (let i = 0; i < event.changedTouches.length; i++) {
                 const touch = event.changedTouches[i];
-                let current = this.coords(rect, touch);
-                current.raw = touch;
+                let current = {raw: event, touch, ...this.coords(rect, touch)};
                 switch (event.type) {
                 case 'touchstart':
                     touch_begin[touch.identifier] = Object.create(this);
