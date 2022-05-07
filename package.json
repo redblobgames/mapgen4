@@ -9,7 +9,7 @@
         "gl-matrix": "^3",
         "hash-int": "^1",
         "regl": "^1",
-        "simplex-noise": "^2"
+        "simplex-noise": "^3"
     },
     "devDependencies": {
         "fast-2d-poisson-disk-sampling": "1.0.1"
