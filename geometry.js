@@ -156,20 +156,14 @@ function createRiverBitmap() {
                 
                 let center = [(pos[0].xy[0] + pos[1].xy[0] + pos[2].xy[0]) / 3,
                               (pos[0].xy[1] + pos[1].xy[1] + pos[2].xy[1]) / 3];
-                let midpoint12 = vec2.lerp([], pos[1].xy, pos[2].xy, 0.5);
-                let midpoint20 = vec2.lerp([], pos[2].xy, pos[0].xy, 0.5);
+                let midpoint12 = vec2.lerp(vec2.create(), pos[1].xy, pos[2].xy, 0.5);
+                let midpoint20 = vec2.lerp(vec2.create(), pos[2].xy, pos[0].xy, 0.5);
 
                 ctx.strokeStyle = "hsl(200,50%,35%)";
                 if (type === 1) {
                     // TODO: river delta/fork sprite
                 } else {
                     const w = 1; /* TODO: draw a path and fill it; that will allow variable width */
-                    let c = vec2.lerp([], pos[1].xy, pos[2].xy, 0.5 - w),
-                        d = vec2.lerp([], pos[1].xy, pos[2].xy, 0.5 + w),
-                        a = vec2.lerp([], pos[0].xy, pos[1].xy, 0.5 - w),
-                        f = vec2.lerp([], pos[0].xy, pos[1].xy, 0.5 + w),
-                        b = null /* TODO: intersect lines */,
-                        e = null /* TODO: intersect lines */;
 
                     if (col > 0) {
                         ctx.lineWidth = Math.min(lineWidth(col), lineWidth(row));

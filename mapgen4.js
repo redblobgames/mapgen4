@@ -91,7 +91,7 @@ function main({mesh, peaks_t}) {
             slider.setAttribute('type', name === 'seed'? 'number' : 'range');
             slider.setAttribute('min', min);
             slider.setAttribute('max', max);
-            slider.setAttribute('step', step);
+            slider.setAttribute('step', step.toString());
             slider.addEventListener('input', event => {
                 param[phase][name] = slider.valueAsNumber;
                 requestAnimationFrame(() => {

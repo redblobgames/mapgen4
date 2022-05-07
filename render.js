@@ -21,13 +21,13 @@ const regl = createREGL({
 const river_texturemap = regl.texture({data: Geometry.createRiverBitmap(), mipmap: 'nice', min: 'mipmap', mag: 'linear', premultiplyAlpha: true});
 const fbo_texture_size = 2048;
 const fbo_land_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size});
-const fbo_land = regl.framebuffer({color: [fbo_land_texture]});
+const fbo_land = regl.framebuffer({color: fbo_land_texture});
 const fbo_depth_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size});
-const fbo_z = regl.framebuffer({color: [fbo_depth_texture]});
+const fbo_z = regl.framebuffer({color: fbo_depth_texture});
 const fbo_river_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size});
-const fbo_river = regl.framebuffer({color: [fbo_river_texture]});
+const fbo_river = regl.framebuffer({color: fbo_river_texture});
 const fbo_final_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size, min: 'linear', mag: 'linear'});
-const fbo_final = regl.framebuffer({color: [fbo_final_texture]});
+const fbo_final = regl.framebuffer({color: fbo_final_texture});
 
 
 /* draw rivers to a texture, which will be draped on the map surface */
@@ -336,8 +336,8 @@ class Renderer {
         this.resizeCanvas();
         
         this.topdown = mat4.create();
-        mat4.translate(this.topdown, this.topdown, [-1, -1, 0, 0]);
-        mat4.scale(this.topdown, this.topdown, [1/500, 1/500, 1, 1]);
+        mat4.translate(this.topdown, this.topdown, [-1, -1, 0]);
+        mat4.scale(this.topdown, this.topdown, [1/500, 1/500, 1]);
 
         this.projection = mat4.create();
         this.inverse_projection = mat4.create();
@@ -405,7 +405,8 @@ class Renderer {
             1
         );
         /* it returns vec4 but we only need vec2; they're compatible */
-        return vec4.transformMat4([], glCoords, this.inverse_projection);
+        let transformed = vec4.transformMat4(vec4.create(), glCoords, this.inverse_projection);
+        return [transformed[0], transformed[1]];
     }
     
     /* Update the buffers with the latest map data */
@@ -467,8 +468,8 @@ class Renderer {
             this.projection[9] = 1;
             
             /* Scale and translate works on the hybrid this.projection */
-            mat4.scale(this.projection, this.projection, [renderParam.zoom/100, renderParam.zoom/100, renderParam.mountain_height * renderParam.zoom/100, 1]);
-            mat4.translate(this.projection, this.projection, [-renderParam.x, -renderParam.y, 0, 0]);
+            mat4.scale(this.projection, this.projection, [renderParam.zoom/100, renderParam.zoom/100, renderParam.mountain_height * renderParam.zoom/100]);
+            mat4.translate(this.projection, this.projection, [-renderParam.x, -renderParam.y, 0]);
 
             /* Keep track of the inverse matrix for mapping mouse to world coordinates */
             mat4.invert(this.inverse_projection, this.projection);

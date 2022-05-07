@@ -191,7 +191,7 @@ export default class Map {
         }
     }
     
-    assignRegionElevation(elevationParam, constraints) {
+    assignRegionElevation() {
         let {mesh, t_elevation, r_elevation} = this;
         let {numRegions, _r_in_s, _halfedges} = mesh;
         for (let r = 0; r < numRegions; r++) {
@@ -229,7 +229,7 @@ export default class Map {
         }
         
         this.assignTriangleElevation(elevationParam, constraints);
-        this.assignRegionElevation(elevationParam);
+        this.assignRegionElevation();
     }
 
     assignRainfall(biomesParam) {
