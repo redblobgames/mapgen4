@@ -12,6 +12,6 @@
         "simplex-noise": "^2"
     },
     "devDependencies": {
-        "poisson-disk-sampling": "^1"
+        "fast-2d-poisson-disk-sampling": "1.0.1"
     }
 }

@@ -19,6 +19,11 @@ delaunator@^4.0.0:
   resolved "https://registry.yarnpkg.com/delaunator/-/delaunator-4.0.1.tgz#3d779687f57919a7a418f8ab947d3bddb6846957"
   integrity sha512-WNPWi1IRKZfCt/qIDMfERkDp93+iZEmOxN2yy4Jg+Xhv8SLk2UTqqbe1sfiipn0and9QrE914/ihdx82Y/Giag==
 
+fast-2d-poisson-disk-sampling@1.0.1:
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/fast-2d-poisson-disk-sampling/-/fast-2d-poisson-disk-sampling-1.0.1.tgz#33a4b115c5e880db5a6f2f47f8352f87f7a52fe1"
+  integrity sha512-fY6swFqCZlMUfZtdqkpW2bN50I7FWH/7/p/KyWaiLVKnUIA3aCmt+pK1jbmzbd5MPo0VODSVpm5v193qqdbwLQ==
+
 flatqueue@^2:
   version "2.0.3"
   resolved "https://registry.yarnpkg.com/flatqueue/-/flatqueue-2.0.3.tgz#dd23673cb478e25d5a9acb9dcbb85c89e9e8e64e"
@@ -33,18 +38,6 @@ hash-int@*, hash-int@^1:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/hash-int/-/hash-int-1.0.0.tgz#28cae10f5a651ed65d5680ccc0d08005cf372a0d"
   integrity sha1-KMrhD1plHtZdVoDMwNCABc83Kg0=
-
-moore@~1.0.0:
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/moore/-/moore-1.0.0.tgz#1d2b298c32cfd330db0fe81a0b5bac319fd9eb65"
-  integrity sha1-HSspjDLP0zDbD+gaC1usMZ/Z62U=
-
-poisson-disk-sampling@^1:
-  version "1.0.6"
-  resolved "https://registry.yarnpkg.com/poisson-disk-sampling/-/poisson-disk-sampling-1.0.6.tgz#793e649d6bb638456627134039eafdbb344fb21d"
-  integrity sha512-gg4AzGuULT0F8VkpWF/9IbtwctphWECuhqK5aCDW58MtFccc8i64J88Vs/ZeZa9DD0ITpmKdVZxbRt408hunbQ==
-  dependencies:
-    moore "~1.0.0"
 
 regl@^1:
   version "1.6.1"
