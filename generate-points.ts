@@ -51,6 +51,3 @@ for (let p of meshPoints) {
 
 
 fs.writeFileSync(filename, Uint16Array.from(flat));
-
-/* For debugging, write an ascii version: */
-// fs.writeFileSync(filename, JSON.stringify(flat));

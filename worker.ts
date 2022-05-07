@@ -10,10 +10,10 @@
 import DualMesh from '@redblobgames/dual-mesh';
 import Map      from './map';
 import Geometry from './geometry';
+import {Mesh} from './types';
 
-/**
- * @typedef { import("./types").Mesh } Mesh
- */
+// NOTE: Typescript workaround https://github.com/Microsoft/TypeScript/issues/20595
+const worker: Worker = self as any;
 
 // This handler is for the initial message
 let handler = event => {
@@ -22,10 +22,10 @@ let handler = event => {
     // NOTE: web worker messages only include the data; to
     // reconstruct the full object I call the constructor again
     // and then copy the data over
-    const mesh = /** @type{Mesh} */(new DualMesh(event.data.mesh));
+    const mesh = new DualMesh(event.data.mesh);
     Object.assign(mesh, event.data.mesh);
     
-    const map = new Map(mesh, event.data.peaks_t, param);
+    const map = new Map(mesh as Mesh, event.data.peaks_t, param);
 
     // TODO: placeholder - calculating elevation+biomes takes 35% of
     // the time on my laptop, and seeing the elevation change is the
@@ -64,7 +64,7 @@ let handler = event => {
         }
         let elapsed = performance.now() - start_time;
 
-        self.postMessage(
+        worker.postMessage(
             {elapsed,
              numRiverTriangles,
              quad_elements_buffer,

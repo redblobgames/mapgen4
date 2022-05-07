@@ -11,15 +11,22 @@
 import SimplexNoise from 'simplex-noise';
 import FlatQueue from 'flatqueue';
 import {makeRandFloat} from '@redblobgames/prng';
+import {Mesh} from './types';
+
+type PrecalculatedNoise = {
+    t_noise0: Float32Array;
+    t_noise1: Float32Array;
+    t_noise2: Float32Array;
+    /* t_noise3 wasn't being used */
+    t_noise4: Float32Array;
+    t_noise5: Float32Array;
+    t_noise6: Float32Array;
+}
 
 const mountain = {
     slope: 20,
     density: 1500,
 };
-
-/**
- * @typedef { import("./types").Mesh } Mesh
- */
 
 /**
  * Mountains are peaks surrounded by steep dropoffs. In the point
@@ -30,15 +37,8 @@ const mountain = {
  * fast. Dijkstra's Algorithm would produce a more accurate distance
  * field, but we only need an approximation. For increased
  * interestingness, we add some randomness to the distance field.
- *
- * @param {Mesh} mesh
- * @param {number[]} seeds_t - a list of triangles with mountain peaks
- * @param {number} spacing - the global param.spacing value
- * @param {number} jaggedness - how much randomness to mix into the distances
- * @param {function(): number} randFloat - random number generator
- * @param {Float32Array} t_distance - the distance field indexed by t, OUTPUT
  */
-function calculateMountainDistance(mesh, seeds_t, spacing, jaggedness, randFloat, t_distance) {
+function calculateMountainDistance(mesh: Mesh, seeds_t: number[], spacing: number, jaggedness: number, randFloat: () => number, t_distance: Float32Array) {
     t_distance.fill(-1);
     let queue_t = seeds_t.concat([]);
     for (let i = 0; i < queue_t.length; i++) {
@@ -57,17 +57,13 @@ function calculateMountainDistance(mesh, seeds_t, spacing, jaggedness, randFloat
 
 /**
  * Save noise values in arrays.
- *
- * @param {function(): number} randFloat - random number generator
- * @param {Mesh} mesh
  */
-function precalculateNoise(randFloat, mesh) {
+function precalculateNoise(randFloat: () => number, mesh: Mesh): PrecalculatedNoise {
     const noise = new SimplexNoise(randFloat);
     let {numTriangles} = mesh;
     let t_noise0 = new Float32Array(numTriangles),
         t_noise1 = new Float32Array(numTriangles),
         t_noise2 = new Float32Array(numTriangles),
-        t_noise3 = new Float32Array(numTriangles),
         t_noise4 = new Float32Array(numTriangles),
         t_noise5 = new Float32Array(numTriangles),
         t_noise6 = new Float32Array(numTriangles);
@@ -77,28 +73,35 @@ function precalculateNoise(randFloat, mesh) {
         t_noise0[t] = noise.noise2D(nx, ny);
         t_noise1[t] = noise.noise2D(2*nx + 5, 2*ny + 5);
         t_noise2[t] = noise.noise2D(4*nx + 7, 4*ny + 7);
-        t_noise3[t] = noise.noise2D(8*nx + 9, 8*ny + 9);
         t_noise4[t] = noise.noise2D(16*nx + 15, 16*ny + 15);
         t_noise5[t] = noise.noise2D(32*nx + 31, 32*ny + 31);
         t_noise6[t] = noise.noise2D(64*nx + 67, 64*ny + 67);
     }
-    return {t_noise0, t_noise1, t_noise2, t_noise3, t_noise4, t_noise5, t_noise6};
+    return {t_noise0, t_noise1, t_noise2, t_noise4, t_noise5, t_noise6};
 }
 
         
 export default class Map {
-    /**
-     * @param {Mesh} mesh
-     * @param {number[]} peaks_t - array of triangle indices for mountain peaks
-     * @param {any} param - global parameters
-     */
-    constructor (mesh, peaks_t, param) {
-        this.mesh = mesh;
-        this.peaks_t = peaks_t;
-        this.seed = -1;
+    seed: number = -1;
+    spacing: number;
+    precomputed: PrecalculatedNoise;
+    mountainJaggedness: number = -Infinity;
+    windAngleDeg: number = Infinity;
+    t_elevation: Float32Array;
+    r_elevation: Float32Array;
+    r_humidity: Float32Array;
+    t_moisture: Float32Array;
+    r_rainfall: Float32Array;
+    t_downslope_s: Int32Array;
+    order_t: Int32Array;
+    t_flow: Float32Array;
+    s_flow: Float32Array;
+    wind_order_r: Int32Array;
+    r_wind_sort: Float32Array;
+    t_mountain_distance: Float32Array;
+    
+    constructor (public mesh: Mesh, public peaks_t: number[], param: any) {
         this.spacing = param.spacing;
-        this.mountainJaggedness = -Infinity;
-        this.windAngleDeg = Infinity;
         this.t_elevation = new Float32Array(mesh.numTriangles);
         this.r_elevation = new Float32Array(mesh.numRegions);
         this.r_humidity = new Float32Array(mesh.numRegions);
@@ -191,7 +194,7 @@ export default class Map {
         }
     }
     
-    assignRegionElevation(elevationParam, constraints) {
+    assignRegionElevation() {
         let {mesh, t_elevation, r_elevation} = this;
         let {numRegions, _r_in_s, _halfedges} = mesh;
         for (let r = 0; r < numRegions; r++) {
@@ -229,7 +232,7 @@ export default class Map {
         }
         
         this.assignTriangleElevation(elevationParam, constraints);
-        this.assignRegionElevation(elevationParam);
+        this.assignRegionElevation();
     }
 
     assignRainfall(biomesParam) {
@@ -292,17 +295,15 @@ export default class Map {
 }
 
 
+let queue = new FlatQueue<number>();
 /**
  * Use prioritized graph exploration to assign river flow direction
  *
- * @param {Mesh} mesh
- * @param {Float32Array} t_elevation - elevation per triangle
- * @param {Int32Array} t_downslope_s - OUT parameter - the side each triangle flows out of
- * @param {Int32Array} order_t - OUT parameter - pre-order in which the graph was traversed,
- *   so roots of the tree always get visited before leaves; use reverse to visit leaves before roots
+ * order_t will be pre-order in which the graph was traversed, so
+ * roots of the tree always get visited before leaves; use reverse to
+ * visit leaves before roots
  */
-let queue = new FlatQueue();
-function assignDownslope(mesh, t_elevation, /* out */ t_downslope_s, /* out */ order_t) {
+function assignDownslope(mesh: Mesh, t_elevation: Float32Array, /* out */ t_downslope_s: Int32Array, /* out */ order_t: Int32Array) {
     /* Use a priority queue, starting with the ocean triangles and
      * moving upwards using elevation as the priority, to visit all
      * the land triangles */
@@ -342,12 +343,7 @@ function assignDownslope(mesh, t_elevation, /* out */ t_downslope_s, /* out */ o
 }
 
 
-/**
- * @param {Mesh} mesh
- * @param {Float32Array} r_rainfall - per region
- * @param {Float32Array} t_moisture - OUT parameter - per triangle
- */
-function assignMoisture(mesh, r_rainfall, /* out */ t_moisture) {
+function assignMoisture(mesh: Mesh, r_rainfall: Float32Array, /* out */ t_moisture: Float32Array) {
     const {numTriangles} = mesh;
     for (let t = 0; t < numTriangles; t++) {
         let moisture = 0.0;
@@ -361,15 +357,7 @@ function assignMoisture(mesh, r_rainfall, /* out */ t_moisture) {
 }
 
 
-/**
- * @param {Int32Array} order_t
- * @param {any} riversParam
- * @param {Float32Array} t_elevation
- * @param {Float32Array} t_moisture
- * @param {Int32Array} t_downslope_s
- * @param {Float32Array} t_flow
- */
-function assignFlow(mesh, riversParam, order_t, t_elevation, t_moisture, t_downslope_s, /* out */ t_flow, /* out */ s_flow) {
+function assignFlow(mesh: Mesh, riversParam: any, order_t: Int32Array, t_elevation: Float32Array, t_moisture: Float32Array, t_downslope_s: Int32Array, /* out */ t_flow: Float32Array, /* out */ s_flow: Float32Array) {
     let {numTriangles, _halfedges} = mesh;
     s_flow.fill(0);
     for (let t = 0; t < numTriangles; t++) {

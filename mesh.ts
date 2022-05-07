@@ -21,21 +21,13 @@
 import param from './config';
 import MeshBuilder from '@redblobgames/dual-mesh/create';
 import {makeRandFloat} from '@redblobgames/prng';
-
-
-/**
- * @typedef { import("./types").Mesh } Mesh
- */
+import {Mesh} from './types';
 
 
 /**
  * Apply random circular jitter to a set of points.
- *
- * @param {number[][]} points
- * @param {number} dr
- * @param {function(): number} randFloat
  */
-function applyJitter(points, dr, randFloat) {
+function applyJitter(points: number[][], dr: number, randFloat: () => number) {
     let newPoints = [];
     for (let p of points) {
         let r = dr * Math.sqrt(Math.abs(randFloat()));
@@ -51,12 +43,9 @@ function applyJitter(points, dr, randFloat) {
 /**
  * Generate a hexagonal grid with a given spacing. This is used when NOT
  * reading points from a file.
- *
- * @param {number} spacing - horizontal spacing between adjacent hexagons
- * @returns {[number, number][]} - list of [x, y] points
  */
-function hexagonGrid(spacing) {
-    let points = /** @type{[number, number][]} */([]);
+function hexagonGrid(spacing: number): [number, number][] {
+    let points: [number, number][] = [];
     let offset = 0;
     for (let y = spacing/2; y < 1000-spacing/2; y += spacing * 3/4) {
         offset = (offset === 0)? spacing/2 : 0;
@@ -70,13 +59,8 @@ function hexagonGrid(spacing) {
 /**
  * Choose a random set of regions for mountain peaks. This is used
  * when NOT reading points from a file.
- *
- * @param {number} numPoints
- * @param {number} spacing - param.spacing parameter, used to calculate density
- * @param {function(): number} randFloat - random number generator (0-1)
- * @returns {number[]} - array of point indices
  */
-function chooseMountainPeaks(numPoints, spacing, randFloat) {
+function chooseMountainPeaks(numPoints: number, spacing: number, randFloat: () => number): number[] {
     const fractionOfPeaks = spacing*spacing / param.mountainDensity;
     let peaks_r = [];
     for (let r = 0; r < numPoints; r++) {
@@ -94,11 +78,8 @@ function chooseMountainPeaks(numPoints, spacing, randFloat) {
  * points[] array, *not* region ids. The mesh creation process can
  * insert new regions before and after this array, so these indices
  * have to be adjusted later.
- *
- * @param {ArrayBuffer} buffer - data read from the mesh file
- * @returns {{points: number[][], peaks_index: number[]}}
  */
-function extractPoints(buffer) {
+function extractPoints(buffer: ArrayBuffer): { points: number[][]; peaks_index: number[]; } {
     /* See file format in generate-points.js */
     const pointData = new Uint16Array(buffer);
     const numMountainPeaks = pointData[0];
@@ -138,7 +119,7 @@ export async function makeMesh() {
 
     let builder = new MeshBuilder({boundarySpacing: param.spacing * 1.5})
         .addPoints(points);
-    let mesh = /** @type {Mesh} */(builder.create());
+    let mesh: Mesh = builder.create();
     console.log(`triangles = ${mesh.numTriangles} regions = ${mesh.numRegions}`);
 
     mesh.s_length = new Float32Array(mesh.numSides);

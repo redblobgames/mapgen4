@@ -6,13 +6,13 @@
  * This module uses webgl+regl to render the generated maps
  */
 
-'use strict';
-
 import {vec4, mat4} from 'gl-matrix';
 import colormap from './colormap';
 import Geometry from './geometry';
-import createREGL from 'regl';
-const regl = createREGL({
+import {Mesh} from './types';
+
+import REGL from 'regl';
+const regl = REGL({
     canvas: "#mapgen4",
     extensions: ['OES_element_index_uint']
 });
@@ -21,13 +21,13 @@ const regl = createREGL({
 const river_texturemap = regl.texture({data: Geometry.createRiverBitmap(), mipmap: 'nice', min: 'mipmap', mag: 'linear', premultiplyAlpha: true});
 const fbo_texture_size = 2048;
 const fbo_land_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size});
-const fbo_land = regl.framebuffer({color: [fbo_land_texture]});
+const fbo_land = regl.framebuffer({color: fbo_land_texture});
 const fbo_depth_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size});
-const fbo_z = regl.framebuffer({color: [fbo_depth_texture]});
+const fbo_z = regl.framebuffer({color: fbo_depth_texture});
 const fbo_river_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size});
-const fbo_river = regl.framebuffer({color: [fbo_river_texture]});
+const fbo_river = regl.framebuffer({color: fbo_river_texture});
 const fbo_final_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size, min: 'linear', mag: 'linear'});
-const fbo_final = regl.framebuffer({color: [fbo_final_texture]});
+const fbo_final = regl.framebuffer({color: fbo_final_texture});
 
 
 /* draw rivers to a texture, which will be draped on the map surface */
@@ -332,12 +332,32 @@ void main() {
 
 
 class Renderer {
-    constructor (mesh) {
+    numRiverTriangles: number = 0;
+    
+    topdown: mat4;
+    projection: mat4;
+    inverse_projection: mat4;
+    
+    a_quad_xy: Float32Array;
+    a_quad_em: Float32Array;
+    quad_elements: Int32Array;
+    a_river_xyuv: Float32Array;
+
+    buffer_quad_xy: REGL.Buffer;
+    buffer_quad_em: REGL.Buffer;
+    buffer_river_xyuv: REGL.Buffer;
+    buffer_quad_elements: REGL.Elements;
+
+    screenshotCanvas: HTMLCanvasElement;
+    screenshotCallback: () => void;
+    renderParam: any;
+    
+    constructor (mesh: Mesh) {
         this.resizeCanvas();
         
         this.topdown = mat4.create();
-        mat4.translate(this.topdown, this.topdown, [-1, -1, 0, 0]);
-        mat4.scale(this.topdown, this.topdown, [1/500, 1/500, 1, 1]);
+        mat4.translate(this.topdown, this.topdown, [-1, -1, 0]);
+        mat4.scale(this.topdown, this.topdown, [1/500, 1/500, 1]);
 
         this.projection = mat4.create();
         this.inverse_projection = mat4.create();
@@ -351,7 +371,6 @@ class Renderer {
          * each of the N/2 nodes will produce 2 triangles. On average
          * there will be 1.5 output triangles per input triangle. */
         this.a_river_xyuv = new Float32Array(1.5 * 3 * 4 * mesh.numSolidTriangles);
-        this.numRiverTriangles = 0;
         
         Geometry.setMeshGeometry(mesh, this.a_quad_xy);
         
@@ -390,11 +409,7 @@ class Renderer {
         this.startDrawingLoop();
     }
 
-    /**
-     * @param {[number, number]} coords - screen coordinates 0 ≤ x ≤ 1, 0 ≤ y ≤ 1
-     * @returns {[number, number]} - world coords 0 ≤ x ≤ 1000, 0 ≤ y ≤ 1000 
-     */
-    screenToWorld(coords) {
+    screenToWorld(coords: [number, number]): vec4 {
         /* convert from screen 2d (inverted y) to 4d for matrix multiply */
         let glCoords = vec4.fromValues(
             coords[0] * 2 - 1,
@@ -405,7 +420,7 @@ class Renderer {
             1
         );
         /* it returns vec4 but we only need vec2; they're compatible */
-        return vec4.transformMat4([], glCoords, this.inverse_projection);
+        return vec4.transformMat4(vec4.create(), glCoords, this.inverse_projection);
     }
     
     /* Update the buffers with the latest map data */
@@ -417,7 +432,7 @@ class Renderer {
 
     /* Allow drawing at a different resolution than the internal texture size */
     resizeCanvas() {
-        let canvas = /** @type{HTMLCanvasElement} */(document.getElementById('mapgen4'));
+        let canvas = document.getElementById('mapgen4') as HTMLCanvasElement;
         let size = canvas.clientWidth;
         size = 2048; /* could be smaller to increase performance */
         if (canvas.width !== size || canvas.height !== size) {
@@ -430,7 +445,7 @@ class Renderer {
     startDrawingLoop() {
         /* Only draw when render parameters have been passed in;
          * otherwise skip the render and wait for the next tick */
-        regl.frame(context => {
+        regl.frame(_context => {
             const renderParam = this.renderParam;
             if (!renderParam) { return; }
             this.renderParam = undefined;
@@ -467,8 +482,8 @@ class Renderer {
             this.projection[9] = 1;
             
             /* Scale and translate works on the hybrid this.projection */
-            mat4.scale(this.projection, this.projection, [renderParam.zoom/100, renderParam.zoom/100, renderParam.mountain_height * renderParam.zoom/100, 1]);
-            mat4.translate(this.projection, this.projection, [-renderParam.x, -renderParam.y, 0, 0]);
+            mat4.scale(this.projection, this.projection, [renderParam.zoom/100, renderParam.zoom/100, renderParam.mountain_height * renderParam.zoom/100]);
+            mat4.translate(this.projection, this.projection, [-renderParam.x, -renderParam.y, 0]);
 
             /* Keep track of the inverse matrix for mapping mouse to world coordinates */
             mat4.invert(this.inverse_projection, this.projection);
@@ -546,7 +561,7 @@ class Renderer {
     }
     
 
-    updateView(renderParam) {
+    updateView(renderParam: any) {
         this.renderParam = renderParam;
     }
 }

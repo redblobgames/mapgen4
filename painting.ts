@@ -32,8 +32,12 @@ const currentStroke = {
 
 /* The elevation is -1.0 to 0.0 → water, 0.0 to +1.0 → land */
 class Generator {
+    seed = 0;
+    island = 0;
+    userHasPainted = false;
+    elevation: Float32Array;
+    
     constructor () {
-        this.userHasPainted = false;
         this.elevation = new Float32Array(CANVAS_SIZE * CANVAS_SIZE);
     }
 
@@ -89,15 +93,12 @@ class Generator {
     }
 
     /**
-     * Paint a circular region
-     *
-     * @param {{elevation: number}} tool
-     * @param {number} x0 - should be 0 to 1
-     * @param {number} y0 - should be 0 to 1
-     * @param {{innerRadius: number, outerRadius: number, rate: number}} size
-     * @param {number} deltaTimeInMs
+     * Paint a circular region. x0, y0 should be 0 to 1
      */
-    paintAt(tool, x0, y0, size, deltaTimeInMs) {
+    paintAt(tool: { elevation: number; },
+            x0: number, y0: number,
+            size: { innerRadius: number; outerRadius: number; rate: number; },
+            deltaTimeInMs: number) {
         let {elevation} = this;
         /* This has two effects: first time you click the mouse it has a
          * strong effect, and it also limits the amount in case you
@@ -174,8 +175,7 @@ function displayCurrentTool() {
     document.getElementById(currentSize).classList.add(className);
 }
 
-/** @type {[string, string, function][]} */
-const controls = [
+const controls: [string, string, () => void][] = [
     ['1', "tiny",     () => { currentSize = 'tiny'; }],
     ['2', "small",    () => { currentSize = 'small'; }],
     ['3', "medium",   () => { currentSize = 'medium'; }],

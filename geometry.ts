@@ -6,19 +6,12 @@
 
 import {vec2} from 'gl-matrix';
 import Map from './map';
-
-/**
- * @typedef { import("./types").Mesh } Mesh
- */
-
+import {Mesh} from './types';
 
 /**
  * Fill a buffer with data from the mesh.
- *
- * @param {Mesh} mesh
- * @param {Float32Array} P - x,y for each region, then for each triangle
  */
-function setMeshGeometry(mesh, P) {
+function setMeshGeometry(mesh: Mesh, P: Float32Array) {
     let {numRegions, numTriangles} = mesh;
     if (P.length !== 2 * (numRegions + numTriangles)) { throw "wrong size"; }
 
@@ -35,12 +28,8 @@ function setMeshGeometry(mesh, P) {
 
 /**
  * Fill an indexed buffer with data from the map.
- *
- * @param {Map} map
- * @param {Int32Array} I - indices into the data array
- * @param {Float32Array} P - elevation, rainfall data
  */
-function setMapGeometry(map, I, P) {
+function setMapGeometry(map: Map, I: Int32Array, P: Float32Array) {
     // TODO: V should probably depend on the slope, or elevation, or maybe it should be 0.95 in mountainous areas and 0.99 elsewhere
     const V = 0.95; // reduce elevation in valleys
     let {mesh, s_flow, r_elevation, t_elevation, r_rainfall} = map;
@@ -100,9 +89,9 @@ function setMapGeometry(map, I, P) {
  * Cols will be the input flow rate
  * Rows will be the output flow rate
 */
-function assignTextureCoordinates(spacing, numSizes, textureSize) {
+function assignTextureCoordinates(spacing: number, numSizes: number, textureSize: number) {
     /* create (numSizes+1)^2 size combinations, each with two triangles */
-    function UV(x, y) {
+    function UV(x: number, y: number) {
         return {xy: [x, y], uv: [(x+0.5)/textureSize, (y+0.5)/textureSize]};
     }
 
@@ -139,7 +128,7 @@ function createRiverBitmap() {
     canvas.width = canvas.height = riverTextureSize;
     let ctx = canvas.getContext('2d');
 
-    function lineWidth(i) {
+    function lineWidth(i: number) {
         const spriteSize = riverTexturePositions[0][1][0][0].xy[0] - riverTexturePositions[0][0][0][0].xy[0];
         return i / numRiverSizes * spriteSize * riverMaximumFractionOfWidth;
     }
@@ -156,21 +145,13 @@ function createRiverBitmap() {
                 
                 let center = [(pos[0].xy[0] + pos[1].xy[0] + pos[2].xy[0]) / 3,
                               (pos[0].xy[1] + pos[1].xy[1] + pos[2].xy[1]) / 3];
-                let midpoint12 = vec2.lerp([], pos[1].xy, pos[2].xy, 0.5);
-                let midpoint20 = vec2.lerp([], pos[2].xy, pos[0].xy, 0.5);
+                let midpoint12 = vec2.lerp(vec2.create(), pos[1].xy, pos[2].xy, 0.5);
+                let midpoint20 = vec2.lerp(vec2.create(), pos[2].xy, pos[0].xy, 0.5);
 
                 ctx.strokeStyle = "hsl(200,50%,35%)";
                 if (type === 1) {
                     // TODO: river delta/fork sprite
                 } else {
-                    const w = 1; /* TODO: draw a path and fill it; that will allow variable width */
-                    let c = vec2.lerp([], pos[1].xy, pos[2].xy, 0.5 - w),
-                        d = vec2.lerp([], pos[1].xy, pos[2].xy, 0.5 + w),
-                        a = vec2.lerp([], pos[0].xy, pos[1].xy, 0.5 - w),
-                        f = vec2.lerp([], pos[0].xy, pos[1].xy, 0.5 + w),
-                        b = null /* TODO: intersect lines */,
-                        e = null /* TODO: intersect lines */;
-
                     if (col > 0) {
                         ctx.lineWidth = Math.min(lineWidth(col), lineWidth(row));
                         ctx.beginPath();
@@ -194,7 +175,7 @@ function createRiverBitmap() {
 };
 
 
-function clamp(x, lo, hi) {
+function clamp(x: number, lo: number, hi: number): number {
     if (x < lo) { x = lo; }
     if (x > hi) { x = hi; }
     return x;
@@ -202,20 +183,14 @@ function clamp(x, lo, hi) {
 
 /**
  * Fill a buffer with river geometry
- *
- * @param {Map} map
- * @param {number} spacing - global param.spacing value
- * @param {any} riversParam - global param.rivers
- * @param {Float32Array} P - array of x,y,u,v triples for the river triangles
- * @returns {number} - how many triangles were needed (at most numSolidTriangles)
  */
-function setRiverTextures(map, spacing, riversParam, P) {
+function setRiverTextures(map: Map, spacing: number, riversParam: any, P: Float32Array): number {
     const MIN_FLOW = Math.exp(riversParam.lg_min_flow);
     const RIVER_WIDTH = Math.exp(riversParam.lg_river_width);
     let {mesh, t_downslope_s, s_flow} = map;
     let {numSolidTriangles, s_length} = mesh;
 
-    function riverSize(s, flow) {
+    function riverSize(s: number, flow: number): number {
         // TODO: performance: build a table of flow to width
         if (s < 0) { return 1; }
         let width = Math.sqrt(flow - MIN_FLOW) * spacing * RIVER_WIDTH;
@@ -223,7 +198,7 @@ function setRiverTextures(map, spacing, riversParam, P) {
         return clamp(size, 1, numRiverSizes);
     }
 
-    let p = 0, uv = [0, 0, 0, 0, 0, 0];
+    let p = 0;
     for (let t = 0; t < numSolidTriangles; t++) {
         let out_s = t_downslope_s[t];
         let out_flow = s_flow[out_s];
@@ -237,7 +212,7 @@ function setRiverTextures(map, spacing, riversParam, P) {
         let in2_flow = s_flow[mesh.s_opposite_s(in2_s)];
         let textureRow = riverSize(out_s, out_flow);
         
-        function add(r, c, i, j, k) {
+        function add(r: number, c: number, i: number, j: number, k: number) {
             const T = riverTexturePositions[r][c][0];
             P[p    ] = mesh.r_x(r1);
             P[p + 1] = mesh.r_y(r1);
