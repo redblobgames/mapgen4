@@ -20,7 +20,7 @@
 
 import param from './config';
 import MeshBuilder from '@redblobgames/dual-mesh/create';
-import {makeRandFloat} from '@redblobgames/prng';
+import {makeRandFloat} from './prng';
 import {Mesh} from './types';
 
 

@@ -10,7 +10,7 @@
 
 import SimplexNoise from 'simplex-noise';
 import FlatQueue from 'flatqueue';
-import {makeRandFloat} from '@redblobgames/prng';
+import {makeRandFloat} from './prng';
 import {Mesh} from './types';
 
 type PrecalculatedNoise = {

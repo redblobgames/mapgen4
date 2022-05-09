@@ -4,14 +4,11 @@
     "private": true,
     "dependencies": {
         "@redblobgames/dual-mesh": "https://github.com/redblobgames/dual-mesh",
-        "@redblobgames/prng": "https://github.com/redblobgames/prng",
         "flatqueue": "^2",
         "gl-matrix": "^3",
         "hash-int": "^1",
         "regl": "^1",
-        "simplex-noise": "^3"
-    },
-    "devDependencies": {
+        "simplex-noise": "^3",
         "fast-2d-poisson-disk-sampling": "1.0.1"
     }
 }

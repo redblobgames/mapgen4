@@ -15,7 +15,7 @@
 'use strict';
 
 const fs = require('fs');
-const {makeRandFloat} = require('@redblobgames/prng');
+const {makeRandFloat} = require('./prng');
 const Poisson = require('fast-2d-poisson-disk-sampling');
 const {mesh, spacing, mountainSpacing} = require('./config');
 
