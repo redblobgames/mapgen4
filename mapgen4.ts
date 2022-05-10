@@ -221,4 +221,5 @@ function main({mesh, peaks_t}: { mesh: Mesh; peaks_t: number[]; }) {
     if (downloadButton) downloadButton.addEventListener('click', download);
 }
 
-makeMesh().then(main);
+main(makeMesh());
+

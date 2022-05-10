@@ -3,119 +3,49 @@
  * Copyright 2018 Red Blob Games <redblobgames@gmail.com>
  * License: Apache v2.0 <http://www.apache.org/licenses/LICENSE-2.0.html>
  *
- * Point selection (blue noise or jittered grid), mountain peak
- * selection, and mesh building.
- *
- * Points are regions (r), and either come from a jittered hexagonal
- * grid or a precomputed blue noise set. Mountain peaks are triangles
- * (t), and either come from a random subset of triangles or from a
- * non-random subset of the blue noise points. However, since the blue
- * noise points are regions and mountain peaks are triangles, I
- * arbitrarily pick one triangle from each region.
- *
- * The precomputed points are read from the network, so the module
- * uses async functions that build the mesh only after the points are
- * read in.
+ * This module calculates:
+ *   * points - seeds for regions (r) spaced with blue noise
+ *   * mountain peaks - triangles (t) also spaced with blue noise
+ *   * mesh - Delaunay/Voronoi dual mesh
  */
 
 import param from './config';
 import MeshBuilder from '@redblobgames/dual-mesh/create';
+import Poisson from 'fast-2d-poisson-disk-sampling';
 import {makeRandFloat} from './prng';
 import {Mesh} from './types';
 
 
 /**
- * Apply random circular jitter to a set of points.
- */
-function applyJitter(points: number[][], dr: number, randFloat: () => number) {
-    let newPoints = [];
-    for (let p of points) {
-        let r = dr * Math.sqrt(Math.abs(randFloat()));
-        let a = Math.PI * randFloat();
-        let dx = r * Math.cos(a);
-        let dy = r * Math.sin(a);
-        newPoints.push([p[0] + dx, p[1] + dy]);
-    }
+   Generate points, and mountain points as a subset of them.
 
-    return newPoints;
-}
-
-/**
- * Generate a hexagonal grid with a given spacing. This is used when NOT
- * reading points from a file.
+   Note that the points can take a while to generate, so this is a
+   candidate for precomputing and saving to a file, like mapgen4 did.
  */
-function hexagonGrid(spacing: number): [number, number][] {
-    let points: [number, number][] = [];
-    let offset = 0;
-    for (let y = spacing/2; y < 1000-spacing/2; y += spacing * 3/4) {
-        offset = (offset === 0)? spacing/2 : 0;
-        for (let x = offset + spacing/2; x < 1000-spacing/2; x += spacing) {
-            points.push([x, y]);
-        }
-    }
-    return points;
-}
+function choosePoints() {
+    /* First generate the mountain points */
+    let mountainPoints = new Poisson({
+        shape: [1000, 1000],
+        radius: param.mountainSpacing,
+        tries: 30,
+    }, makeRandFloat(param.mesh.seed)).fill();
 
-/**
- * Choose a random set of regions for mountain peaks. This is used
- * when NOT reading points from a file.
- */
-function chooseMountainPeaks(numPoints: number, spacing: number, randFloat: () => number): number[] {
-    const fractionOfPeaks = spacing*spacing / param.mountainDensity;
-    let peaks_r = [];
-    for (let r = 0; r < numPoints; r++) {
-        if (randFloat() < fractionOfPeaks) {
-            peaks_r.push(r);
-        }
-    }
-    return peaks_r;
-}
-
-/**
- * Read mesh and mountain peak points from a file saved by generate-points.js
- *
- * The points are [x,y]; the peaks in the index are an index into the
- * points[] array, *not* region ids. The mesh creation process can
- * insert new regions before and after this array, so these indices
- * have to be adjusted later.
- */
-function extractPoints(buffer: ArrayBuffer): { points: number[][]; peaks_index: number[]; } {
-    /* See file format in generate-points.js */
-    const pointData = new Uint16Array(buffer);
-    const numMountainPeaks = pointData[0];
-    let peaks_index = Array.from(pointData.slice(1, 1 + numMountainPeaks));
-    const numRegions = (pointData.length - numMountainPeaks - 1) / 2;
-    let points = [];
-    for (let i = 0; i < numRegions; i++) {
-        let j = 1 + numMountainPeaks + 2*i;
-        points.push([pointData[j], pointData[j+1]]);
-    }
-    return {points, peaks_index};
-}
-
-/**
- * Either read mesh and mountain peak points, or generate locally.
- *
- * TODO: This hard-codes the spacing of 5; it should be a parameter
- */
-async function choosePoints() {
-    let points = undefined, peaks_index = undefined;
-    const jitter = 0.5;
-    if (param.spacing === 5) {
-        let buffer = await fetch("build/points-5.data").then(response => response.arrayBuffer());
-        let extraction = extractPoints(buffer);
-        points = applyJitter(extraction.points, param.spacing * jitter * 0.5, makeRandFloat(param.mesh.seed));
-        peaks_index = extraction.peaks_index;
-    } else {
-        points = applyJitter(hexagonGrid(1.5 * param.spacing), param.spacing * jitter, makeRandFloat(param.mesh.seed));
-        peaks_index = chooseMountainPeaks(points.length, param.spacing, makeRandFloat(param.mesh.seed));
-    };
+    /* Generate the rest of the mesh points with the mountain points as constraints */
+    let generator = new Poisson({
+        shape: [1000, 1000],
+        radius: param.spacing,
+        tries: 6, // NOTE: below 5 is unstable, and 5 is borderline
+    }, makeRandFloat(param.mesh.seed));
+    for (let p of mountainPoints) { generator.addPoint(p); }
+    let points = generator.fill();
+    let peaks_index = mountainPoints.map((_, index) => index);
+    
     return {points, peaks_index};
 }
 
 
-export async function makeMesh() {
-    let {points, peaks_index} = await choosePoints();
+export function makeMesh() {
+    let {points, peaks_index} = choosePoints();
 
     let builder = new MeshBuilder({boundarySpacing: param.spacing * 1.5})
         .addPoints(points);
