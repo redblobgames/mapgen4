@@ -6,13 +6,13 @@
     button text { text-anchor: middle; font-size: 24px; font-family: var(--sans-serif, Arial); }
     button.current-control { background: hsl(60,100%,80%); outline: 2px solid hsl(220,50%,50%); }
     button:focus { outline: none; }
-    input[type="range"] { cursor: ew-resize; margin-left: 0; margin-right: 0; accent-color: hsl(0, 50%, 50%); }
+    input[type="range"] { cursor: ew-resize; margin-left: 0; margin-right: 0; accent-color: hsl(150, 50%, 40%); }
     button:disabled, input:disabled { cursor: unset; opacity: 0.25; }
     #ui {
         display: grid;
         min-height: calc(100vmin - 130px);
-        grid-template-rows: repeat(3, 40px) calc(100vmin - 130px - 120px - 40px);
-        grid-template-columns: 1fr calc(100vmin - 130px) repeat(4, 30px) 1fr;
+        grid-template-rows: repeat(3, 40px) calc(100vmin - 120px - 40px);
+        grid-template-columns: 1fr 100vmin repeat(4, 30px) 1fr;
         grid-row-gap: 10px;
         grid-column-gap: 10px;
     }
@@ -45,7 +45,7 @@
         #sliders { grid-area: 2 / 3 / span 5 / span 1; justify-self: end; width: 100%; column-width: 20ch; }
     }
 
-    #mapgen4 { width: 100%; height: 100%; cursor: crosshair; }
+    #mapgen4 { width: 100%; height: 100%; cursor: not-allowed; }
     #sliders h3 {
         background-color: hsl(60,20%,90%);
         margin: 0.5em 0;
@@ -65,13 +65,6 @@
         display: inline-block;
         width: 17ch;
     }
-    #button-reset {
-        display: inline-block;
-        margin-left: auto;
-        margin-right: auto;
-        width: 100%;
-        height: 2em;
-    }
 </style>
 
   <div id="ui">
@@ -87,7 +80,6 @@
   <button id="mountain" title="Mountain"><svg viewBox="-50 -50 100 100"><text y="45">Mountains</text><g fill="hsl(60,50%,40%)" stroke="white" stroke-width="2"><path d="M -30,20 l 30,-60 l 30,60 z"/><path d="M -50,20 l 20,-40 l 20,40 z"/><path d="M 10,20 l 15,-30 l 15,30 z"/></g></svg></button>
 
   <div id="sliders">
-    <button id="button-reset">Reset</button>
   </div>
   
   <div id="map"><canvas id="mapgen4" width="2048" height="2048"/></div>

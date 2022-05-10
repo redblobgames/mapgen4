@@ -48,6 +48,7 @@ class Generator {
     
     /** Use a noise function to determine the shape */
     generate() {
+        const time = Date.now() * 2e-4;
         const {elevation, island} = this;
         const noise = new SimplexNoise(makeRandFloat(this.seed));
         const persistence = 1/2;
@@ -57,7 +58,7 @@ class Generator {
             let sum = 0, sumOfAmplitudes = 0;
             for (let octave = 0; octave < amplitudes.length; octave++) {
                 let frequency = 1 << octave;
-                sum += amplitudes[octave] * noise.noise2D(nx * frequency, ny * frequency);
+                sum += amplitudes[octave] * noise.noise3D(time, nx * frequency, ny * frequency);
                 sumOfAmplitudes += amplitudes[octave];
             }
             return sum / sumOfAmplitudes;
@@ -141,11 +142,6 @@ let exported = {
     userHasPainted: () => heightMap.userHasPainted,
 };
 
-document.getElementById('button-reset').addEventListener('click', () => {
-    heightMap.generate();
-    exported.onUpdate();
-});
-
 
 const SIZES = {
     // rate is effect per second
@@ -198,43 +194,9 @@ for (let control of controls) {
 displayCurrentTool();
 
 
-const output = document.getElementById('mapgen4');
-new Draggable({
-    // TODO: replace with pointer events, now that they're widely supported
-    el: output,
-    start(event) {
-        this.timestamp = Date.now();
-        currentStroke.time.fill(0);
-        currentStroke.strength.fill(0);
-        currentStroke.previousElevation.set(heightMap.elevation);
-        this.drag(event);
-    },
-    drag(event) {
-        const nowMs = Date.now();
-        let coords = [event.x / output.clientWidth,
-                      event.y / output.clientHeight];
-        coords = exported.screenToWorldCoords(coords);
-        let brushSize = SIZES[currentSize];
-        if (event.touch && event.touch.force > 0) {
-            // Apple Stylus
-            let radius = Math.sqrt(event.touch.force);
-            brushSize = {
-                key: brushSize.key,
-                innerRadius: Math.max(1, brushSize.innerRadius * radius),
-                outerRadius: Math.max(2, brushSize.outerRadius * radius),
-                rate: brushSize.rate,
-            };
-        }
-        if (event.raw && event.raw.shiftKey) {
-            // Hold down shift to paint slowly
-            brushSize = {...brushSize, rate: brushSize.rate/4};
-        }
-        heightMap.paintAt(TOOLS[currentTool], coords[0], coords[1], brushSize, nowMs - this.timestamp);
-        this.timestamp = nowMs;
-        exported.onUpdate();
-    },
-});
-
-
-
+setInterval(() => {
+    heightMap.generate();
+    exported.onUpdate();
+}, 1000/24);
+    
 export default exported;
