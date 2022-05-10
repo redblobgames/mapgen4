@@ -13,7 +13,7 @@
  * then send the elevation map to the generator to produce the output.
  */
 
-import {createNoise2D} from 'simplex-noise';
+import {createNoise4D} from 'simplex-noise';
 import {makeRandFloat} from '@redblobgames/prng';
 
 const CANVAS_SIZE = 128;
@@ -51,7 +51,8 @@ class Generator {
     /** Use a noise function to determine the shape */
     generate() {
         const {elevation, island} = this;
-        const noise2D = createNoise2D(makeRandFloat(this.seed));
+        const noise4D = createNoise4D(makeRandFloat(this.seed))
+        const noise2D = (x, y) => noise4D(x, y, 0, 0);
         const persistence = 1/2;
         const amplitudes = Array.from({length: 5}, (_, octave) => Math.pow(persistence, octave));
 
@@ -140,11 +141,6 @@ let exported = {
     userHasPainted: () => heightMap.userHasPainted,
 };
 
-document.getElementById('button-reset').addEventListener('click', () => {
-    heightMap.generate();
-    exported.onUpdate();
-});
-
 
 const SIZES = {
     // rate is effect per second
@@ -194,75 +190,6 @@ for (let control of controls) {
     document.getElementById(control[1]).addEventListener('click', () => { control[2](); displayCurrentTool(); } );
 }
 displayCurrentTool();
-
-
-function setUpPaintEventHandling() {
-    const el = document.getElementById('mapgen4');
-    let dragging = false;
-    let timestamp = 0;
-    
-    function start(event: PointerEvent) {
-        if (event.button !== 0) return; // left button only
-        el.setPointerCapture(event.pointerId);
-        
-        dragging = true;
-        timestamp = Date.now();
-        currentStroke.time.fill(0);
-        currentStroke.strength.fill(0);
-        currentStroke.previousElevation.set(heightMap.elevation);
-        move(event);
-    }
-
-    function end(_event) {
-        dragging = false;
-    }
-
-    function move(event: PointerEvent) {
-        if (!dragging) return;
-
-        const nowMs = Date.now();
-        const bounds = el.getBoundingClientRect();
-        let coords = [
-            (event.x - bounds.left) / bounds.width,
-            (event.y - bounds.top) / bounds.height,
-        ];
-        coords = exported.screenToWorldCoords(coords);
-        let brushSize = SIZES[currentSize];
-        if (event.pointerType === 'pen' && event.pressure !== 0.5) {
-            // Pointer Event spec says 0.5 sent when pen does not
-            // support pressure; I primarily added this for Apple
-            // Pencil but haven't tested on others. I want pressure
-            // 0.25 to correspond to "regular" pressure for the given
-            // brush size, so radius should be 1.0. I am *not*
-            // currently supporting Macbook pressure-sensitive
-            // touchpads, which don't show up under Pointer Events.
-            // https://developer.mozilla.org/en-US/docs/Web/API/Force_Touch_events
-            let radius = 2 * Math.sqrt(event.pressure);
-            brushSize = {
-                key: brushSize.key,
-                innerRadius: Math.max(1, brushSize.innerRadius * radius),
-                outerRadius: Math.max(2, brushSize.outerRadius * radius),
-                rate: brushSize.rate,
-            };
-        }
-        if (event.shiftKey) {
-            // Hold down shift to paint slowly
-            brushSize = {...brushSize, rate: brushSize.rate/4};
-        }
-        heightMap.paintAt(TOOLS[currentTool], coords[0], coords[1],
-                          brushSize, nowMs - timestamp);
-        timestamp = nowMs;
-        exported.onUpdate();
-    }
-        
-    el.addEventListener('pointerdown', start);
-    el.addEventListener('pointerup', end);
-    el.addEventListener('pointercancel', end);
-    el.addEventListener('pointermove', move)
-    el.addEventListener('touchstart', (e) => e.preventDefault()); // prevent scroll
-}
-setUpPaintEventHandling();
-
 
 
 export default exported;

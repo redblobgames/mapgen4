@@ -26,21 +26,21 @@ const initialParams = {
     elevation: [
         ['seed', 187, 1, 1 << 30],
         ['island', 0.5, 0, 1],
-        ['noisy_coastlines', 0.01, 0, 0.1],
+        ['noisy_coastlines', 0.02, 0, 0.1],
         ['hill_height', 0.02, 0, 0.1],
         ['mountain_jagged', 0, 0, 1],
-        ['mountain_sharpness', 9.8, 9.1, 12.5],
-        ['ocean_depth', 1.5, 1, 3],
+        ['mountain_sharpness', 11, 9.5, 12.5],
+        ['ocean_depth', 1.1, 1, 3],
     ],
     biomes: [
         ['wind_angle_deg', 0, 0, 360],
-        ['raininess', 0.9, 0, 2],
-        ['rain_shadow', 0.5, 0.1, 2],
+        ['raininess', 1, 0, 2],
+        ['rain_shadow', 2, 0.1, 2],
         ['evaporation', 0.5, 0, 1],
     ],
     rivers: [
-        ['lg_min_flow', 2.7, -5, 5],
-        ['lg_river_width', -2.7, -5, 5],
+        ['lg_min_flow', 1, -5, 5],
+        ['lg_river_width', -4, -5, 5],
         ['flow', 0.2, 0, 1],
     ],
     render: [
@@ -56,11 +56,11 @@ const initialParams = {
         ['rotate_deg', 0, -180, 180],
         ['mountain_height', 50, 0, 250],
         ['outline_depth', 1, 0, 2],
-        ['outline_strength', 15, 0, 30],
+        ['outline_strength', 25, 0, 30],
         ['outline_threshold', 0, 0, 100],
         ['outline_coast', 0, 0, 1],
-        ['outline_water', 10.0, 0, 20], // things start going wrong when this is high
-        ['biome_colors', 1, 0, 1],
+        ['outline_water', 15, 0, 20], // things start going wrong when this is high
+        ['biome_colors', 0.8, 0, 1],
     ],
 };
 
@@ -186,7 +186,6 @@ function main({mesh, t_peaks}: { mesh: Mesh; t_peaks: number[]; }) {
         let userHasPainted = Painting.userHasPainted();
         (document.querySelector("#slider-seed input") as HTMLInputElement).disabled = userHasPainted;
         (document.querySelector("#slider-island input") as HTMLInputElement).disabled = userHasPainted;
-        (document.querySelector("#button-reset") as HTMLInputElement).disabled = !userHasPainted;
     }
     
     function generate() {
