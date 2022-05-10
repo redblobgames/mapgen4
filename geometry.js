@@ -129,9 +129,9 @@ function assignTextureCoordinates(spacing, numSizes, textureSize) {
 
 
 // TODO: turn this into an object :-/
-const riverTextureSpacing = 40; // TODO: should depend on river size
+const riverTextureSpacing = 20; // TODO: should depend on river size
 const numRiverSizes = 24; // NOTE: too high and rivers are low quality; too low and there's not enough variation
-const riverTextureSize = 4096;
+const riverTextureSize = 2048;
 const riverMaximumFractionOfWidth = 0.5;
 const riverTexturePositions = assignTextureCoordinates(riverTextureSpacing, numRiverSizes, riverTextureSize);
 function createRiverBitmap() {
