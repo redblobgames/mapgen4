@@ -60,9 +60,8 @@ The map generator uses these libraries:
 
 - [[https://github.com/mapbox/delaunator.git][Delaunator]] from MapBox is licensed under the ISC license.
 - [[https://github.com/kchapelier/poisson-disk-sampling][poisson-disk-sampling]] from Kevin Chapelier is licensed under the MIT license.
-- [[https://github.com/jwagner/simplex-noise.js][simple-noise]] from Jonas Wagner is licensed under the MIT license.
+- [[https://github.com/jwagner/simplex-noise.js][simplex-noise]] from Jonas Wagner is licensed under the MIT license.
 - [[https://github.com/mourner/flatqueue][flatqueue]] from Vladimir Agafonkin is licensed under the ISC license.
-- [[https://github.com/mikolalysenko/hash-int][hash-int]] from Mikola Lysenko is licensed under the MIT license.
 
 The rendering code uses these libraries:
 

@@ -29,7 +29,7 @@ gl-matrix@^3:
   resolved "https://registry.yarnpkg.com/gl-matrix/-/gl-matrix-3.3.0.tgz#232eef60b1c8b30a28cbbe75b2caf6c48fd6358b"
   integrity sha512-COb7LDz+SXaHtl/h4LeaFcNdJdAQSDeVqjiIihSXNrkWObZLhDI4hIkZC11Aeqp7bcE72clzB0BnDXr2SmslRA==
 
-hash-int@*, hash-int@^1:
+hash-int@*:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/hash-int/-/hash-int-1.0.0.tgz#28cae10f5a651ed65d5680ccc0d08005cf372a0d"
   integrity sha1-KMrhD1plHtZdVoDMwNCABc83Kg0=

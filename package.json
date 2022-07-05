@@ -7,7 +7,6 @@
         "@redblobgames/prng": "https://github.com/redblobgames/prng",
         "flatqueue": "^1",
         "gl-matrix": "^3",
-        "hash-int": "^1",
         "regl": "^1",
         "simplex-noise": "^2"
     },
