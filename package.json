@@ -1,6 +1,6 @@
 {
     "name": "@redblobgames/mapgen4",
-    "version": "1.1",
+    "version": "1.1.0",
     "private": true,
     "dependencies": {
         "@redblobgames/dual-mesh": "https://github.com/redblobgames/dual-mesh",
