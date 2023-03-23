@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" type="text/css" media="screen" href="style.css" />
+    <title>Dual-mesh library</title>
+    <meta name="description" content="Dual-mesh library for @redblobgames's map generator projects" />
+    <meta name="canonical" content="https://redblobgames.github.io/dual-mesh/" />
+  </head>
+
+  <body>
+    <header>
+      <div>
+        <h1>Dual-mesh library</h1>
+        <h3>@redblobgames's library for his map generation projects</h3>
+      </div>
+    </header>
+
+    <section>
+      <div>
+        <address>Oct 2017</address>
+
+        <p>
+          License: <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache v2</a>
+        </p>
+        
+        <p>
+          <strong>I'm using this library for my own projects; the interface isn't stable yet, so expect breaking changes in the future.</strong>
+        </p>
+        
+        <p>
+          For some of my map generation projects I've used an <a href="https://en.wikipedia.org/wiki/Types_of_mesh#Unstructured_grids">unstructured grid</a> instead of regular grids to add variety and interestingness to the maps. I need a way to represent polygon regions (red points, outline in white) including their corners (blue points):
+        </p>
+
+        <div class="diagram-g0">
+          <svg width="600" height="300" viewBox="100 250 800 500">
+            <a-side-white-edges :graph="graph"/>
+            <a-region-points :graph="graph" :hover="hover" radius="4"/>
+            <a-triangle-points :graph="graph" :hover="hover" radius="4"/>
+          </svg>
+        </div>
+
+        <p>
+          But I also sometimes need to visit a region's neighbors (red points, black connecting lines):
+        </p>
+        
+        <div class="diagram-g0">
+          <svg width="600" height="300" viewBox="100 250 800 500">
+            <a-side-black-edges :graph="graph"/>
+            <a-region-points :graph="graph" :hover="hover" radius="7"/>
+          </svg>
+        </div>
+
+        <p>
+          Put together, these form a <em>dual mesh</em> structure that has both the polygons (white lines, blue points) and triangles (black lines, red points):
+        </p>
+        
+        <div class="diagram-g0">
+          <svg width="600" height="300" viewBox="100 400 800 200">
+            <a-side-white-edges :graph="graph"/>
+            <a-side-black-edges :graph="graph"/>
+            <a-triangle-points :graph="graph" :hover="hover" radius="4"/>
+            <a-region-points :graph="graph" :hover="hover" radius="7"/>
+          </svg>
+        </div>
+
+        <h2 id="structure">Structure</h2>
+
+        <p>
+          Each element (<b>r</b>egion, <b>s</b>ide, <b>t</b>riangle) has an integer index starting from 0. The sides are <em>half edges</em>, so there are two of them between each pair of regions. The sides index <em>both</em> between red points (black lines) and blue points (white lines); for each pair of red and blue points there are two side half-edges. For example with r0, r2, t0, t1, there are two side half-edges, s2 from r2 → r0 and s5 from r0 → r2. These two sides are called <em>opposites</em>. There are three sides per triangle. For example triangle t1 has sides s3, s4, s5.
+        </p>
+        
+        <div class="diagram-g1">
+          <svg width="600" height="300">
+            <a-side-black-edges :graph="graph" :alpha="0.05"/>
+            <a-side-white-edges :graph="graph" :alpha="0.03"/>
+            <a-side-labels :graph="graph"/>
+            <a-region-points :graph="graph" :hover="hover"/>
+            <a-region-labels :graph="graph"/>
+            <a-triangle-points :graph="graph" :hover="hover"/>
+            <a-triangle-labels :graph="graph"/>
+          </svg>
+        </div>
+
+        <p>
+          Regions are polygons. Each region has N sides and N corners. For example region r0 has sides s0, s11, s8, s17, s14, and corners t0, t3, t2, t5, t4.
+        </p>
+        
+        <div class="diagram-g2">
+          <svg width="600" height="300">
+            <a-side-black-edges :graph="graph" :alpha="0.05"/>
+            <a-side-white-edges :graph="graph" :alpha="0.03"/>
+            <a-side-labels :graph="graph"/>
+            <a-region-points :graph="graph" :hover="hover"/>
+            <a-region-labels :graph="graph"/>
+            <a-triangle-points :graph="graph" :hover="hover"/>
+            <a-triangle-labels :graph="graph"/>
+          </svg>
+        </div>
+
+        <p>
+          Lots of error-prone code is avoided by using <a href="https://en.wikipedia.org/wiki/Sentinel_node">sentinel values</a> instead of nulls. In this case, the mesh will have <code>opposites[s] == -1</code> at the boundaries of the map. Checking whether each side has an opposite (<code>≥ 0</code>) leads to error-prone code. Iterating around the vertices of a polygon loop can fail if some vertices are missing. Switching to a side's opposite can fail if there is no opposite. Finding a triangle's neighbors can fail if some triangles are off the edge of the map. The solution is to “wrap” the map around the back so that there are no more boundaries.
+        </p>
+
+        <p>
+          The <em>ghost</em> elements are invisible elements of the dual mesh that provide the connectivity that nulls would complicate. Only the <em>solid</em> (non-ghost) elements are usually drawn, although it depends on context. The ghost region can be thought of as the “outside” of the map, or a region at “infinity” or the “back” of the map. Ghost triangles and sides connect the boundary of the map to the ghost region. Here are the additional ghost sides and vertices:
+        </p>
+
+        <div class="diagram-g2 show-ghosts">
+          <svg width="600" height="300">
+            <g transform="translate(300,150) scale(0.75,0.75) translate(-300,-150)">
+            <a-side-black-edges :graph="graph" :alpha="0.05"/>
+            <a-side-white-edges :graph="graph" :alpha="0.03"/>
+            <a-side-labels :graph="graph"/>
+            <a-region-points :graph="graph" :hover="hover"/>
+            <a-region-labels :graph="graph"/>
+            <a-triangle-points :graph="graph" :hover="hover"/>
+            <a-triangle-labels :graph="graph"/>
+            </g>
+          </svg>
+        </div>
+
+        <p>
+          The ghost elements eliminate the boundary from a structural point of view, but I still want a boundary in the generated maps. The <em>boundary</em> elements are those adjacent to the outside of the map (ghost region). In the mesh creation function the points are evenly spaced but that isn't necessary.
+        </p>
+        
+        <h2 id="operations">Operations</h2>
+
+        <div class="diagram-g1">
+          <svg width="600" height="300">
+            <a-side-black-edges :graph="graph" :alpha="0.05"/>
+            <a-side-white-edges :graph="graph" :alpha="0.03"/>
+            <a-side-labels :graph="graph"/>
+            <a-region-points :graph="graph" :hover="hover"/>
+            <a-region-labels :graph="graph"/>
+            <a-triangle-points :graph="graph" :hover="hover"/>
+            <a-triangle-labels :graph="graph"/>
+          </svg>
+        </div>
+
+        <dl>
+          <dt>s_next_s(s), s_prev_s(s)</dt><dd>circulate around triangle (s0 → s1 → s2 → s0)</dd>
+          <dt>s_begin_r(s), s_end_r(s)</dt><dd>black edge endpoints (s0 → r0, r1)</dd>
+          <dt>s_inner_t(s), s_outer_t(s)</dt><dd>white edge endpoints (s0 → t0, t1)</dd>
+          <dt>s_opposite_s(s)</dt><dd>opposite of half-edge (s0 → s3; s3 → s0)</dd>
+          <dt>{t,r}_circulate_{s,r,t}(output, input)</dt><dd>fills neighbors and returns output; pass in [] to make a new array (t1 → r0, r2, r3; t1 → s3, s4, s5)</dd>
+          <dt>ghost_r()</dt><dd>the ghost r index (not shown)</dd>
+          <dt>{s,r,t}_ghost(input)</dt><dd>whether an element is a ghost</dd>
+          <dt>{s,r}_boundary(input)</dt><dd>whether an element is on the boundary</dd>
+          <dt>{r,t}_{x,y}(input)</dt><dd>coordinates of a region (triangle vertex) or triangle (region vertex)</dd>
+        </dl>
+
+        <h2 id="invariants">Invariants</h2>
+
+        <p>
+          If s2 === s_opposite_s(s1):
+        </p>
+
+        <ul>
+          <li>s_opposite_s(s2) === s1</li>
+          <li>s_begin_r(s1) === s_end_r(s2)</li>
+          <li>s_begin_r(s2) === s_end_r(s1)</li>
+          <li>s_inner_t(s1) === s_outer_t(s2)</li>
+          <li>s_inner_t(s2) === s_outer_t(s1)</li>
+        </ul>
+
+        <p>
+          Properties of circulation:
+        </p>
+        
+        <ul>
+          <li>If s is returned by r_circulate_s(_, r), then s_begin_r(s) === r</li>
+          <li>If s is returned by t_circulate_s(_, t), then s_inner_t(s) === t</li>
+        </ul>
+          
+        <h2 id="history">History</h2>
+        
+        <p>
+          For my 2010 polygon-map-generator project (Flash) I wrote a
+          wrapper around the as3delaunay library that gave me access
+          to the kinds of structures and operations I wanted to work
+          with for polygon maps. For my 2017 map generator projects
+          (Javascript) I wrote this wrapper around the delaunator
+          library. See <a href="http://www.redblobgames.com/x/1721-voronoi-alternative/">my blog post about centroid polygons</a> and <a href="http://www.redblobgames.com/x/1722-b-rep-triangle-meshes/">my
+          blog post about the dual mesh data structure</a>. This library
+          is an evolution of that dual mesh data structure, with ghost
+          elements and different names.
+        </p>
+
+        <h2 id="source">Source code</h2>
+
+        <p>
+          Take a look at <a href="https://github.com/redblobgames/dual-mesh">@redblobgames/dual-mesh</a>, but at the moment I'm writing it only for myself and don't intend for others to use it. <strong>I do make breaking changes.</strong>
+        </p>
+        
+      </div>
+    </section>
+
+    <footer>
+      <svg class="plain" width="0" height="0">
+        <defs>
+          <marker id="arrowhead-black" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="strokeWidth" markerWidth="4" markerHeight="3" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="black"/>
+          </marker>
+          <marker id="arrowhead-white" viewBox="0 0 10 10" refX="15" refY="5" markerUnits="strokeWidth" markerWidth="4" markerHeight="3" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="white"/>
+          </marker>
+          <filter id="drop-shadow" x="-100%" y="-100%" width="300%" height="300%">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="2" />
+            <feOffset dx="0" dy="1" result="offsetblur" />
+            <feFlood flood-color="#000000" />
+            <feComposite in2="offsetblur" operator="in" />
+            <feMerge>
+              <feMergeNode />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+      </svg>
+
+      <script src="https://unpkg.com/vue@2.x/dist/vue.min.js"></script>
+      <script src="_bundle.js"></script>
+      <div>
+        <p class="copyright">Copyright 2017 by <a href="https://github.com/redblobgames">redblobgames</a>. Implemented with <a href="https://vuejs.org/">Vue.js</a>.
+        </p>
+      </div>
+    </footer>
+
+  </body>
+</html>

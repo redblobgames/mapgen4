@@ -1,0 +1,44 @@
+[[http://unmaintained.tech/][http://unmaintained.tech/badge.svg]]
+
+Dual mesh library for my polygon map generator projects (mapgen2, mapgen4). Feel free to use this, but it's not a stable library and I do make breaking changes. The create.js interface is the most likely to change in the future.
+
+This is a wrapper around [[https://mapbox.github.io/delaunator/][Delaunator]]. I wrote the [[https://mapbox.github.io/delaunator/][Delaunator Guide]] based on the code from this project. The code in the guide is easier to read and more general but less efficient than the code in this library.
+
+[[https://redblobgames.github.io/dual-mesh/][Documentation is here]], but it's a bit rough. See [[http://www.redblobgames.com/x/1721-voronoi-alternative/][my blog post about centroid polygons]] and [[http://www.redblobgames.com/x/1722-b-rep-triangle-meshes/][my blog post about the dual mesh data structure]] for the history. Those blog posts used the names “seeds, edges, triangles” but now I call them “regions, sides, triangles”, and I use “ghost” elements to eliminate the boundaries.
+
+The naming convention is: =x_name_y= takes type x (r, s, t) as input and produces type y (r, s, t) as output. For example, =s_begin_r= is a function that takes a side (s) as input and returns a region (r), and could be called ~r = mesh.s_begin_r(s)~.
+
+For efficiency, the accessors never allocate new arrays, but take a parameter where the result should be written:
+
+#+begin_src js
+let out_r = [];
+mesh.t_circulate_r(out_r, t);
+// output written into out_r
+#+end_src
+
+For convenience, they also return the array, so this works:
+
+#+begin_src js
+let out_r = mesh.t_circulate_r([], t);
+#+end_src
+
+To create a mesh, use the =MeshBuilder=:
+
+#+begin_src js
+let mesh = new MeshBuilder()
+    .addPoints(array_of_points)
+    .create();
+#+end_src
+
+#+begin_src js
+let Poisson = require('poisson-disk-sampling');
+let mesh = new MeshBuilder({boundarySpacing: 75})
+    .addPoisson(Poisson, 75)
+    .create();
+#+end_src
+
+** Built with
+
+- [[https://github.com/mapbox/delaunator][delaunator]] to build the Delaunay triangulation
+- [[https://github.com/kchapelier/poisson-disk-sampling][poisson-disk-sampling]] to choose evenly spaced points
+

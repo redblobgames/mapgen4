@@ -1,0 +1,4 @@
+/*.graphdata
+node_modules/
+
+/dist/dual-mesh.js

@@ -1,0 +1,94 @@
+/* Diagrams */
+
+text { text-anchor: middle; font-size: 16px; }
+.b-side { fill: none; stroke: black; stroke-width: 2.5px;  marker-end: url(#arrowhead); }
+.w-side { fill: none; stroke: white; stroke-width: 2px; }
+.b-side.ghost { stroke-opacity: 0.0; }
+.w-side.ghost { stroke-opacity: 0.0; }
+.polygon { fill: none; stroke: white; stroke-width: 1.5px; }
+.s { color: hsl(120,50%,30%); fill: hsl(120,50%,30%); stroke: hsla(0,0%,0%,0.2); stroke-width: 0.5px; font-size: 14px; font-weight: bold; }
+.r { color: hsl(0,50%,50%); fill: hsl(0,50%,50%); fill-opacity: 0.8; stroke: black; stroke-width: 0.5px; font-weight: bold; }
+text.r { fill-opacity: 1.0; stroke: none; }
+.t { color: hsl(240,50%,50%); fill: hsl(240,50%,50%); stroke: white; stroke-width: 0.5px; font-weight: bold; }
+.t.ghost { fill-opacity: 0.0; stroke-opacity: 0.0; }
+text.t { stroke: none; }
+
+.show-ghosts .ghost { fill-opacity: 0.7; stroke-opacity: 0.3; }
+
+.diagram-g0 .w-side.ghost { stroke-opacity: 1.0; }
+.diagram-g0 .b-side { stroke-opacity: 0.3; }
+.diagram-g1 .b-side { marker-end: url(#arrowhead-black); }
+.diagram-g1 .w-side { marker-end: url(#arrowhead-white); }
+.diagram-g1 .ghost { marker-end: none; }
+
+/* Fonts */
+
+body, text {
+    font-family: "Source Sans Pro", "Open Sans", "Lucida Grande", "Lucida Sans Unicode", "Lucida Sans", "Tahoma", sans-serif;
+    font-size: 17px;
+}
+tt, code, kbd, samp, pre {
+    font-family: "Source Code Pro", monospace, serif, "Segoe UI Symbol", "Symbol";
+    font-size: 13px;
+}
+h1, h2, h3, h4, h5, h6 { font-weight: 700; letter-spacing: -1px; }
+h1 { font-size: 43px; }
+h2 { font-size: 32px; }
+h3 { font-size: 24px; }
+h4, h5, h6 { font-size: 18px; }
+
+
+/* Layout */
+
+* {
+    box-sizing: border-box;
+}
+
+html {
+    margin: 0;
+    padding: 0;
+}
+body {
+    margin: 0;
+    padding: 0;
+    line-height: 1.5;
+}
+
+h1, h2, h3, h4, h5, h6, p, ul, ol, dl, pre { margin: 10px 0 15px 0; }
+p, ul, ol, dl { text-align: justify; hyphens: auto; -webkit-hyphens: auto; }
+
+pre {
+    width: 100%;
+    padding: 10px;
+    overflow: auto;
+}
+code {
+    padding: 3px;
+    margin: 0 3px;
+}
+header div, section div, footer div {
+    max-width: 600px; margin: 0 auto;
+}
+header, section, footer {
+    margin: 20px 0; 
+}
+
+
+/* Colors */
+
+body { color: hsl(0,0%,100%); background-color: hsl(0,0%,20%); }
+section { color: hsl(0,0%,20%); background-color: hsl(0,0%,95%); }
+header, footer { text-shadow: 0 0 5px black; }
+
+a { color: #fff; text-decoration: underline; }
+section a { color: hsl(240,50%,50%); text-decoration: none; }
+a:hover, a:focus { text-decoration: underline; }
+
+section { border-top: 1px solid white; border-bottom: 1px solid white; box-shadow: inset 0 0 10px hsla(0,0%,20%,0.2); }
+
+pre, svg:not(.plain) {
+    background-color: hsl(0,0%,66%);
+    border: 1px solid hsl(0,0%,80%);
+    border-radius: 10px;
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
+}
