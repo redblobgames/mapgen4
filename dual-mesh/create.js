@@ -1,17 +1,16 @@
 /*
- * From https://github.com/redblobgames/dual-mesh
- * Copyright 2017 Red Blob Games <redblobgames@gmail.com>
+ * From https://www.redblobgames.com/x/2312-dual-mesh/
+ * Copyright 2017, 2023 Red Blob Games <redblobgames@gmail.com>
  * License: Apache v2.0 <http://www.apache.org/licenses/LICENSE-2.0.html>
  *
  * Generate a random triangle mesh for the area 0 <= x <= 1000, 0 <= y <= 1000
  *
- * This program runs on the command line (node)
  */
 
 'use strict';
 
-let Delaunator   = require('delaunator');        // ISC licensed
-let TriangleMesh = require('./');
+import Delaunator from 'delaunator';
+import TriangleMesh from './';
 
 function s_next_s(s) { return (s % 3 == 2) ? s-2 : s+1; }
 
@@ -172,7 +171,7 @@ function addGhostStructure({_r_vertex, _triangles, _halfedges}) {
  *    .addPoisson(Poisson, 100)
  *    .create()
  */
-class MeshBuilder {
+export class MeshBuilder {
     /** If boundarySpacing > 0 there will be a boundary added around the 1000x1000 area */
     constructor ({boundarySpacing=0} = {}) {
         let boundaryPoints = boundarySpacing > 0 ? addBoundaryPoints(boundarySpacing, 1000) : [];
@@ -235,6 +234,3 @@ class MeshBuilder {
         return new TriangleMesh(graph);
     }
 }
-
-
-module.exports = MeshBuilder;

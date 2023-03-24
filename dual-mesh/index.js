@@ -1,10 +1,8 @@
 /*
- * From https://github.com/redblobgames/dual-mesh
- * Copyright 2017 Red Blob Games <redblobgames@gmail.com>
+ * From https://www.redblobgames.com/x/2312-dual-mesh/
+ * Copyright 2017, 2023 Red Blob Games <redblobgames@gmail.com>
  * License: Apache v2.0 <http://www.apache.org/licenses/LICENSE-2.0.html>
  */
-
-'use strict';
 
 /**
  * Represent a triangle-polygon dual mesh with:
@@ -38,7 +36,7 @@
  * boundary regions to the ghost region. Elements that aren't "ghost"
  * are called "solid".
  */
-class TriangleMesh {
+export class TriangleMesh {
     static s_to_t(s)   { return (s/3) | 0; }
     static s_prev_s(s) { return (s % 3 === 0) ? s+2 : s-1; }
     static s_next_s(s) { return (s % 3 === 2) ? s-2 : s+1; }
@@ -200,5 +198,3 @@ class TriangleMesh {
     s_boundary(s) { return this.s_ghost(s) && (s % 3 === 0); }
     r_boundary(r) { return r < this.numBoundaryRegions; }
 }
-
-module.exports = TriangleMesh;
