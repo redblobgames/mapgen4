@@ -36,7 +36,7 @@
  * boundary regions to the ghost region. Elements that aren't "ghost"
  * are called "solid".
  */
-export class TriangleMesh {
+export default class TriangleMesh {
     static s_to_t(s)   { return (s/3) | 0; }
     static s_prev_s(s) { return (s % 3 === 0) ? s+2 : s-1; }
     static s_next_s(s) { return (s % 3 === 2) ? s-2 : s+1; }

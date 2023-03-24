@@ -171,7 +171,7 @@ function addGhostStructure({_r_vertex, _triangles, _halfedges}) {
  *    .addPoisson(Poisson, 100)
  *    .create()
  */
-export class MeshBuilder {
+export default class MeshBuilder {
     /** If boundarySpacing > 0 there will be a boundary added around the 1000x1000 area */
     constructor ({boundarySpacing=0} = {}) {
         let boundaryPoints = boundarySpacing > 0 ? addBoundaryPoints(boundarySpacing, 1000) : [];

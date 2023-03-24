@@ -7,7 +7,7 @@
  */
 'use strict';
 
-import DualMesh from '@redblobgames/dual-mesh';
+import DualMesh from './dual-mesh';
 import Map      from './map';
 import Geometry from './geometry';
 import {Mesh} from './types';

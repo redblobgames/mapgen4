@@ -10,7 +10,7 @@
  */
 
 import param from './config';
-import MeshBuilder from '@redblobgames/dual-mesh/create';
+import MeshBuilder from './dual-mesh/create';
 import Poisson from 'fast-2d-poisson-disk-sampling';
 import {makeRandFloat} from './prng';
 import {Mesh} from './types';
