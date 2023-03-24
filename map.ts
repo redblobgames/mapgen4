@@ -8,7 +8,7 @@
  */
 'use strict';
 
-import SimplexNoise from 'simplex-noise';
+import {createNoise2D} from 'simplex-noise';
 import FlatQueue from 'flatqueue';
 import {makeRandFloat} from './prng';
 import {Mesh} from './types';
@@ -59,7 +59,7 @@ function calculateMountainDistance(mesh: Mesh, seeds_t: number[], spacing: numbe
  * Save noise values in arrays.
  */
 function precalculateNoise(randFloat: () => number, mesh: Mesh): PrecalculatedNoise {
-    const noise = new SimplexNoise(randFloat);
+    const noise2D = new createNoise2D(randFloat);
     let {numTriangles} = mesh;
     let t_noise0 = new Float32Array(numTriangles),
         t_noise1 = new Float32Array(numTriangles),
@@ -70,12 +70,12 @@ function precalculateNoise(randFloat: () => number, mesh: Mesh): PrecalculatedNo
     for (let t = 0; t < numTriangles; t++) {
         let nx = (mesh.t_x(t)-500) / 500,
             ny = (mesh.t_y(t)-500) / 500;
-        t_noise0[t] = noise.noise2D(nx, ny);
-        t_noise1[t] = noise.noise2D(2*nx + 5, 2*ny + 5);
-        t_noise2[t] = noise.noise2D(4*nx + 7, 4*ny + 7);
-        t_noise4[t] = noise.noise2D(16*nx + 15, 16*ny + 15);
-        t_noise5[t] = noise.noise2D(32*nx + 31, 32*ny + 31);
-        t_noise6[t] = noise.noise2D(64*nx + 67, 64*ny + 67);
+        t_noise0[t] = noise2D(nx, ny);
+        t_noise1[t] = noise2D(2*nx + 5, 2*ny + 5);
+        t_noise2[t] = noise2D(4*nx + 7, 4*ny + 7);
+        t_noise4[t] = noise2D(16*nx + 15, 16*ny + 15);
+        t_noise5[t] = noise2D(32*nx + 31, 32*ny + 31);
+        t_noise6[t] = noise2D(64*nx + 67, 64*ny + 67);
     }
     return {t_noise0, t_noise1, t_noise2, t_noise4, t_noise5, t_noise6};
 }

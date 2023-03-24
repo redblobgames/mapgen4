@@ -15,7 +15,7 @@
  * then send the elevation map to the generator to produce the output.
  */
 
-import SimplexNoise from 'simplex-noise';
+import {createNoise2D} from 'simplex-noise';
 import {makeRandFloat} from './prng';
 
 const CANVAS_SIZE = 128;
@@ -53,7 +53,7 @@ class Generator {
     /** Use a noise function to determine the shape */
     generate() {
         const {elevation, island} = this;
-        const noise = new SimplexNoise(makeRandFloat(this.seed));
+        const noise2D = createNoise2D(makeRandFloat(this.seed));
         const persistence = 1/2;
         const amplitudes = Array.from({length: 5}, (_, octave) => Math.pow(persistence, octave));
 
@@ -61,7 +61,7 @@ class Generator {
             let sum = 0, sumOfAmplitudes = 0;
             for (let octave = 0; octave < amplitudes.length; octave++) {
                 let frequency = 1 << octave;
-                sum += amplitudes[octave] * noise.noise2D(nx * frequency, ny * frequency);
+                sum += amplitudes[octave] * noise2D(nx * frequency, ny * frequency);
                 sumOfAmplitudes += amplitudes[octave];
             }
             return sum / sumOfAmplitudes;
@@ -78,8 +78,8 @@ class Generator {
                 if (e > +1.0) { e = +1.0; }
                 elevation[p] = e;
                 if (e > 0.0) {
-                    let m = (0.5 * noise.noise2D(nx + 30, ny + 50)
-                             + 0.5 * noise.noise2D(2*nx + 33, 2*ny + 55));
+                    let m = (0.5 * noise2D(nx + 30, ny + 50)
+                             + 0.5 * noise2D(2*nx + 33, 2*ny + 55));
                     // TODO: make some of these into parameters
                     let mountain = Math.min(1.0, e * 5.0) * (1 - Math.abs(m) / 0.5);
                     if (mountain > 0.0) {
