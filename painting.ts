@@ -7,8 +7,6 @@
  */
 'use strict';
 
-/* global Draggable */
-
 /*
  * The painting interface uses a square array of elevations. As you
  * drag the mouse it will paint filled circles into the elevation map,
@@ -198,26 +196,54 @@ for (let control of controls) {
 displayCurrentTool();
 
 
-const output = document.getElementById('mapgen4');
-new Draggable({
-    // TODO: replace with pointer events, now that they're widely supported
-    el: output,
-    start(event) {
-        this.timestamp = Date.now();
+function setUpPaintEventHandling() {
+    const el = document.getElementById('mapgen4');
+    let dragging = false;
+    let timestamp = 0;
+    
+    /**
+     * @param {PointerEvent} event
+     */
+    function start(event) {
+        if (event.button !== 0) return; // left button only
+        el.setPointerCapture(event.pointerId);
+        
+        dragging = true;
+        timestamp = Date.now();
         currentStroke.time.fill(0);
         currentStroke.strength.fill(0);
         currentStroke.previousElevation.set(heightMap.elevation);
-        this.drag(event);
-    },
-    drag(event) {
+        move(event);
+    }
+
+    function end(_event) {
+        dragging = false;
+    }
+
+    /**
+     * @param {PointerEvent} event
+     */
+    function move(event) {
+        if (!dragging) return;
+
         const nowMs = Date.now();
-        let coords = [event.x / output.clientWidth,
-                      event.y / output.clientHeight];
+        const bounds = el.getBoundingClientRect();
+        let coords = [
+            (event.x - bounds.left) / bounds.width,
+            (event.y - bounds.top) / bounds.height,
+        ];
         coords = exported.screenToWorldCoords(coords);
         let brushSize = SIZES[currentSize];
-        if (event.touch && event.touch.force > 0) {
-            // Apple Stylus
-            let radius = Math.sqrt(event.touch.force);
+        if (event.pointerType === 'pen' && event.pressure !== 0.5) {
+            // Pointer Event spec says 0.5 sent when pen does not
+            // support pressure; I primarily added this for Apple
+            // Pencil but haven't tested on others. I want pressure
+            // 0.25 to correspond to "regular" pressure for the given
+            // brush size, so radius should be 1.0. I am *not*
+            // currently supporting Macbook pressure-sensitive
+            // touchpads, which don't show up under Pointer Events.
+            // https://developer.mozilla.org/en-US/docs/Web/API/Force_Touch_events
+            let radius = 2 * Math.sqrt(event.pressure);
             brushSize = {
                 key: brushSize.key,
                 innerRadius: Math.max(1, brushSize.innerRadius * radius),
@@ -225,15 +251,23 @@ new Draggable({
                 rate: brushSize.rate,
             };
         }
-        if (event.raw && event.raw.shiftKey) {
+        if (event.shiftKey) {
             // Hold down shift to paint slowly
             brushSize = {...brushSize, rate: brushSize.rate/4};
         }
-        heightMap.paintAt(TOOLS[currentTool], coords[0], coords[1], brushSize, nowMs - this.timestamp);
-        this.timestamp = nowMs;
+        heightMap.paintAt(TOOLS[currentTool], coords[0], coords[1],
+                          brushSize, nowMs - timestamp);
+        timestamp = nowMs;
         exported.onUpdate();
-    },
-});
+    }
+        
+    el.addEventListener('pointerdown', start);
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+    el.addEventListener('pointermove', move)
+    el.addEventListener('touchstart', (e) => e.preventDefault()); // prevent scroll
+}
+setUpPaintEventHandling();
 
 
 

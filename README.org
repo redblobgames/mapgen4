@@ -52,6 +52,10 @@ It's a continuation of ideas I developed for [[https://github.com/amitp/mapgen2/
 
 There's plenty more that could be done to make it even faster and prettier. There are plenty of features that could be added, such as [[https://www.redblobgames.com/x/1723-procedural-river-growing/#draw][drawing your own rivers]], [[https://www.redblobgames.com/x/1843-planet-generation/][sphere output]], [[https://www.redblobgames.com/x/1736-resource-placement/][natural resources]], towns, forests, names, roads, and nations, but I'm leaving those for a future project.
 
+* Code
+
+The entry point is [[mapgen4.ts]]. The main data structures are from my dual-mesh library. The map generation algorithms are in [[map.ts]]. The input painting is in [[painting.ts]]. The output rendering is in [[render.ts]]. Calculations are in [[worker.ts]]. Some of the calculations are shared between the worker and renderer, and those are in [[geometry.ts]].
+
 * License
 
 Mapgen4 and helper libraries I wrote (dual-mesh, prng) are licensed under Apache v2. You can use this code in your own project, including commercial projects.
