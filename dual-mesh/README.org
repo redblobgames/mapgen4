@@ -6,20 +6,20 @@ This is a wrapper around [[https://mapbox.github.io/delaunator/][Delaunator]]. I
 
 [[https://redblobgames.github.io/dual-mesh/][Documentation is here]], but it's a bit rough. See [[http://www.redblobgames.com/x/1721-voronoi-alternative/][my blog post about centroid polygons]] and [[http://www.redblobgames.com/x/1722-b-rep-triangle-meshes/][my blog post about the dual mesh data structure]] for the history. Those blog posts used the names “seeds, edges, triangles” but now I call them “regions, sides, triangles”, and I use “ghost” elements to eliminate the boundaries.
 
-The naming convention is: =x_name_y= takes type x (r, s, t) as input and produces type y (r, s, t) as output. For example, =s_begin_r= is a function that takes a side (s) as input and returns a region (r), and could be called ~r = mesh.s_begin_r(s)~.
+The naming convention is output-from-input: =x_name_y= takes type =y= (r, s, t) as input and produces type =x= (r, s, t) as output. For example, =r_begin_s= is a function that takes a side (=s=) as input and returns a region (=r=), and could be called ~r = mesh.r_begin_s(s)~. A previous version of this library used the opposite naming convention, input-to-output, but the author was persuaded to switch by [[https://tomforsyth1000.github.io/blog.wiki.html][Tom Forsyth's article on naming]].
 
-For efficiency, the accessors never allocate new arrays, but take a parameter where the result should be written:
+For efficiency, functions that return an array take an optional parameter where the result should be written:
 
 #+begin_src js
 let out_r = [];
-mesh.t_circulate_r(out_r, t);
+mesh.r_around_t(t, out_r);
 // output written into out_r
 #+end_src
 
-For convenience, they also return the array, so this works:
+For convenience, they also return the array, so this allocates a new array and returns it:
 
 #+begin_src js
-let out_r = mesh.t_circulate_r([], t);
+let out_r = mesh.r_around_t(t);
 #+end_src
 
 To create a mesh, use the =MeshBuilder=:

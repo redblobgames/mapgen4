@@ -17,12 +17,12 @@ function setMeshGeometry(mesh: Mesh, P: Float32Array) {
 
     let p = 0;
     for (let r = 0; r < numRegions; r++) {
-        P[p++] = mesh.r_x(r);
-        P[p++] = mesh.r_y(r);
+        P[p++] = mesh.x_of_r(r);
+        P[p++] = mesh.y_of_r(r);
     }
     for (let t = 0; t < numTriangles; t++) {
-        P[p++] = mesh.t_x(t);
-        P[p++] = mesh.t_y(t);
+        P[p++] = mesh.x_of_t(t);
+        P[p++] = mesh.y_of_t(t);
     }
 };
 
@@ -46,9 +46,9 @@ function setMapGeometry(map: Map, I: Int32Array, P: Float32Array) {
     for (let t = 0; t < numTriangles; t++) {
         P[p++] = V * t_elevation[t];
         let s0 = 3*t;
-        let r1 = mesh.s_begin_r(s0),
-            r2 = mesh.s_begin_r(s0+1),
-            r3 = mesh.s_begin_r(s0+2);
+        let r1 = mesh.r_begin_s(s0),
+            r2 = mesh.r_begin_s(s0+1),
+            r3 = mesh.r_begin_s(s0+2);
         P[p++] = 1/3 * (r_rainfall[r1] + r_rainfall[r2] + r_rainfall[r3]);
     }
 
@@ -56,10 +56,10 @@ function setMapGeometry(map: Map, I: Int32Array, P: Float32Array) {
     let i = 0;
     for (let s = 0; s < numSolidSides; s++) {
         let opposite_s = mesh.s_opposite_s(s),
-            r1 = mesh.s_begin_r(s),
-            r2 = mesh.s_begin_r(opposite_s),
-            t1 = mesh.s_inner_t(s),
-            t2 = mesh.s_inner_t(opposite_s);
+            r1 = mesh.r_begin_s(s),
+            r2 = mesh.r_begin_s(opposite_s),
+            t1 = mesh.t_inner_s(s),
+            t2 = mesh.t_inner_s(opposite_s);
         
         // Each quadrilateral is turned into two triangles, so each
         // half-edge gets turned into one. There are two ways to fold
@@ -203,9 +203,9 @@ function setRiverTextures(map: Map, spacing: number, riversParam: any, P: Float3
         let out_s = t_downslope_s[t];
         let out_flow = s_flow[out_s];
         if (out_s < 0 || out_flow < MIN_FLOW) continue;
-        let r1 = mesh.s_begin_r(3*t    ),
-            r2 = mesh.s_begin_r(3*t + 1),
-            r3 = mesh.s_begin_r(3*t + 2);
+        let r1 = mesh.r_begin_s(3*t    ),
+            r2 = mesh.r_begin_s(3*t + 1),
+            r3 = mesh.r_begin_s(3*t + 2);
         let in1_s = mesh.s_next_s(out_s);
         let in2_s = mesh.s_next_s(in1_s);
         let in1_flow = s_flow[mesh.s_opposite_s(in1_s)];
@@ -214,12 +214,12 @@ function setRiverTextures(map: Map, spacing: number, riversParam: any, P: Float3
         
         function add(r: number, c: number, i: number, j: number, k: number) {
             const T = riverTexturePositions[r][c][0];
-            P[p    ] = mesh.r_x(r1);
-            P[p + 1] = mesh.r_y(r1);
-            P[p + 4] = mesh.r_x(r2);
-            P[p + 5] = mesh.r_y(r2);
-            P[p + 8] = mesh.r_x(r3);
-            P[p + 9] = mesh.r_y(r3);
+            P[p    ] = mesh.x_of_r(r1);
+            P[p + 1] = mesh.y_of_r(r1);
+            P[p + 4] = mesh.x_of_r(r2);
+            P[p + 5] = mesh.y_of_r(r2);
+            P[p + 8] = mesh.x_of_r(r3);
+            P[p + 9] = mesh.y_of_r(r3);
             P[p + 4*(out_s - 3*t) + 2] = T[i].uv[0];
             P[p + 4*(out_s - 3*t) + 3] = T[i].uv[1];
             P[p + 4*(in1_s - 3*t) + 2] = T[j].uv[0];

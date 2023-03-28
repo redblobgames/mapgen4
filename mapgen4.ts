@@ -222,4 +222,3 @@ function main({mesh, peaks_t}: { mesh: Mesh; peaks_t: number[]; }) {
 }
 
 main(makeMesh());
-

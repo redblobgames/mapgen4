@@ -14,17 +14,16 @@
  *   - 0 <= s < numSides
  *   - 0 <= t < numTriangles
  *
- * Naming convention: x_name_y takes x (r, s, t) as input and produces
- * y (r, s, t) as output. If the output isn't a mesh index (r, s, t)
- * then the _y suffix is omitted.
+ * Naming convention: y_name_x takes x (r, s, t) as input and produces
+ * y (r, s, t) as output.
  *
  * A side is directed. If two triangles t0, t1 are adjacent, there will
  * be two sides representing the boundary, one for t0 and one for t1. These
- * can be accessed with s_inner_t and s_outer_t.
+ * can be accessed with t_inner_s and t_outer_s.
  *
  * A side also represents the boundary between two regions. If two regions
  * r0, r1 are adjacent, there will be two sides representing the boundary,
- * s_begin_r and s_end_r.
+ * r_begin_s and r_end_s.
  *
  * Each side will have a pair, accessed with s_opposite_s.
  *
@@ -35,29 +34,41 @@
  * boundary regions to the ghost region. Elements that aren't "ghost"
  * are called "solid".
  */
-var TriangleMesh = /** @class */ (function () {
+export default class TriangleMesh {
+    static t_from_s(s) { return (s / 3) | 0; }
+    static s_prev_s(s) { return (s % 3 === 0) ? s + 2 : s - 1; }
+    static s_next_s(s) { return (s % 3 === 2) ? s - 2 : s + 1; }
+    numSides;
+    numSolidSides;
+    numRegions;
+    numSolidRegions;
+    numTriangles;
+    numSolidTriangles;
+    numBoundaryRegions;
+    _halfedges;
+    _triangles;
+    _s_of_r;
+    _vertex_t;
+    _vertex_r;
     /**
      * Constructor takes partial mesh information and fills in the rest; the
      * partial information is generated in create.js or in fromDelaunator.
      */
-    function TriangleMesh(_a) {
-        var numBoundaryRegions = _a.numBoundaryRegions, numSolidSides = _a.numSolidSides, _r_vertex = _a._r_vertex, _triangles = _a._triangles, _halfedges = _a._halfedges;
-        Object.assign(this, { numBoundaryRegions: numBoundaryRegions, numSolidSides: numSolidSides, _r_vertex: _r_vertex, _triangles: _triangles, _halfedges: _halfedges });
-        this._t_vertex = [];
+    constructor({ numBoundaryRegions, numSolidSides, _vertex_r, _triangles, _halfedges }) {
+        Object.assign(this, { numBoundaryRegions, numSolidSides,
+            _vertex_r, _triangles, _halfedges });
+        this._vertex_t = [];
         this._update();
     }
-    TriangleMesh.s_to_t = function (s) { return (s / 3) | 0; };
-    TriangleMesh.s_prev_s = function (s) { return (s % 3 === 0) ? s + 2 : s - 1; };
-    TriangleMesh.s_next_s = function (s) { return (s % 3 === 2) ? s - 2 : s + 1; };
     /**
      * Update internal data structures from Delaunator
      */
-    TriangleMesh.prototype.update = function (points, delaunator) {
-        this._r_vertex = points;
+    update(points, delaunator) {
+        this._vertex_r = points;
         this._triangles = delaunator.triangles;
         this._halfedges = delaunator.halfedges;
         this._update();
-    };
+    }
     /**
      * Update internal data structures to match the input mesh.
      *
@@ -65,122 +76,120 @@ var TriangleMesh = /** @class */ (function () {
      * and want the dual mesh to match the updated data. Note that
      * this DOES not update boundary regions or ghost elements.
      */
-    TriangleMesh.prototype._update = function () {
-        var _a = this, _triangles = _a._triangles, _halfedges = _a._halfedges, _r_vertex = _a._r_vertex, _t_vertex = _a._t_vertex;
+    _update() {
+        let { _triangles, _halfedges, _vertex_r, _vertex_t } = this;
         this.numSides = _triangles.length;
-        this.numRegions = _r_vertex.length;
+        this.numRegions = _vertex_r.length;
         this.numSolidRegions = this.numRegions - 1; // TODO: only if there are ghosts
         this.numTriangles = this.numSides / 3;
         this.numSolidTriangles = this.numSolidSides / 3;
-        if (this._t_vertex.length < this.numTriangles) {
+        if (this._vertex_t.length < this.numTriangles) {
             // Extend this array to be big enough
-            var numOldTriangles = _t_vertex.length;
-            var numNewTriangles = this.numTriangles - numOldTriangles;
-            _t_vertex = _t_vertex.concat(new Array(numNewTriangles));
-            for (var t = numOldTriangles; t < this.numTriangles; t++) {
-                _t_vertex[t] = [0, 0];
+            const numOldTriangles = _vertex_t.length;
+            const numNewTriangles = this.numTriangles - numOldTriangles;
+            _vertex_t = _vertex_t.concat(new Array(numNewTriangles));
+            for (let t = numOldTriangles; t < this.numTriangles; t++) {
+                _vertex_t[t] = [0, 0];
             }
-            this._t_vertex = _t_vertex;
+            this._vertex_t = _vertex_t;
         }
         // Construct an index for finding sides connected to a region
-        this._r_in_s = new Int32Array(this.numRegions);
-        for (var s = 0; s < _triangles.length; s++) {
-            var endpoint = _triangles[TriangleMesh.s_next_s(s)];
-            if (this._r_in_s[endpoint] === 0 || _halfedges[s] === -1) {
-                this._r_in_s[endpoint] = s;
+        this._s_of_r = new Int32Array(this.numRegions);
+        for (let s = 0; s < _triangles.length; s++) {
+            let endpoint = _triangles[TriangleMesh.s_next_s(s)];
+            if (this._s_of_r[endpoint] === 0 || _halfedges[s] === -1) {
+                this._s_of_r[endpoint] = s;
             }
         }
         // Construct triangle coordinates
-        for (var s = 0; s < _triangles.length; s += 3) {
-            var t = s / 3, a = _r_vertex[_triangles[s]], b = _r_vertex[_triangles[s + 1]], c = _r_vertex[_triangles[s + 2]];
-            if (this.s_ghost(s)) {
+        for (let s = 0; s < _triangles.length; s += 3) {
+            let t = s / 3, a = _vertex_r[_triangles[s]], b = _vertex_r[_triangles[s + 1]], c = _vertex_r[_triangles[s + 2]];
+            if (this.is_ghost_s(s)) {
                 // ghost triangle center is just outside the unpaired side
-                var dx = b[0] - a[0], dy = b[1] - a[1];
-                var scale = 10 / Math.sqrt(dx * dx + dy * dy); // go 10units away from side
-                _t_vertex[t][0] = 0.5 * (a[0] + b[0]) + dy * scale;
-                _t_vertex[t][1] = 0.5 * (a[1] + b[1]) - dx * scale;
+                let dx = b[0] - a[0], dy = b[1] - a[1];
+                let scale = 10 / Math.sqrt(dx * dx + dy * dy); // go 10units away from side
+                _vertex_t[t][0] = 0.5 * (a[0] + b[0]) + dy * scale;
+                _vertex_t[t][1] = 0.5 * (a[1] + b[1]) - dx * scale;
             }
             else {
                 // solid triangle center is at the centroid
-                _t_vertex[t][0] = (a[0] + b[0] + c[0]) / 3;
-                _t_vertex[t][1] = (a[1] + b[1] + c[1]) / 3;
+                _vertex_t[t][0] = (a[0] + b[0] + c[0]) / 3;
+                _vertex_t[t][1] = (a[1] + b[1] + c[1]) / 3;
             }
         }
-    };
+    }
     /**
      * Construct a DualMesh from a Delaunator object, without any
      * additional boundary regions.
      */
-    TriangleMesh.fromDelaunator = function (points, delaunator) {
+    static fromDelaunator(points, delaunator) {
         return new TriangleMesh({
             numBoundaryRegions: 0,
             numSolidSides: delaunator.triangles.length,
-            _r_vertex: points,
+            _vertex_r: points,
             _triangles: delaunator.triangles,
             _halfedges: delaunator.halfedges,
         });
-    };
-    TriangleMesh.prototype.r_x = function (r) { return this._r_vertex[r][0]; };
-    TriangleMesh.prototype.r_y = function (r) { return this._r_vertex[r][1]; };
-    TriangleMesh.prototype.t_x = function (t) { return this._t_vertex[t][0]; };
-    TriangleMesh.prototype.t_y = function (t) { return this._t_vertex[t][1]; };
-    TriangleMesh.prototype.r_pos = function (out, r) { out.length = 2; out[0] = this.r_x(r); out[1] = this.r_y(r); return out; };
-    TriangleMesh.prototype.t_pos = function (out, t) { out.length = 2; out[0] = this.t_x(t); out[1] = this.t_y(t); return out; };
-    TriangleMesh.prototype.s_begin_r = function (s) { return this._triangles[s]; };
-    TriangleMesh.prototype.s_end_r = function (s) { return this._triangles[TriangleMesh.s_next_s(s)]; };
-    TriangleMesh.prototype.s_inner_t = function (s) { return TriangleMesh.s_to_t(s); };
-    TriangleMesh.prototype.s_outer_t = function (s) { return TriangleMesh.s_to_t(this._halfedges[s]); };
-    TriangleMesh.prototype.s_next_s = function (s) { return TriangleMesh.s_next_s(s); };
-    TriangleMesh.prototype.s_prev_s = function (s) { return TriangleMesh.s_prev_s(s); };
-    TriangleMesh.prototype.s_opposite_s = function (s) { return this._halfedges[s]; };
-    TriangleMesh.prototype.t_circulate_s = function (out_s, t) { out_s.length = 3; for (var i = 0; i < 3; i++) {
+    }
+    x_of_r(r) { return this._vertex_r[r][0]; }
+    y_of_r(r) { return this._vertex_r[r][1]; }
+    x_of_t(t) { return this._vertex_t[t][0]; }
+    y_of_t(t) { return this._vertex_t[t][1]; }
+    pos_of_r(r, out = []) { out.length = 2; out[0] = this.x_of_r(r); out[1] = this.y_of_r(r); return out; }
+    pos_of_t(t, out = []) { out.length = 2; out[0] = this.x_of_t(t); out[1] = this.y_of_t(t); return out; }
+    r_begin_s(s) { return this._triangles[s]; }
+    r_end_s(s) { return this._triangles[TriangleMesh.s_next_s(s)]; }
+    t_inner_s(s) { return TriangleMesh.t_from_s(s); }
+    t_outer_s(s) { return TriangleMesh.t_from_s(this._halfedges[s]); }
+    s_next_s(s) { return TriangleMesh.s_next_s(s); }
+    s_prev_s(s) { return TriangleMesh.s_prev_s(s); }
+    s_opposite_s(s) { return this._halfedges[s]; }
+    s_around_t(t, out_s = []) { out_s.length = 3; for (let i = 0; i < 3; i++) {
         out_s[i] = 3 * t + i;
-    } return out_s; };
-    TriangleMesh.prototype.t_circulate_r = function (out_r, t) { out_r.length = 3; for (var i = 0; i < 3; i++) {
+    } return out_s; }
+    r_around_t(t, out_r = []) { out_r.length = 3; for (let i = 0; i < 3; i++) {
         out_r[i] = this._triangles[3 * t + i];
-    } return out_r; };
-    TriangleMesh.prototype.t_circulate_t = function (out_t, t) { out_t.length = 3; for (var i = 0; i < 3; i++) {
-        out_t[i] = this.s_outer_t(3 * t + i);
-    } return out_t; };
-    TriangleMesh.prototype.r_circulate_s = function (out_s, r) {
-        var s0 = this._r_in_s[r];
-        var incoming = s0;
+    } return out_r; }
+    t_around_t(t, out_t = []) { out_t.length = 3; for (let i = 0; i < 3; i++) {
+        out_t[i] = this.t_outer_s(3 * t + i);
+    } return out_t; }
+    s_around_r(r, out_s = []) {
+        const s0 = this._s_of_r[r];
+        let incoming = s0;
         out_s.length = 0;
         do {
             out_s.push(this._halfedges[incoming]);
-            var outgoing = TriangleMesh.s_next_s(incoming);
+            let outgoing = TriangleMesh.s_next_s(incoming);
             incoming = this._halfedges[outgoing];
         } while (incoming !== -1 && incoming !== s0);
         return out_s;
-    };
-    TriangleMesh.prototype.r_circulate_r = function (out_r, r) {
-        var s0 = this._r_in_s[r];
-        var incoming = s0;
+    }
+    r_around_r(r, out_r = []) {
+        const s0 = this._s_of_r[r];
+        let incoming = s0;
         out_r.length = 0;
         do {
-            out_r.push(this.s_begin_r(incoming));
-            var outgoing = TriangleMesh.s_next_s(incoming);
+            out_r.push(this.r_begin_s(incoming));
+            let outgoing = TriangleMesh.s_next_s(incoming);
             incoming = this._halfedges[outgoing];
         } while (incoming !== -1 && incoming !== s0);
         return out_r;
-    };
-    TriangleMesh.prototype.r_circulate_t = function (out_t, r) {
-        var s0 = this._r_in_s[r];
-        var incoming = s0;
+    }
+    t_around_r(r, out_t = []) {
+        const s0 = this._s_of_r[r];
+        let incoming = s0;
         out_t.length = 0;
         do {
-            out_t.push(TriangleMesh.s_to_t(incoming));
-            var outgoing = TriangleMesh.s_next_s(incoming);
+            out_t.push(TriangleMesh.t_from_s(incoming));
+            let outgoing = TriangleMesh.s_next_s(incoming);
             incoming = this._halfedges[outgoing];
         } while (incoming !== -1 && incoming !== s0);
         return out_t;
-    };
-    TriangleMesh.prototype.ghost_r = function () { return this.numRegions - 1; };
-    TriangleMesh.prototype.s_ghost = function (s) { return s >= this.numSolidSides; };
-    TriangleMesh.prototype.r_ghost = function (r) { return r === this.numRegions - 1; };
-    TriangleMesh.prototype.t_ghost = function (t) { return this.s_ghost(3 * t); };
-    TriangleMesh.prototype.s_boundary = function (s) { return this.s_ghost(s) && (s % 3 === 0); };
-    TriangleMesh.prototype.r_boundary = function (r) { return r < this.numBoundaryRegions; };
-    return TriangleMesh;
-}());
-export default TriangleMesh;
+    }
+    r_ghost() { return this.numRegions - 1; }
+    is_ghost_s(s) { return s >= this.numSolidSides; }
+    is_ghost_r(r) { return r === this.numRegions - 1; }
+    is_ghost_t(t) { return this.is_ghost_s(3 * t); }
+    is_boundary_s(s) { return this.is_ghost_s(s) && (s % 3 === 0); }
+    is_boundary_r(r) { return r < this.numBoundaryRegions; }
+}

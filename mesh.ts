@@ -54,10 +54,10 @@ export function makeMesh() {
 
     mesh.s_length = new Float32Array(mesh.numSides);
     for (let s = 0; s < mesh.numSides; s++) {
-        let r1 = mesh.s_begin_r(s),
-            r2 = mesh.s_end_r(s);
-        let dx = mesh.r_x(r1) - mesh.r_x(r2),
-            dy = mesh.r_y(r1) - mesh.r_y(r2);
+        let r1 = mesh.r_begin_s(s),
+            r2 = mesh.r_end_s(s);
+        let dx = mesh.x_of_r(r1) - mesh.x_of_r(r2),
+            dy = mesh.y_of_r(r1) - mesh.y_of_r(r2);
         mesh.s_length[s] = Math.sqrt(dx*dx + dy*dy);
     }
 
@@ -65,15 +65,15 @@ export function makeMesh() {
      * output mesh. The peaks_index has indices into the original
      * array. This test makes sure that the logic for mapping input
      * indices to output indices hasn't changed. */
-    if (points[200][0] !== mesh.r_x(200 + mesh.numBoundaryRegions)
-        || points[200][1] !== mesh.r_y(200 + mesh.numBoundaryRegions)) {
+    if (points[200][0] !== mesh.x_of_r(200 + mesh.numBoundaryRegions)
+        || points[200][1] !== mesh.y_of_r(200 + mesh.numBoundaryRegions)) {
         throw "Mapping from input points to output points has changed";
     }
     let peaks_r = peaks_index.map(i => i + mesh.numBoundaryRegions);
     
     let peaks_t = [];
     for (let r of peaks_r) {
-        peaks_t.push(mesh.s_inner_t(mesh._r_in_s[r]));
+        peaks_t.push(mesh.t_inner_s(mesh._s_of_r[r]));
     }
     
     return {mesh, peaks_t};

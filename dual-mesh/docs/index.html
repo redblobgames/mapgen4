@@ -139,15 +139,15 @@
         </div>
 
         <dl>
-          <dt>s_next_s(s), s_prev_s(s)</dt><dd>circulate around triangle (s0 → s1 → s2 → s0)</dd>
-          <dt>s_begin_r(s), s_end_r(s)</dt><dd>black edge endpoints (s0 → r0, r1)</dd>
-          <dt>s_inner_t(s), s_outer_t(s)</dt><dd>white edge endpoints (s0 → t0, t1)</dd>
+          <dt>s_next_s(s), s_prev_s(s)</dt><dd>move around triangle (s0 → s1 → s2 → s0)</dd>
+          <dt>r_begin_s(s), r_end_s(s)</dt><dd>black edge endpoints (s0 → r0, r1)</dd>
+          <dt>t_inner_s(s), t_outer_s(s)</dt><dd>white edge endpoints (s0 → t0, t1)</dd>
           <dt>s_opposite_s(s)</dt><dd>opposite of half-edge (s0 → s3; s3 → s0)</dd>
-          <dt>{t,r}_circulate_{s,r,t}(output, input)</dt><dd>fills neighbors and returns output; pass in [] to make a new array (t1 → r0, r2, r3; t1 → s3, s4, s5)</dd>
-          <dt>ghost_r()</dt><dd>the ghost r index (not shown)</dd>
-          <dt>{s,r,t}_ghost(input)</dt><dd>whether an element is a ghost</dd>
-          <dt>{s,r}_boundary(input)</dt><dd>whether an element is on the boundary</dd>
-          <dt>{r,t}_{x,y}(input)</dt><dd>coordinates of a region (triangle vertex) or triangle (region vertex)</dd>
+          <dt>{r,s,t}_around_{r,t}(input, output=[])</dt><dd>fills neighbors and returns output (t1 → r0, r2, r3; t1 → s3, s4, s5)</dd>
+          <dt>r_ghost()</dt><dd>the ghost r index (not shown)</dd>
+          <dt>is_ghost_{s,r,t}(input)</dt><dd>whether an element is a ghost</dd>
+          <dt>is_boundary_{s,r}(input)</dt><dd>whether an element is on the boundary</dd>
+          <dt>{x,y,pos}_of_{r,t}(input)</dt><dd>coordinates of a region (triangle vertex) or triangle (region vertex)</dd>
         </dl>
 
         <h2 id="invariants">Invariants</h2>
@@ -158,10 +158,10 @@
 
         <ul>
           <li>s_opposite_s(s2) === s1</li>
-          <li>s_begin_r(s1) === s_end_r(s2)</li>
-          <li>s_begin_r(s2) === s_end_r(s1)</li>
-          <li>s_inner_t(s1) === s_outer_t(s2)</li>
-          <li>s_inner_t(s2) === s_outer_t(s1)</li>
+          <li>r_begin_s(s1) === r_end_s(s2)</li>
+          <li>r_begin_s(s2) === r_end_s(s1)</li>
+          <li>t_inner_s(s1) === t_outer_s(s2)</li>
+          <li>t_inner_s(s2) === t_outer_s(s1)</li>
         </ul>
 
         <p>
@@ -169,8 +169,8 @@
         </p>
         
         <ul>
-          <li>If s is returned by r_circulate_s(_, r), then s_begin_r(s) === r</li>
-          <li>If s is returned by t_circulate_s(_, t), then s_inner_t(s) === t</li>
+          <li>If s is returned by s_around_r(r), then r_begin_s(s) === r</li>
+          <li>If s is returned by s_around_t(t), then t_inner_s(s) === t</li>
         </ul>
           
         <h2 id="history">History</h2>

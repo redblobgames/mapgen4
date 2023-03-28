@@ -45,7 +45,7 @@ function calculateMountainDistance(mesh: Mesh, seeds_t: number[], spacing: numbe
         let current_t = queue_t[i];
         for (let j = 0; j < 3; j++) {
             let s = 3 * current_t + j;
-            let neighbor_t = mesh.s_outer_t(s);
+            let neighbor_t = mesh.t_outer_s(s);
             if (t_distance[neighbor_t] === -1) {
                 let increment = spacing * (1 + jaggedness * (randFloat() - randFloat()));
                 t_distance[neighbor_t] = t_distance[current_t] + increment;
@@ -68,8 +68,8 @@ function precalculateNoise(randFloat: () => number, mesh: Mesh): PrecalculatedNo
         t_noise5 = new Float32Array(numTriangles),
         t_noise6 = new Float32Array(numTriangles);
     for (let t = 0; t < numTriangles; t++) {
-        let nx = (mesh.t_x(t)-500) / 500,
-            ny = (mesh.t_y(t)-500) / 500;
+        let nx = (mesh.x_of_t(t)-500) / 500,
+            ny = (mesh.y_of_t(t)-500) / 500;
         t_noise0[t] = noise2D(nx, ny);
         t_noise1[t] = noise2D(2*nx + 5, 2*ny + 5);
         t_noise2[t] = noise2D(4*nx + 7, 4*ny + 7);
@@ -148,7 +148,7 @@ export default class Map {
             }
         }
         for (let t = 0; t < numSolidTriangles; t++) {
-            let e = constraintAt(mesh.t_x(t)/1000, mesh.t_y(t)/1000);
+            let e = constraintAt(mesh.x_of_t(t)/1000, mesh.y_of_t(t)/1000);
             // TODO: e*e*e*e seems too steep for this, as I want this
             // to apply mostly at the original coastlines and not
             // elsewhere
@@ -196,10 +196,10 @@ export default class Map {
     
     assignRegionElevation() {
         let {mesh, t_elevation, r_elevation} = this;
-        let {numRegions, _r_in_s, _halfedges} = mesh;
+        let {numRegions, _s_of_r, _halfedges} = mesh;
         for (let r = 0; r < numRegions; r++) {
             let count = 0, e = 0, water = false;
-            const s0 = _r_in_s[r];
+            const s0 = _s_of_r[r];
             let incoming = s0;
             do {
                 let t = (incoming/3) | 0;
@@ -237,7 +237,7 @@ export default class Map {
 
     assignRainfall(biomesParam) {
         const {mesh, wind_order_r, r_wind_sort, r_humidity, r_rainfall, r_elevation} = this;
-        const {numRegions, _r_in_s, _halfedges} = mesh;
+        const {numRegions, _s_of_r, _halfedges} = mesh;
 
         if (biomesParam.wind_angle_deg != this.windAngleDeg) {
             this.windAngleDeg = biomesParam.wind_angle_deg;
@@ -245,16 +245,16 @@ export default class Map {
             const windAngleVec = [Math.cos(windAngleRad), Math.sin(windAngleRad)];
             for (let r = 0; r < numRegions; r++) {
                 wind_order_r[r] = r;
-                r_wind_sort[r] = mesh.r_x(r) * windAngleVec[0] + mesh.r_y(r) * windAngleVec[1];
+                r_wind_sort[r] = mesh.x_of_r(r) * windAngleVec[0] + mesh.y_of_r(r) * windAngleVec[1];
             }
             wind_order_r.sort((r1, r2) => r_wind_sort[r1] - r_wind_sort[r2]);
         }
 
         for (let r of wind_order_r) {
             let count = 0, sum = 0.0;
-            let s0 = _r_in_s[r], incoming = s0;
+            let s0 = _s_of_r[r], incoming = s0;
             do {
-                let neighbor_r = mesh.s_begin_r(incoming);
+                let neighbor_r = mesh.r_begin_s(incoming);
                 if (r_wind_sort[neighbor_r] < r_wind_sort[r]) {
                     count++;
                     sum += r_humidity[neighbor_r];
@@ -268,7 +268,7 @@ export default class Map {
                 humidity = sum / count;
                 rainfall += biomesParam.raininess * humidity;
             }
-            if (mesh.r_boundary(r)) {
+            if (mesh.is_boundary_r(r)) {
                 humidity = 1.0;
             }
             if (r_elevation[r] < 0.0) {
@@ -316,7 +316,7 @@ function assignDownslope(mesh: Mesh, t_elevation: Float32Array, /* out */ t_down
             let best_s = -1, best_e = t_elevation[t];
             for (let j = 0; j < 3; j++) {
                 let s = 3 * t + j,
-                    e = t_elevation[mesh.s_outer_t(s)];
+                    e = t_elevation[mesh.t_outer_s(s)];
                 if (e < best_e) {
                     best_e = e;
                     best_s = s;
@@ -332,7 +332,7 @@ function assignDownslope(mesh: Mesh, t_elevation: Float32Array, /* out */ t_down
         let current_t = queue.pop();
         for (let j = 0; j < 3; j++) {
             let s = 3 * current_t + j;
-            let neighbor_t = mesh.s_outer_t(s); // uphill from current_t
+            let neighbor_t = mesh.t_outer_s(s); // uphill from current_t
             if (t_downslope_s[neighbor_t] === -999) {
                 t_downslope_s[neighbor_t] = mesh.s_opposite_s(s);
                 order_t[queue_in++] = neighbor_t;
@@ -349,7 +349,7 @@ function assignMoisture(mesh: Mesh, r_rainfall: Float32Array, /* out */ t_moistu
         let moisture = 0.0;
         for (let i = 0; i < 3; i++) {
             let s = 3 * t + i,
-                r = mesh.s_begin_r(s);
+                r = mesh.r_begin_s(s);
             moisture += r_rainfall[r] / 3;
         }
         t_moisture[t] = moisture;

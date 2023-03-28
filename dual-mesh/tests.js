@@ -22,20 +22,20 @@ tape("structural invariants", function(test) {
     for (let s1 = 0; s1 < mesh.numSides; s1++) {
         let s2 = mesh.s_opposite_s(s1);
         test.equal(mesh.s_opposite_s(s2), s1);
-        test.equal(mesh.s_begin_r(s1), mesh.s_end_r(s2));
-        test.equal(mesh.s_inner_t(s1), mesh.s_outer_t(s2));
-        test.equal(mesh.s_begin_r(mesh.s_next_s(s1)), mesh.s_begin_r(s2));
+        test.equal(mesh.r_begin_s(s1), mesh.r_end_s(s2));
+        test.equal(mesh.t_inner_s(s1), mesh.t_outer_s(s2));
+        test.equal(mesh.r_begin_s(mesh.s_next_s(s1)), mesh.r_begin_s(s2));
     }
     for (let r = 0; r < mesh.numRegions; r++) {
-        mesh.r_circulate_s(s_out, r);
+        mesh.s_around_r(r, s_out);
         for (let s of s_out) {
-            test.equal(mesh.s_begin_r(s), r);
+            test.equal(mesh.r_begin_s(s), r);
         }
     }
     for (let t = 0; t < mesh.numTriangles; t++) {
-        mesh.t_circulate_s(s_out, t);
+        mesh.s_around_t(t, s_out);
         for (let s of s_out) {
-            test.equal(mesh.s_inner_t(s), t);
+            test.equal(mesh.t_inner_s(s), t);
         }
     }
     

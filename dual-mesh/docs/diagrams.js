@@ -51,21 +51,21 @@ Vue.component('a-side-black-edges', {
     template: `
     <g>
       <path v-for="(_,s) in graph.numSides" :key="s"
-         :class="'b-side' + (graph.s_ghost(s)? ' ghost' : '')"
+         :class="'b-side' + (graph.is_ghost_s(s)? ' ghost' : '')"
          :d="b_side(s)"/>
     </g>
 `,
     methods: {
         b_side: function(s) {
             const alpha = this.alpha || 0.0;
-            let begin = this.graph.r_pos([], this.graph.s_begin_r(s));
-            let end = this.graph.r_pos([], this.graph.s_end_r(s));
-            if (this.graph.r_ghost(this.graph.s_begin_r(s))) {
+            let begin = this.graph.pos_of_r(this.graph.r_begin_s(s));
+            let end = this.graph.pos_of_r(this.graph.r_end_s(s));
+            if (this.graph.is_ghost_r(this.graph.r_begin_s(s))) {
                 begin = extrapolate_from_center(end, [300, 150]);
-            } else if (this.graph.r_ghost(this.graph.s_end_r(s))) {
+            } else if (this.graph.is_ghost_r(this.graph.r_end_s(s))) {
                 end = extrapolate_from_center(begin, [300, 150]);
             }
-            let center = this.graph.t_pos([], this.graph.s_inner_t(s));
+            let center = this.graph.pos_of_t(this.graph.t_inner_s(s));
             begin = interpolate(begin, center, alpha);
             end = interpolate(end, center, alpha);
             return `M ${begin} L ${end}`;
@@ -78,16 +78,16 @@ Vue.component('a-side-white-edges', {
     template: `
     <g>
       <path v-for="(_,s) in graph.numSides" :key="s"
-        :class="'w-side' + ((graph.t_ghost(graph.s_outer_t(s)) || graph.s_ghost(s))? ' ghost' : '')"
+        :class="'w-side' + ((graph.is_ghost_t(graph.t_outer_s(s)) || graph.is_ghost_s(s))? ' ghost' : '')"
         :d="w_side(s)"/>
     </g>
 `,
     methods: {
         w_side: function(s) {
             const alpha = this.alpha || 0.0;
-            let begin = this.graph.t_pos([], this.graph.s_inner_t(s));
-            let end = this.graph.t_pos([], this.graph.s_outer_t(s));
-            let center = this.graph.r_pos([], this.graph.s_begin_r(s));
+            let begin = this.graph.pos_of_t(this.graph.t_inner_s(s));
+            let end = this.graph.pos_of_t(this.graph.t_outer_s(s));
+            let center = this.graph.pos_of_r(this.graph.r_begin_s(s));
             begin = interpolate(begin, center, alpha);
             end = interpolate(end, center, alpha);
             return `M ${begin} L ${end}`;
@@ -102,8 +102,8 @@ Vue.component('a-side-labels', {
       <a-label v-for="(_,s) in graph.numSolidSides" :key="s"
         class="s" 
         dy="7"
-        :at="interpolate(graph.r_pos([], graph.s_begin_r(s)), 
-                         graph.t_pos([], graph.s_inner_t(s)),
+        :at="interpolate(graph.pos_of_r(graph.r_begin_s(s)),
+                         graph.pos_of_t(graph.t_inner_s(s)),
                          0.4)">
       s{{s}}
       </a-label>
@@ -121,7 +121,7 @@ Vue.component('a-region-points', {
         :r="radius || 10"
         @mouseover="hover('r'+r)" 
         @touchstart.passive="hover('r'+r)"
-        :transform="\`translate($\{graph.r_pos([], r)})\`"/>
+        :transform="\`translate($\{graph.pos_of_r(r)})\`"/>
     </g>
 `,
 });
@@ -132,7 +132,7 @@ Vue.component('a-region-labels', {
     <g>
       <a-label v-for="(_,r) in graph.numSolidRegions" :key="r"
         class="r" 
-        :dy="graph.r_y(r) > 150? 25 : -15" :at="graph.r_pos([], r)">
+        :dy="graph.r_y(r) > 150? 25 : -15" :at="graph.pos_of_r(r)">
         r{{r}}
       </a-label>
     </g>
@@ -144,11 +144,11 @@ Vue.component('a-triangle-points', {
     template: `
       <g>
         <circle v-for="(_,t) in graph.numTriangles" :key="t"
-          :class="'t' + (graph.t_ghost(t)? ' ghost':'')" 
+          :class="'t' + (graph.is_ghost_t(t)? ' ghost':'')" 
           :r="radius || 7"
           @mouseover="hover('t'+t)" 
           @touchstart.passive="hover('t'+t)"
-          :transform="\`translate($\{graph.t_pos([], t)})\`"/>
+          :transform="\`translate($\{graph.pos_of_t(t)})\`"/>
       </g>
 `,
 });
@@ -160,7 +160,7 @@ Vue.component('a-triangle-labels', {
         <a-label v-for="(_,t) in graph.numSolidTriangles" :key="t"
           class="t" 
           dy="25" 
-          :at="graph.t_pos([], t)">
+          :at="graph.pos_of_t(t)">
           t{{t}}
         </a-label>
       </g>
