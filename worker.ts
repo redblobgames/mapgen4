@@ -7,10 +7,10 @@
  */
 'use strict';
 
-import DualMesh from './dual-mesh';
-import Map      from './map';
-import Geometry from './geometry';
-import {Mesh} from './types';
+import DualMesh from "./dual-mesh/index.ts";
+import Map      from "./map.ts";
+import Geometry from "./geometry.ts";
+import type {Mesh} from "./types.d.ts";
 
 // NOTE: Typescript workaround https://github.com/Microsoft/TypeScript/issues/20595
 const worker: Worker = self as any;

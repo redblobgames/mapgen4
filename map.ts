@@ -10,8 +10,8 @@
 
 import {createNoise2D} from 'simplex-noise';
 import FlatQueue from 'flatqueue';
-import {makeRandFloat} from './prng';
-import {Mesh} from './types';
+import {makeRandFloat} from "./prng.ts";
+import type {Mesh} from "./types.d.ts";
 
 type PrecalculatedNoise = {
     t_noise0: Float32Array;
@@ -59,7 +59,7 @@ function calculateMountainDistance(mesh: Mesh, seeds_t: number[], spacing: numbe
  * Save noise values in arrays.
  */
 function precalculateNoise(randFloat: () => number, mesh: Mesh): PrecalculatedNoise {
-    const noise2D = new createNoise2D(randFloat);
+    const noise2D = createNoise2D(randFloat);
     let {numTriangles} = mesh;
     let t_noise0 = new Float32Array(numTriangles),
         t_noise1 = new Float32Array(numTriangles),

@@ -14,7 +14,7 @@
  */
 
 import {createNoise2D} from 'simplex-noise';
-import {makeRandFloat} from './prng';
+import {makeRandFloat} from "./prng.ts";
 
 const CANVAS_SIZE = 128;
 
@@ -201,10 +201,7 @@ function setUpPaintEventHandling() {
     let dragging = false;
     let timestamp = 0;
     
-    /**
-     * @param {PointerEvent} event
-     */
-    function start(event) {
+    function start(event: PointerEvent) {
         if (event.button !== 0) return; // left button only
         el.setPointerCapture(event.pointerId);
         
@@ -220,10 +217,7 @@ function setUpPaintEventHandling() {
         dragging = false;
     }
 
-    /**
-     * @param {PointerEvent} event
-     */
-    function move(event) {
+    function move(event: PointerEvent) {
         if (!dragging) return;
 
         const nowMs = Date.now();

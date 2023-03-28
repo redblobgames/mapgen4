@@ -2,6 +2,7 @@
     "name": "@redblobgames/mapgen4",
     "version": "2.0",
     "private": true,
+    "type": "module",
     "dependencies": {
         "delaunator": "^5",
         "flatqueue": "^2",

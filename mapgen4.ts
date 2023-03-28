@@ -14,11 +14,11 @@
  */
 'use strict';
 
-import param from './config';
-import {makeMesh} from './mesh';
-import Painting from './painting';
-import Renderer from './render';
-import {Mesh} from './types';
+import param from "./config.js";
+import {makeMesh} from "./mesh.ts";
+import Painting from "./painting.ts";
+import Renderer from "./render.ts";
+import type {Mesh} from "./types.d.ts";
 
 
 

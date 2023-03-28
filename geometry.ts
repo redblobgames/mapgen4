@@ -5,8 +5,8 @@
  */
 
 import {vec2} from 'gl-matrix';
-import Map from './map';
-import {Mesh} from './types';
+import Map from "./map.ts";
+import type {Mesh} from "./types.d.ts";
 
 /**
  * Fill a buffer with data from the mesh.
@@ -95,7 +95,7 @@ function assignTextureCoordinates(spacing: number, numSizes: number, textureSize
         return {xy: [x, y], uv: [(x+0.5)/textureSize, (y+0.5)/textureSize]};
     }
 
-    let triangles = [[]];
+    let triangles: any = [[]];
     let width = Math.floor((textureSize - 2*spacing) / (2*numSizes+3)) - spacing,
         height = Math.floor((textureSize - 2*spacing) / (numSizes+1)) - spacing;
     for (let row = 0; row <= numSizes; row++) {
@@ -126,7 +126,7 @@ const riverTexturePositions = assignTextureCoordinates(riverTextureSpacing, numR
 function createRiverBitmap() {
     let canvas = document.createElement('canvas');
     canvas.width = canvas.height = riverTextureSize;
-    let ctx = canvas.getContext('2d');
+    let ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
 
     function lineWidth(i: number) {
         const spriteSize = riverTexturePositions[0][1][0][0].xy[0] - riverTexturePositions[0][0][0][0].xy[0];

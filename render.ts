@@ -7,11 +7,12 @@
  */
 
 import {vec4, mat4} from 'gl-matrix';
-import colormap from './colormap';
-import Geometry from './geometry';
-import {Mesh} from './types';
+import colormap from "./colormap.ts";
+import Geometry from "./geometry.ts";
+import type {Mesh} from "./types.d.ts";
 
 import REGL from 'regl';
+// NOTE: the typescript definition for regl.prop so cumbersome I don't use it
 const regl = REGL({
     canvas: "#mapgen4",
     extensions: ['OES_element_index_uint']

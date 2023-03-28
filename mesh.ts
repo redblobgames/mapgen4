@@ -9,11 +9,11 @@
  *   * mesh - Delaunay/Voronoi dual mesh
  */
 
-import param from './config';
-import MeshBuilder from './dual-mesh/create';
+import param from "./config.js";
+import MeshBuilder from "./dual-mesh/create.ts";
 import Poisson from 'fast-2d-poisson-disk-sampling';
-import {makeRandFloat} from './prng';
-import {Mesh} from './types';
+import {makeRandFloat} from "./prng.ts";
+import type {Mesh} from "./types.d.ts";
 
 
 /**
@@ -49,7 +49,7 @@ export function makeMesh() {
 
     let builder = new MeshBuilder({boundarySpacing: param.spacing * 1.5})
         .addPoints(points);
-    let mesh: Mesh = builder.create();
+    let mesh = builder.create() as Mesh;
     console.log(`triangles = ${mesh.numTriangles} regions = ${mesh.numRegions}`);
 
     mesh.s_length = new Float32Array(mesh.numSides);

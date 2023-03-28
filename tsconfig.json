@@ -1,0 +1,13 @@
+{
+    "compilerOptions": {
+        "target": "esnext",
+        "module": "esnext",
+        "moduleResolution": "nodenext",
+        "allowImportingTsExtensions": true,
+        "declaration": true,
+        "declarationDir": "dist",
+        "outDir": "dist"
+    },
+    "include": ["./*.ts"],
+    "exclude": ["node_modules", "build"]
+}
