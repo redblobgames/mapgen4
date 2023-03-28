@@ -1,13 +1,14 @@
 /*
- * From https://github.com/redblobgames/dual-mesh
- * Copyright 2017 Red Blob Games <redblobgames@gmail.com>
+ * From https://www.redblobgames.com/x/2312-dual-mesh/
+ * Copyright 2017, 2023 Red Blob Games <redblobgames@gmail.com>
  * License: Apache v2.0 <http://www.apache.org/licenses/LICENSE-2.0.html>
  */
 'use strict';
 
-let DualMesh = require('../');
-let MeshBuilder = require('../create');
-let Poisson = require('poisson-disk-sampling');
+import Vue from "../../../mjs/vue.v2.browser.min.js";
+import DualMesh from "../";
+import MeshBuilder from "../create";
+import Poisson from 'poisson-disk-sampling';
 
 const seeds1 = [
     [250, 30], [100, 260], [400, 260], [550, 30]

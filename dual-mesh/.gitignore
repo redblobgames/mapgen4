@@ -2,3 +2,4 @@
 node_modules/
 
 /dist/dual-mesh.js
+docs/_bundle.js

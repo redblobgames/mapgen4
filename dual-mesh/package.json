@@ -3,18 +3,19 @@
     "license": "Apache-2.0",
     "version": "3.0.0",
     "private": true,
-    "main": "./index.js",
-    "types": "./index.d.ts",
+    "type": "module",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
     "dependencies": {
         "delaunator": "^5.0.0"
     },
     "devDependencies": {
         "poisson-disk-sampling": "^2",
-        "rollup": "^1.0.0",
         "tape": "*"
     },
     "scripts": {
         "test": "node tests.js",
-        "docs": "watchify docs/diagrams.js -o docs/_bundle.js"
+        "dist": "tsc",
+        "docs": "esbuild --minify --bundle docs/diagrams.js --outfile=docs/_bundle.js"
     }
 }

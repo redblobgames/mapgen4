@@ -6,11 +6,11 @@
 
 'use strict';
 
-let tape = require('tape');
-let Delaunator = require('delaunator');
-let Poisson = require('poisson-disk-sampling');
-let TriangleMesh = require('./');
-let MeshBuilder = require('./create');
+import tape from 'tape';
+import Delaunator from 'delaunator';
+import Poisson from 'poisson-disk-sampling';
+import TriangleMesh from "./dist/index.js";
+import MeshBuilder from "./dist/create.js";
 
 
 tape("structural invariants", function(test) {

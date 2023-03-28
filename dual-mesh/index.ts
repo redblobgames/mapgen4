@@ -4,6 +4,11 @@
  * License: Apache v2.0 <http://www.apache.org/licenses/LICENSE-2.0.html>
  */
 
+type Delaunator = {
+    triangles: Int32Array;
+    halfedges: Int32Array;
+}
+
 /**
  * Represent a triangle-polygon dual mesh with:
  *   - Regions (r)
@@ -37,10 +42,24 @@
  * are called "solid".
  */
 export default class TriangleMesh {
-    static s_to_t(s)   { return (s/3) | 0; }
-    static s_prev_s(s) { return (s % 3 === 0) ? s+2 : s-1; }
-    static s_next_s(s) { return (s % 3 === 2) ? s-2 : s+1; }
+    static s_to_t(s: number): number   { return (s/3) | 0; }
+    static s_prev_s(s: number): number { return (s % 3 === 0) ? s+2 : s-1; }
+    static s_next_s(s: number): number { return (s % 3 === 2) ? s-2 : s+1; }
 
+    numSides: number;
+    numSolidSides: number;
+    numRegions: number;
+    numSolidRegions: number;
+    numTriangles: number;
+    numSolidTriangles: number;
+    numBoundaryRegions: number;
+
+    _halfedges: Int32Array;
+    _triangles: Int32Array;
+    _r_in_s: Int32Array;
+    _t_vertex: Array<[number, number]>;
+    _r_vertex: Array<[number, number]>;
+    
     /**
      * Constructor takes partial mesh information and fills in the rest; the
      * partial information is generated in create.js or in fromDelaunator.
@@ -55,7 +74,7 @@ export default class TriangleMesh {
     /**
      * Update internal data structures from Delaunator 
      */
-    update(points, delaunator) {
+    update(points: [number, number][], delaunator: Delaunator) {
         this._r_vertex = points;
         this._triangles = delaunator.triangles;
         this._halfedges = delaunator.halfedges;
@@ -101,9 +120,9 @@ export default class TriangleMesh {
         // Construct triangle coordinates
         for (let s = 0; s < _triangles.length; s += 3) {
             let t = s/3,
-                a = _r_vertex[_triangles[s]],
-                b = _r_vertex[_triangles[s+1]],
-                c = _r_vertex[_triangles[s+2]];
+            a = _r_vertex[_triangles[s]],
+            b = _r_vertex[_triangles[s+1]],
+            c = _r_vertex[_triangles[s+2]];
             if (this.s_ghost(s)) {
                 // ghost triangle center is just outside the unpaired side
                 let dx = b[0]-a[0], dy = b[1]-a[1];
@@ -122,7 +141,7 @@ export default class TriangleMesh {
      * Construct a DualMesh from a Delaunator object, without any
      * additional boundary regions.
      */
-    static fromDelaunator(points, delaunator) {
+    static fromDelaunator(points: Array<[number, number]>, delaunator: Delaunator) {
         return new TriangleMesh({
             numBoundaryRegions: 0,
             numSolidSides: delaunator.triangles.length,
@@ -133,29 +152,29 @@ export default class TriangleMesh {
     }
 
 
-    r_x(r)        { return this._r_vertex[r][0]; }
-    r_y(r)        { return this._r_vertex[r][1]; }
-    t_x(r)        { return this._t_vertex[r][0]; }
-    t_y(r)        { return this._t_vertex[r][1]; }
-    r_pos(out, r) { out.length = 2; out[0] = this.r_x(r); out[1] = this.r_y(r); return out; }
-    t_pos(out, t) { out.length = 2; out[0] = this.t_x(t); out[1] = this.t_y(t); return out; }
+    r_x(r: number): number        { return this._r_vertex[r][0]; }
+    r_y(r: number): number        { return this._r_vertex[r][1]; }
+    t_x(t: number): number        { return this._t_vertex[t][0]; }
+    t_y(t: number): number        { return this._t_vertex[t][1]; }
+    r_pos(out: number[], r: number): number[] { out.length = 2; out[0] = this.r_x(r); out[1] = this.r_y(r); return out; }
+    t_pos(out: number[], t: number): number[] { out.length = 2; out[0] = this.t_x(t); out[1] = this.t_y(t); return out; }
     
-    s_begin_r(s)  { return this._triangles[s]; }
-    s_end_r(s)    { return this._triangles[TriangleMesh.s_next_s(s)]; }
+    s_begin_r(s: number): number  { return this._triangles[s]; }
+    s_end_r(s: number): number    { return this._triangles[TriangleMesh.s_next_s(s)]; }
 
-    s_inner_t(s)  { return TriangleMesh.s_to_t(s); }
-    s_outer_t(s)  { return TriangleMesh.s_to_t(this._halfedges[s]); }
+    s_inner_t(s: number): number  { return TriangleMesh.s_to_t(s); }
+    s_outer_t(s: number): number  { return TriangleMesh.s_to_t(this._halfedges[s]); }
 
-    s_next_s(s)   { return TriangleMesh.s_next_s(s); }
-    s_prev_s(s)   { return TriangleMesh.s_prev_s(s); }
+    s_next_s(s: number): number   { return TriangleMesh.s_next_s(s); }
+    s_prev_s(s: number): number   { return TriangleMesh.s_prev_s(s); }
     
-    s_opposite_s(s) { return this._halfedges[s]; }
+    s_opposite_s(s: number): number { return this._halfedges[s]; }
+
+    t_circulate_s(out_s: number[], t: number): number[] { out_s.length = 3; for (let i = 0; i < 3; i++) { out_s[i] = 3*t + i; } return out_s; }
+    t_circulate_r(out_r: number[], t: number): number[] { out_r.length = 3; for (let i = 0; i < 3; i++) { out_r[i] = this._triangles[3*t+i]; } return out_r; }
+    t_circulate_t(out_t: number[], t: number): number[] { out_t.length = 3; for (let i = 0; i < 3; i++) { out_t[i] = this.s_outer_t(3*t+i); } return out_t; }
     
-    t_circulate_s(out_s, t) { out_s.length = 3; for (let i = 0; i < 3; i++) { out_s[i] = 3*t + i; } return out_s; }
-    t_circulate_r(out_r, t) { out_r.length = 3; for (let i = 0; i < 3; i++) { out_r[i] = this._triangles[3*t+i]; } return out_r; }
-    t_circulate_t(out_t, t) { out_t.length = 3; for (let i = 0; i < 3; i++) { out_t[i] = this.s_outer_t(3*t+i); } return out_t; }
-    
-    r_circulate_s(out_s, r) {
+    r_circulate_s(out_s: number[], r: number): number[] {
         const s0 = this._r_in_s[r];
         let incoming = s0;
         out_s.length = 0;
@@ -167,7 +186,7 @@ export default class TriangleMesh {
         return out_s;
     }
 
-    r_circulate_r(out_r, r) {
+    r_circulate_r(out_r: number[], r: number): number[] {
         const s0 = this._r_in_s[r];
         let incoming = s0;
         out_r.length = 0;
@@ -179,7 +198,7 @@ export default class TriangleMesh {
         return out_r;
     }
     
-    r_circulate_t(out_t, r) {
+    r_circulate_t(out_t: number[], r: number): number[] {
         const s0 = this._r_in_s[r];
         let incoming = s0;
         out_t.length = 0;
@@ -191,10 +210,10 @@ export default class TriangleMesh {
         return out_t;
     }
 
-    ghost_r()     { return this.numRegions - 1; }
-    s_ghost(s)    { return s >= this.numSolidSides; }
-    r_ghost(r)    { return r === this.numRegions - 1; }
-    t_ghost(t)    { return this.s_ghost(3 * t); }
-    s_boundary(s) { return this.s_ghost(s) && (s % 3 === 0); }
-    r_boundary(r) { return r < this.numBoundaryRegions; }
+    ghost_r(): number              { return this.numRegions - 1; }
+    s_ghost(s: number): boolean    { return s >= this.numSolidSides; }
+    r_ghost(r: number): boolean    { return r === this.numRegions - 1; }
+    t_ghost(t: number): boolean    { return this.s_ghost(3 * t); }
+    s_boundary(s: number): boolean { return this.s_ghost(s) && (s % 3 === 0); }
+    r_boundary(r: number): boolean { return r < this.numBoundaryRegions; }
 }
