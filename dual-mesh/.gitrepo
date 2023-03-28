@@ -6,7 +6,7 @@
 [subrepo]
 	remote = ../../x/2312-dual-mesh
 	branch = master
-	commit = 4f156ac1e0da068e26725d122d0449321b214715
-	parent = 2c9bb3e696a488763aecd8c6c3ff2a2e6c1a7e71
+	commit = 8bf73fe4fd5006eb2708b94a30ef16a503c545a3
+	parent = 8df8a2a8705a41ca2889c35f6e937c3b72223200
 	method = merge
 	cmdver = 0.4.5
