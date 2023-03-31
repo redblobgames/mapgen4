@@ -25,7 +25,7 @@ let handler = event => {
     const mesh = new DualMesh(event.data.mesh);
     Object.assign(mesh, event.data.mesh);
     
-    const map = new Map(mesh as Mesh, event.data.peaks_t, param);
+    const map = new Map(mesh as Mesh, event.data.t_peaks, param);
 
     // TODO: placeholder - calculating elevation+biomes takes 35% of
     // the time on my laptop, and seeing the elevation change is the
@@ -82,4 +82,3 @@ let handler = event => {
 
 
 onmessage = event => handler(event);
-

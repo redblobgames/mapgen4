@@ -4,5 +4,5 @@
 import TriangleMesh from "./dual-mesh/index.ts";
 
 export class Mesh extends TriangleMesh {
-    s_length: Float32Array; /* indexed on s */
+    length_s: Float32Array; /* indexed on s */
 }

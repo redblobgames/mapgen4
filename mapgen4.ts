@@ -68,7 +68,7 @@ const initialParams = {
 /**
  * Starts the UI, once the mesh has been loaded in.
  */
-function main({mesh, peaks_t}: { mesh: Mesh; peaks_t: number[]; }) {
+function main({mesh, t_peaks}: { mesh: Mesh; t_peaks: number[]; }) {
     let render = new Renderer(mesh);
 
     /* set initial parameters */
@@ -214,7 +214,7 @@ function main({mesh, peaks_t}: { mesh: Mesh; peaks_t: number[]; }) {
         }
     }
 
-    worker.postMessage({mesh, peaks_t, param});
+    worker.postMessage({mesh, t_peaks, param});
     generate();
 
     const downloadButton = document.getElementById('button-download');

@@ -52,13 +52,13 @@ export function makeMesh() {
     let mesh = builder.create() as Mesh;
     console.log(`triangles = ${mesh.numTriangles} regions = ${mesh.numRegions}`);
 
-    mesh.s_length = new Float32Array(mesh.numSides);
+    mesh.length_s = new Float32Array(mesh.numSides);
     for (let s = 0; s < mesh.numSides; s++) {
         let r1 = mesh.r_begin_s(s),
             r2 = mesh.r_end_s(s);
         let dx = mesh.x_of_r(r1) - mesh.x_of_r(r2),
             dy = mesh.y_of_r(r1) - mesh.y_of_r(r2);
-        mesh.s_length[s] = Math.sqrt(dx*dx + dy*dy);
+        mesh.length_s[s] = Math.sqrt(dx*dx + dy*dy);
     }
 
     /* The input points get assigned to different positions in the
@@ -71,10 +71,10 @@ export function makeMesh() {
     }
     let peaks_r = peaks_index.map(i => i + mesh.numBoundaryRegions);
     
-    let peaks_t = [];
+    let t_peaks = [];
     for (let r of peaks_r) {
-        peaks_t.push(mesh.t_inner_s(mesh._s_of_r[r]));
+        t_peaks.push(mesh.t_inner_s(mesh._s_of_r[r]));
     }
     
-    return {mesh, peaks_t};
+    return {mesh, t_peaks};
 }
