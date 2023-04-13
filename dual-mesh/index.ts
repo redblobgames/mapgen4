@@ -58,6 +58,8 @@ export default class TriangleMesh {
     _s_of_r: Int32Array;
     _vertex_t: Array<[number, number]>;
     _vertex_r: Array<[number, number]>;
+
+    _options: any; // any other information we need to carry
     
     /**
      * Constructor takes partial mesh information and fills in the rest; the

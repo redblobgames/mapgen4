@@ -1,17 +1,18 @@
 import TriangleMesh from "./index.js";
+type Points = Array<[number, number]>;
 /**
  * Build a dual mesh from points, with ghost triangles around the exterior.
  *
- * The builder assumes 0 ≤ x < 1000, 0 ≤ y < 1000
- *
  * Options:
- *   - To have equally spaced points added around the 1000x1000 boundary,
- *     pass in boundarySpacing > 0 with the spacing value. If using Poisson
- *     disc points, I recommend 1.5 times the spacing used for Poisson disc.
+ *   - To have equally spaced points added around a rectangular boundary,
+ *     pass in a boundary with the rectangle size and the boundary spacing.
+ *     If using Poisson disc points, I recommend √2 times the spacing used
+ *     for Poisson disc.
  *
  * Phases:
- *   - Your own set of points
- *   - Poisson disc points
+ *   - Add boundary points
+ *   - Add your own set of points
+ *   - Add Poisson disc points
  *
  * The mesh generator runs some sanity checks but does not correct the
  * generated points.
@@ -20,25 +21,31 @@ import TriangleMesh from "./index.js";
  *
  * Build a mesh with poisson disc points and a boundary:
  *
- * new MeshBuilder({boundarySpacing: 150})
- *    .addPoisson(Poisson, 100)
+ * TODO:
+ * new MeshBuilder(options)
+ *    .appendPoints(pointsArray)
  *    .create()
  */
 export default class MeshBuilder {
-    points: Array<[number, number]>;
+    points: Points;
     numBoundaryRegions: number;
-    /** If boundarySpacing > 0 there will be a boundary added around the 1000x1000 area */
-    constructor({ boundarySpacing }?: {
-        boundarySpacing?: number;
-    });
-    /** Points should be [x, y] */
-    addPoints(newPoints: Array<[number, number]>): this;
+    options: {
+        left: number;
+        top: number;
+        width: number;
+        height: number;
+    };
+    constructor(options?: any);
+    /** pass in a function to return a new points array; note that
+     * if there are existing boundary points, they should be preserved */
+    replacePointsFn(adder: (points: Points) => Points): this;
+    /** pass in an array of new points to append to the points array */
+    appendPoints(newPoints: Points): this;
     /** Points will be [x, y] */
-    getNonBoundaryPoints(): Array<[number, number]>;
+    getNonBoundaryPoints(): Points;
     /** (used for more advanced mixing of different mesh types) */
     clearNonBoundaryPoints(): this;
-    /** Pass in the constructor from the poisson-disk-sampling module */
-    addPoisson(Poisson: any, spacing: number, random?: () => number): this;
     /** Build and return a TriangleMesh */
     create(runChecks?: boolean): TriangleMesh;
 }
+export {};

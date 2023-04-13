@@ -10,12 +10,11 @@
         "delaunator": "^5.0.0"
     },
     "devDependencies": {
-        "poisson-disk-sampling": "^2",
-        "tape": "*"
+        "poisson-disk-sampling": "^2"
     },
     "scripts": {
         "test": "node tests.js",
         "dist": "tsc",
-        "docs": "esbuild --minify --bundle docs/diagrams.js --outfile=docs/_bundle.js"
+        "libs": "tsc; echo \"export {default} from 'poisson-disk-sampling';\" | esbuild --bundle --minify --format=esm --outfile=build/_poisson-disk-sampling.js ; esbuild dist/create.js --bundle --sourcemap --format=esm --outfile=build/_meshbuilder.js"
     }
 }

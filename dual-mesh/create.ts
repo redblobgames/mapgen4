@@ -3,7 +3,8 @@
  * Copyright 2017, 2023 Red Blob Games <redblobgames@gmail.com>
  * License: Apache v2.0 <http://www.apache.org/licenses/LICENSE-2.0.html>
  *
- * Generate a random triangle mesh for the area 0 <= x <= 1000, 0 <= y <= 1000
+ * Generate a random triangle mesh for a rectangular area, optionally
+ * with boundary points, optionally with ghost elements.
  *
  */
 
@@ -11,6 +12,8 @@
 
 import Delaunator from 'delaunator';
 import TriangleMesh from "./index.js";
+
+type Points = Array<[number, number]>;
 
 function s_next_s(s: number): number { return (s % 3 == 2) ? s-2 : s+1; }
 
@@ -58,18 +61,18 @@ function checkTriangleInequality({_vertex_r, _triangles, _halfedges}) {
 function checkMeshConnectivity({_vertex_r, _triangles, _halfedges}) {
     // 1. make sure each side's opposite is back to itself
     // 2. make sure region-circulating starting from each side works
-    let r_ghost = _vertex_r.length - 1, out_s = [];
+    let r_ghost = _vertex_r.length - 1, s_out = [];
     for (let s0 = 0; s0 < _triangles.length; s0++) {
         if (_halfedges[_halfedges[s0]] !== s0) {
             console.log(`FAIL _halfedges[_halfedges[${s0}]] !== ${s0}`);
         }
         let s = s0, count = 0;
-        out_s.length = 0;
+        s_out.length = 0;
         do {
-            count++; out_s.push(s);
+            count++; s_out.push(s);
             s = s_next_s(_halfedges[s]);
             if (count > 100 && _triangles[s0] !== r_ghost) {
-                console.log(`FAIL to circulate around region with start side=${s0} from region ${_triangles[s0]} to ${_triangles[s_next_s(s0)]}, out_s=${out_s}`);
+                console.log(`FAIL to circulate around region with start side=${s0} from region ${_triangles[s0]} to ${_triangles[s_next_s(s0)]}, out_s=${s_out}`);
                 break;
             }
         } while (s !== s0);
@@ -78,21 +81,39 @@ function checkMeshConnectivity({_vertex_r, _triangles, _halfedges}) {
 
 
 /*
- * Add vertices evenly along the boundary of the mesh;
- * use a slight curve so that the Delaunay triangulation
- * doesn't make long thing triangles along the boundary.
- * These points also prevent the Poisson disc generator
- * from making uneven points near the boundary.
+ * Add vertices evenly along the boundary of the mesh
+ * just barely inside the given boundary rectangle.
+ *
+ * The boundarySpacing parameter should be roughly √2
+ * times the poisson disk minDistance spacing or √½ the
+ * maxDistance spacing.
+ *
+ * They need to be inside and not outside so that these
+ * points can be used with the poisson disk libraries I
+ * commonly use. The libraries require that all points
+ * be inside the range.
+ *
+ * I use a *slight* curve so that the Delaunay triangulation
+ * doesn't make long thin triangles along the boundary.
  */
-function addBoundaryPoints(spacing: number, size: number): Array<[number, number]> {
-    let N = Math.ceil(size/spacing);
+function addBoundaryPoints({left, top, width, height}, boundarySpacing: number): Points {
+    const curvature = 1.0;
+    let W = Math.ceil((width - 2 * curvature)/boundarySpacing);
+    let H = Math.ceil((height - 2 * curvature)/boundarySpacing);
     let points = [];
-    for (let i = 0; i <= N; i++) {
-        let t = (i + 0.5) / (N + 1);
-        let w = size * t;
-        let offset = Math.pow(t - 0.5, 2);
-        points.push([offset, w], [size-offset, w]);
-        points.push([w, offset], [w, size-offset]);
+    for (let q = 0; q < W; q++) {
+        let t = q / W;
+        let dx = (width - 2 * curvature) * t;
+        let dy = curvature * 4 * (t - 0.5) ** 2;
+        points.push([left+curvature+dx, top+dy],
+                    [left+width-curvature-dx, top+height-dy]);
+    }
+    for (let r = 0; r < H; r++) {
+        let t = r / H;
+        let dy = (height - 2 * curvature) * t;
+        let dx = curvature * 4 * (t - 0.5) ** 2;
+        points.push([left+dx, top+height-curvature-dy],
+                    [left+width-dx, top+curvature+dy]);
     }
     return points;
 }
@@ -100,7 +121,6 @@ function addBoundaryPoints(spacing: number, size: number): Array<[number, number
 
 function addGhostStructure({_vertex_r, _triangles, _halfedges}) {
     const numSolidSides = _triangles.length;
-    const r_ghost = _vertex_r.length;
     
     let numUnpairedSides = 0, firstUnpairedEdge = -1;
     let s_unpaired_r = []; // seed to side
@@ -112,7 +132,8 @@ function addGhostStructure({_vertex_r, _triangles, _halfedges}) {
         }
     }
 
-    let newvertex_r = _vertex_r.concat([[500, 500]]);
+    const r_ghost = _vertex_r.length;
+    let newvertex_r = _vertex_r.concat([[NaN, NaN]]);
     let r_newstart_s = new Int32Array(numSolidSides + 3 * numUnpairedSides);
     r_newstart_s.set(_triangles);
     let s_newopposite_s = new Int32Array(numSolidSides + 3 * numUnpairedSides);
@@ -150,16 +171,16 @@ function addGhostStructure({_vertex_r, _triangles, _halfedges}) {
 /**
  * Build a dual mesh from points, with ghost triangles around the exterior.
  *
- * The builder assumes 0 ≤ x < 1000, 0 ≤ y < 1000
- *
  * Options:
- *   - To have equally spaced points added around the 1000x1000 boundary,
- *     pass in boundarySpacing > 0 with the spacing value. If using Poisson
- *     disc points, I recommend 1.5 times the spacing used for Poisson disc.
+ *   - To have equally spaced points added around a rectangular boundary,
+ *     pass in a boundary with the rectangle size and the boundary spacing.
+ *     If using Poisson disc points, I recommend √2 times the spacing used
+ *     for Poisson disc.
  *
  * Phases:
- *   - Your own set of points
- *   - Poisson disc points
+ *   - Add boundary points
+ *   - Add your own set of points
+ *   - Add Poisson disc points
  *
  * The mesh generator runs some sanity checks but does not correct the
  * generated points.
@@ -168,31 +189,38 @@ function addGhostStructure({_vertex_r, _triangles, _halfedges}) {
  *
  * Build a mesh with poisson disc points and a boundary:
  *
- * new MeshBuilder({boundarySpacing: 150})
- *    .addPoisson(Poisson, 100)
+ * TODO:
+ * new MeshBuilder(options)
+ *    .appendPoints(pointsArray)
  *    .create()
  */
 export default class MeshBuilder {
-    points: Array<[number, number]>;
+    points: Points;
     numBoundaryRegions: number;
+    options: {left: number, top: number, width: number, height: number};
     
-    /** If boundarySpacing > 0 there will be a boundary added around the 1000x1000 area */
-    constructor ({boundarySpacing=0} = {}) {
-        let boundaryPoints = boundarySpacing > 0 ? addBoundaryPoints(boundarySpacing, 1000) : [];
+    constructor (options:any={}) {
+        let boundaryPoints = options.boundarySpacing ? addBoundaryPoints(options.bounds, options.boundarySpacing) : [];
         this.points = boundaryPoints;
         this.numBoundaryRegions = boundaryPoints.length;
+        this.options = options;
     }
 
-    /** Points should be [x, y] */
-    addPoints(newPoints: Array<[number, number]>): this {
-        for (let p of newPoints) {
-            this.points.push(p);
-        }
+    /** pass in a function to return a new points array; note that
+     * if there are existing boundary points, they should be preserved */
+    replacePointsFn(adder: (points: Points) => Points): this {
+        this.points = adder(this.points);
+        return this;
+    }
+    
+    /** pass in an array of new points to append to the points array */
+    appendPoints(newPoints: Points): this {
+        this.points = this.points.concat(newPoints);
         return this;
     }
 
     /** Points will be [x, y] */
-    getNonBoundaryPoints(): Array<[number, number]> {
+    getNonBoundaryPoints(): Points {
         return this.points.slice(this.numBoundaryRegions);
     }
     
@@ -202,17 +230,6 @@ export default class MeshBuilder {
         return this;
     }
     
-    /** Pass in the constructor from the poisson-disk-sampling module */
-    addPoisson(Poisson: any, spacing: number, random: ()=>number = Math.random) {
-        let generator = new Poisson({
-            shape: [1000, 1000],
-            minDistance: spacing,
-        }, random);
-        this.points.forEach(p => generator.addPoint(p));
-        this.points = generator.fill();
-        return this;
-    }
-
     /** Build and return a TriangleMesh */
     create(runChecks:boolean=false) {
         let delaunator = Delaunator.from(this.points);
@@ -224,6 +241,9 @@ export default class MeshBuilder {
             _halfedges: delaunator.halfedges
         };
 
+        // TODO: check that all bounding points are inside the bounding rectangle
+        // TODO: check that the boundary points at the corners connect in a way that stays outside
+        // the bounding rectangle, so that the convex hull is entirely outside the rectangle
         if (runChecks) {
             checkPointInequality(graph);
             checkTriangleInequality(graph);
@@ -235,6 +255,8 @@ export default class MeshBuilder {
             checkMeshConnectivity(graph);
         }
 
-        return new TriangleMesh(graph);
+        let mesh = new TriangleMesh(graph);
+        mesh._options = this.options;
+        return mesh;
     }
 }

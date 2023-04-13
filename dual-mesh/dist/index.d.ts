@@ -49,6 +49,7 @@ export default class TriangleMesh {
     _s_of_r: Int32Array;
     _vertex_t: Array<[number, number]>;
     _vertex_r: Array<[number, number]>;
+    _options: any;
     /**
      * Constructor takes partial mesh information and fills in the rest; the
      * partial information is generated in create.js or in fromDelaunator.

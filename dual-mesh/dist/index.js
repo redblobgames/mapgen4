@@ -50,6 +50,7 @@ export default class TriangleMesh {
     _s_of_r;
     _vertex_t;
     _vertex_r;
+    _options; // any other information we need to carry
     /**
      * Constructor takes partial mesh information and fills in the rest; the
      * partial information is generated in create.js or in fromDelaunator.
