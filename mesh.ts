@@ -23,34 +23,82 @@ import type {Mesh} from "./types.d.ts";
    candidate for precomputing and saving to a file, like mapgen4 did.
  */
 function choosePoints() {
-    /* First generate the mountain points */
-    let mountainPoints = new Poisson({
-        shape: [1000, 1000],
+    // Generate both interior and exterior boundary points, using
+    // a double layer like I show on
+    // https://www.redblobgames.com/x/2314-poisson-with-boundary/
+    const epsilon = 1e-4
+    const boundarySpacing = param.spacing * Math.sqrt(2);
+    const left = 0, top = 0, width = 1000, height = 1000;
+    const curvature = 1.0;
+    let interiorBoundary = [], exteriorBoundary = [];
+    let W = Math.ceil((width - 2 * curvature) / boundarySpacing);
+    let H = Math.ceil((height - 2 * curvature) / boundarySpacing);
+    for (let q = 0; q < W; q++) {
+        let t = q / W;
+        let dx = (width - 2 * curvature) * t;
+        let dy = epsilon + curvature * 4 * (t - 0.5) ** 2;
+        interiorBoundary.push([left + curvature + dx, top + dy], [left + width - curvature - dx, top + height - dy]);
+        exteriorBoundary.push([left + dx + boundarySpacing/2, top - boundarySpacing/Math.sqrt(2)],
+                              [left + width - dx - boundarySpacing/2, top + height + boundarySpacing/Math.sqrt(2)]);
+    }
+    for (let r = 0; r < H; r++) {
+        let t = r / H;
+        let dy = (height - 2 * curvature) * t;
+        let dx = epsilon + curvature * 4 * (t - 0.5) ** 2;
+        interiorBoundary.push([left + dx, top + height - curvature - dy], [left + width - dx, top + curvature + dy]);
+        exteriorBoundary.push([left - boundarySpacing/Math.sqrt(2), top + height - dy - boundarySpacing/2],
+                              [left + width + boundarySpacing/Math.sqrt(2), top + dy + boundarySpacing/2]);
+    }
+    exteriorBoundary.push([left - boundarySpacing/Math.sqrt(2), top - boundarySpacing/Math.sqrt(2)],
+                          [left + width + boundarySpacing/Math.sqrt(2), top - boundarySpacing/Math.sqrt(2)],
+                          [left - boundarySpacing/Math.sqrt(2), top + height + boundarySpacing/Math.sqrt(2)],
+                          [left + width + boundarySpacing/Math.sqrt(2), top + height + boundarySpacing/Math.sqrt(2)]);
+    
+    // First generate the mountain points, with the interior boundary points pushing mountains away
+    let mountainPointsGenerator = new Poisson({
+        shape: [width, height],
         radius: param.mountainSpacing,
         tries: 30,
-    }, makeRandFloat(param.mesh.seed)).fill();
+    }, makeRandFloat(param.mesh.seed));
+    for (let p of interiorBoundary) { mountainPointsGenerator.addPoint(p); }
+    let mountainPoints = mountainPointsGenerator.fill();
 
-    /* Generate the rest of the mesh points with the mountain points as constraints */
+    // NOTE: at this point, the mountainPoints include *both* the interior boundary points *and* the actual mountain points
+    
+    // Generate the rest of the mesh points with the interior boundary points and mountain points as constraints
     let generator = new Poisson({
         shape: [1000, 1000],
         radius: param.spacing,
-        tries: 6, // NOTE: below 5 is unstable, and 5 is borderline
+        tries: 10, // NOTE: below 5 is unstable, and 5 is borderline; defaults to 30, but lower is faster
     }, makeRandFloat(param.mesh.seed));
     for (let p of mountainPoints) { generator.addPoint(p); }
     let points = generator.fill();
-    let peaks_index = mountainPoints.map((_, index) => index);
+
+    // The mountains are the mountainPoints added after the boundary points
+    let peaks_index = []
+    for (let index = interiorBoundary.length; index <= mountainPoints.length; index++) {
+        peaks_index.push(index);
+    }
     
-    return {points, peaks_index};
+    return {exteriorBoundary, points, peaks_index};
 }
 
 
 export function makeMesh() {
-    let {points, peaks_index} = choosePoints();
+    let {exteriorBoundary, points, peaks_index} = choosePoints();
 
-    let builder = new MeshBuilder({boundarySpacing: param.spacing * 1.5})
-        .addPoints(points);
+    let builder = new MeshBuilder()
+        .appendPoints(exteriorBoundary.concat(points));
     let mesh = builder.create() as Mesh;
+    mesh.numBoundaryRegions = exteriorBoundary.length;
     console.log(`triangles = ${mesh.numTriangles} regions = ${mesh.numRegions}`);
+
+    // Mark the triangles that are connected to a boundary region
+    // TODO: store 8 bits per byte instead of 1 bit per byte
+    mesh.is_boundary_t = new Int8Array(mesh.numTriangles);
+    for (let t = 0; t < mesh.numTriangles; t++) {
+        mesh.is_boundary_t[t] = mesh.r_around_t(t).some(r => mesh.is_boundary_r(r)) ? 1 : 0;
+    }
 
     mesh.length_s = new Float32Array(mesh.numSides);
     for (let s = 0; s < mesh.numSides; s++) {

@@ -11,6 +11,7 @@
 import {createNoise2D} from 'simplex-noise';
 import FlatQueue from 'flatqueue';
 import {makeRandFloat} from "./prng.ts";
+import {clamp} from "./geometry.ts";
 import type {Mesh} from "./types.d.ts";
 
 type PrecalculatedNoise = {
@@ -116,7 +117,8 @@ export default class Map {
         this.mountain_distance_t = new Float32Array(mesh.numTriangles);
     }
 
-    assignTriangleElevation(elevationParam, constraints) {
+    assignTriangleElevation(elevationParam: { noisy_coastlines: number; mountain_sharpness: number; hill_height: number; ocean_depth: number; },
+                            constraints: { constraints: Float32Array; size: any; }) {
         let {mesh, elevation_t, mountain_distance_t, precomputed} = this;
         let {numTriangles, numSolidTriangles} = mesh;
 
@@ -126,26 +128,30 @@ export default class Map {
         // be updated, so that we don't have to recalculate the entire
         // map's interpolated values each time (involves copying 50k
         // floats instead of 16k floats), or maybe send a message with
-        // the bounding box of the painted area
-        function constraintAt(x, y) {
+        // the bounding box of the painted area, or maybe send the
+        // drawing positions and parameters and let the painting happen
+        // in this thread.
+        function constraintAt(x: number, y: number): number {
             // https://en.wikipedia.org/wiki/Bilinear_interpolation
             const C = constraints.constraints, size = constraints.size;
-            x *= size; y *= size;
+            // NOTE: there's a tricky "off by one" problem here. Since
+            // x can be from 0.000 to 0.999, and I want xInt+1 < size
+            // to leave one extra tile for bilinear filtering, that
+            // means I want xInt < size-1. So I need to multiply x and
+            // y by size-1, not by size.
+            x = clamp(x * (size-1), 0, size-2);
+            y = clamp(y * (size-1), 0, size-2);
             let xInt = Math.floor(x),
                 yInt = Math.floor(y),
                 xFrac = x - xInt,
                 yFrac = y - yInt;
-            if (0 <= xInt && xInt+1 < size && 0 <= yInt && yInt+1 < size) {
-                let p = size * yInt + xInt;
-                let e00 = C[p],
-                    e01 = C[p + 1],
-                    e10 = C[p + size],
-                    e11 = C[p + size + 1];
-                return ((e00 * (1 - xFrac) + e01 * xFrac) * (1 - yFrac)
-                        + (e10 * (1 - xFrac) + e11 * xFrac) * yFrac);
-            } else {
-                return -1.0;
-            }
+            let p = size * yInt + xInt;
+            let e00 = C[p],
+            e01 = C[p + 1],
+            e10 = C[p + size],
+            e11 = C[p + size + 1];
+            return ((e00 * (1 - xFrac) + e01 * xFrac) * (1 - yFrac)
+                + (e10 * (1 - xFrac) + e11 * xFrac) * yFrac);
         }
         for (let t = 0; t < numSolidTriangles; t++) {
             let e = constraintAt(mesh.x_of_t(t)/1000, mesh.y_of_t(t)/1000);

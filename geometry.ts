@@ -33,7 +33,7 @@ function setMapGeometry(map: Map, I: Int32Array, P: Float32Array) {
     // TODO: V should probably depend on the slope, or elevation, or maybe it should be 0.95 in mountainous areas and 0.99 elsewhere
     const V = 0.95; // reduce elevation in valleys
     let {mesh, flow_s, elevation_r, elevation_t, rainfall_r} = map;
-    let {numSolidSides, numRegions, numTriangles} = mesh;
+    let {numSolidSides, numRegions, numTriangles, is_boundary_t} = mesh;
 
     if (I.length !== 3 * numSolidSides) { throw "wrong size"; }
     if (P.length !== 2 * (numRegions + numTriangles)) { throw "wrong size"; }
@@ -52,7 +52,6 @@ function setMapGeometry(map: Map, I: Int32Array, P: Float32Array) {
         P[p++] = 1/3 * (rainfall_r[r1] + rainfall_r[r2] + rainfall_r[r3]);
     }
 
-    // TODO: split this into its own function; it can be updated separately, and maybe not as often
     let i = 0;
     for (let s = 0; s < numSolidSides; s++) {
         let s_opposite = mesh.s_opposite_s(s),
@@ -66,8 +65,11 @@ function setMapGeometry(map: Map, I: Int32Array, P: Float32Array) {
         // a quadrilateral. This is usually a nuisance but in this
         // case it's a feature. See the explanation here
         // https://www.redblobgames.com/x/1725-procedural-elevation/#rendering
-        let coast = elevation_r[r1] < 0.0 || elevation_r[r2] < 0.0;
-        if (coast || flow_s[s] > 0 || flow_s[s_opposite] > 0) {
+        let is_valley = false;
+        if (elevation_r[r1] < 0.0 || elevation_r[r2] < 0.0) is_valley = true;
+        if (flow_s[s] > 0 || flow_s[s_opposite] > 0) is_valley = true;
+        if (is_boundary_t[t1] || is_boundary_t[t2]) is_valley = false;
+        if (is_valley) {
             // It's a coastal or river edge, forming a valley
             I[i++] = r1; I[i++] = numRegions+t2; I[i++] = numRegions+t1;
         } else {
@@ -175,7 +177,7 @@ function createRiverBitmap() {
 };
 
 
-function clamp(x: number, lo: number, hi: number): number {
+export function clamp(x: number, lo: number, hi: number): number {
     if (x < lo) { x = lo; }
     if (x > hi) { x = hi; }
     return x;

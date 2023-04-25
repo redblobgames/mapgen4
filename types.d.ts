@@ -4,5 +4,6 @@
 import TriangleMesh from "./dual-mesh/index.ts";
 
 export class Mesh extends TriangleMesh {
+    is_boundary_t: Int8Array; /* indexed on t */
     length_s: Float32Array; /* indexed on s */
 }
