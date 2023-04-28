@@ -60,6 +60,7 @@ export default class TriangleMesh {
     _vertex_r: Array<[number, number]>;
 
     _options: any; // any other information we need to carry
+
     
     /**
      * Constructor takes partial mesh information and fills in the rest; the
@@ -72,6 +73,7 @@ export default class TriangleMesh {
         this._update();
     }
 
+    
     /**
      * Update internal data structures from Delaunator 
      */
@@ -82,6 +84,7 @@ export default class TriangleMesh {
         this._update();
     }
 
+    
     /**
      * Update internal data structures to match the input mesh.
      *
@@ -138,6 +141,7 @@ export default class TriangleMesh {
         }
     }
 
+    
     /**
      * Construct a DualMesh from a Delaunator object, without any
      * additional boundary regions.
@@ -153,6 +157,57 @@ export default class TriangleMesh {
     }
 
 
+    /**
+     * Construct ghost elements to complete the graph.
+     */
+    static addGhostStructure({_vertex_r, _triangles, _halfedges}) {
+        const numSolidSides = _triangles.length;
+        
+        let numUnpairedSides = 0, firstUnpairedEdge = -1;
+        let s_unpaired_r = []; // seed to side
+        for (let s = 0; s < numSolidSides; s++) {
+            if (_halfedges[s] === -1) {
+                numUnpairedSides++;
+                s_unpaired_r[_triangles[s]] = s;
+                firstUnpairedEdge = s;
+            }
+        }
+
+        const r_ghost = _vertex_r.length;
+        let newvertex_r = _vertex_r.concat([[NaN, NaN]]);
+        let r_newstart_s = new Int32Array(numSolidSides + 3 * numUnpairedSides);
+        r_newstart_s.set(_triangles);
+        let s_newopposite_s = new Int32Array(numSolidSides + 3 * numUnpairedSides);
+        s_newopposite_s.set(_halfedges);
+
+        for (let i = 0, s = firstUnpairedEdge;
+             i < numUnpairedSides;
+             i++, s = s_unpaired_r[r_newstart_s[TriangleMesh.s_next_s(s)]]) {
+
+            // Construct a ghost side for s
+            let s_ghost = numSolidSides + 3 * i;
+            s_newopposite_s[s] = s_ghost;
+            s_newopposite_s[s_ghost] = s;
+            r_newstart_s[s_ghost] = r_newstart_s[TriangleMesh.s_next_s(s)];
+            
+            // Construct the rest of the ghost triangle
+            r_newstart_s[s_ghost + 1] = r_newstart_s[s];
+            r_newstart_s[s_ghost + 2] = r_ghost;
+            let k = numSolidSides + (3 * i + 4) % (3 * numUnpairedSides);
+            s_newopposite_s[s_ghost + 2] = k;
+            s_newopposite_s[k] = s_ghost + 2;
+        }
+
+        return {
+            numSolidSides,
+            numBoundaryRegions: 0,
+            _vertex_r: newvertex_r,
+            _triangles: r_newstart_s,
+            _halfedges: s_newopposite_s
+        };
+    }
+
+    
     x_of_r(r: number): number        { return this._vertex_r[r][0]; }
     y_of_r(r: number): number        { return this._vertex_r[r][1]; }
     x_of_t(t: number): number        { return this._vertex_t[t][0]; }

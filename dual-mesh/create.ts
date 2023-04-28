@@ -15,8 +15,6 @@ import TriangleMesh from "./index.js";
 
 type Points = Array<[number, number]>;
 
-function s_next_s(s: number): number { return (s % 3 == 2) ? s-2 : s+1; }
-
 
 function checkPointInequality({_vertex_r, _triangles, _halfedges}) {
     // TODO: check for collinear vertices. Around each red point P if
@@ -33,8 +31,8 @@ function checkTriangleInequality({_vertex_r, _triangles, _halfedges}) {
     let count = 0;
     for (let s = 0; s < _triangles.length; s++) {
         let r0 = _triangles[s],
-            r1 = _triangles[s_next_s(s)],
-            r2 = _triangles[s_next_s(s_next_s(s))];
+            r1 = _triangles[TriangleMesh.s_next_s(s)],
+            r2 = _triangles[TriangleMesh.s_next_s(TriangleMesh.s_next_s(s))];
         let p0 = _vertex_r[r0],
             p1 = _vertex_r[r1],
             p2 = _vertex_r[r2];
@@ -70,9 +68,9 @@ function checkMeshConnectivity({_vertex_r, _triangles, _halfedges}) {
         s_out.length = 0;
         do {
             count++; s_out.push(s);
-            s = s_next_s(_halfedges[s]);
+            s = TriangleMesh.s_next_s(_halfedges[s]);
             if (count > 100 && _triangles[s0] !== r_ghost) {
-                console.log(`FAIL to circulate around region with start side=${s0} from region ${_triangles[s0]} to ${_triangles[s_next_s(s0)]}, out_s=${s_out}`);
+                console.log(`FAIL to circulate around region with start side=${s0} from region ${_triangles[s0]} to ${_triangles[TriangleMesh.s_next_s(s0)]}, out_s=${s_out}`);
                 break;
             }
         } while (s !== s0);
@@ -117,55 +115,6 @@ function addBoundaryPoints({left, top, width, height}, boundarySpacing: number):
     }
     return points;
 }
-
-
-function addGhostStructure({_vertex_r, _triangles, _halfedges}) {
-    const numSolidSides = _triangles.length;
-    
-    let numUnpairedSides = 0, firstUnpairedEdge = -1;
-    let s_unpaired_r = []; // seed to side
-    for (let s = 0; s < numSolidSides; s++) {
-        if (_halfedges[s] === -1) {
-            numUnpairedSides++;
-            s_unpaired_r[_triangles[s]] = s;
-            firstUnpairedEdge = s;
-        }
-    }
-
-    const r_ghost = _vertex_r.length;
-    let newvertex_r = _vertex_r.concat([[NaN, NaN]]);
-    let r_newstart_s = new Int32Array(numSolidSides + 3 * numUnpairedSides);
-    r_newstart_s.set(_triangles);
-    let s_newopposite_s = new Int32Array(numSolidSides + 3 * numUnpairedSides);
-    s_newopposite_s.set(_halfedges);
-
-    for (let i = 0, s = firstUnpairedEdge;
-         i < numUnpairedSides;
-         i++, s = s_unpaired_r[r_newstart_s[s_next_s(s)]]) {
-
-        // Construct a ghost side for s
-        let s_ghost = numSolidSides + 3 * i;
-        s_newopposite_s[s] = s_ghost;
-        s_newopposite_s[s_ghost] = s;
-        r_newstart_s[s_ghost] = r_newstart_s[s_next_s(s)];
-        
-        // Construct the rest of the ghost triangle
-        r_newstart_s[s_ghost + 1] = r_newstart_s[s];
-        r_newstart_s[s_ghost + 2] = r_ghost;
-        let k = numSolidSides + (3 * i + 4) % (3 * numUnpairedSides);
-        s_newopposite_s[s_ghost + 2] = k;
-        s_newopposite_s[k] = s_ghost + 2;
-    }
-
-    return {
-        numSolidSides,
-        numBoundaryRegions: 0,
-        _vertex_r: newvertex_r,
-        _triangles: r_newstart_s,
-        _halfedges: s_newopposite_s
-    };
-}
-
 
 
 /**
@@ -233,9 +182,7 @@ export default class MeshBuilder {
     /** Build and return a TriangleMesh */
     create(runChecks:boolean=false) {
         let delaunator = Delaunator.from(this.points);
-        let graph = {
-            numBoundaryRegions: 0,
-            numSolidSides: 0,
+        let init = {
             _vertex_r: this.points,
             _triangles: delaunator.triangles,
             _halfedges: delaunator.halfedges
@@ -245,14 +192,14 @@ export default class MeshBuilder {
         // TODO: check that the boundary points at the corners connect in a way that stays outside
         // the bounding rectangle, so that the convex hull is entirely outside the rectangle
         if (runChecks) {
-            checkPointInequality(graph);
-            checkTriangleInequality(graph);
+            checkPointInequality(init);
+            checkTriangleInequality(init);
         }
         
-        graph = addGhostStructure(graph);
+        let graph = TriangleMesh.addGhostStructure(init);
         graph.numBoundaryRegions = this.numBoundaryRegions;
         if (runChecks) {
-            checkMeshConnectivity(graph);
+            checkMeshConnectivity(init);
         }
 
         let mesh = new TriangleMesh(graph);
