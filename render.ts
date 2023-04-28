@@ -6,12 +6,12 @@
  * This module uses webgl+regl to render the generated maps
  */
 
-import {vec4, mat4} from 'gl-matrix';
+import {vec2, vec4, mat4} from 'gl-matrix';
 import colormap from "./colormap.ts";
 import Geometry from "./geometry.ts";
 import type {Mesh} from "./types.d.ts";
 
-import REGL from 'regl';
+import REGL from 'regl/dist/regl.min.js';
 // NOTE: the typescript definition for regl.prop so cumbersome I don't use it
 const regl = REGL({
     canvas: "#mapgen4",
@@ -431,7 +431,7 @@ class Renderer {
         this.startDrawingLoop();
     }
 
-    screenToWorld(coords: [number, number]): vec4 {
+    screenToWorld(coords: [number, number]): vec2 {
         /* convert from screen 2d (inverted y) to 4d for matrix multiply */
         let glCoords = vec4.fromValues(
             coords[0] * 2 - 1,
@@ -442,7 +442,8 @@ class Renderer {
             1
         );
         /* it returns vec4 but we only need vec2; they're compatible */
-        return vec4.transformMat4(vec4.create(), glCoords, this.inverse_projection);
+        let transformed = vec4.transformMat4(vec4.create(), glCoords, this.inverse_projection);
+        return [transformed[0], transformed[1]];
     }
     
     /* Update the buffers with the latest map data */

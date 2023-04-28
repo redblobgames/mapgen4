@@ -9,12 +9,16 @@
 
 import param from "./config.js";
 import MeshBuilder from "./dual-mesh/create.ts";
-import {choosePoints} from "./generate-points.ts";
+// import {choosePoints} from "./generate-points.ts";
+// import pointsFile from "./build/points-5.data";
+import {fromPointsFile} from "./serialize-points.ts";
 import type {Mesh} from "./types.d.ts";
 
-export function makeMesh() {
-    let {points, numExteriorBoundaryPoints, numInteriorBoundaryPoints, numMountainPoints} = choosePoints(
-        param.mesh.seed, param.spacing, param.mountainSpacing);
+export async function makeMesh() {
+    let {points, numExteriorBoundaryPoints, numInteriorBoundaryPoints, numMountainPoints} =
+        // choosePoints(param.mesh.seed, param.spacing, param.mountainSpacing);
+        fromPointsFile(new Uint16Array(await fetch(`build/points-${param.spacing}.data`).then(response => response.arrayBuffer())));
+        // fromPointsFile(new Uint16Array(pointsFile.buffer));
 
     let builder = new MeshBuilder()
         .appendPoints(points);

@@ -13,6 +13,12 @@ import Poisson from 'fast-2d-poisson-disk-sampling';
 import {makeRandFloat} from "./prng.ts";
 
 type Point = [number, number];
+type PointsData = {
+    points: Point[];
+    numExteriorBoundaryPoints: number;
+    numInteriorBoundaryPoints: number;
+    numMountainPoints: number;
+}
 
 /**
    Generate points which will be seeds for Delaunay Triangulation, and
@@ -29,12 +35,7 @@ type Point = [number, number];
         
 
  */
-export function choosePoints(seed: number, spacing: number, mountainSpacing: number): {
-    points: Point[];
-    numExteriorBoundaryPoints: number;
-    numInteriorBoundaryPoints: number;
-    numMountainPoints: number;
-} {
+export function choosePoints(seed: number, spacing: number, mountainSpacing: number): PointsData {
     // First, generate both interior and exterior boundary points, using
     // a double layer like I show on
     // https://www.redblobgames.com/x/2314-poisson-with-boundary/
