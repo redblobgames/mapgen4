@@ -11,12 +11,9 @@
 'use strict';
 
 import Delaunator from 'delaunator';
-import TriangleMesh from "./index.js";
+import {type Point, TriangleMesh, MeshInitializer} from "./index.js";
 
-type Points = Array<[number, number]>;
-
-
-function checkPointInequality({_vertex_r, _triangles, _halfedges}) {
+function checkPointInequality(_init: MeshInitializer) {
     // TODO: check for collinear vertices. Around each red point P if
     // there's a point Q and R both connected to it, and the angle P→Q and
     // the angle P→R are 180° apart, then there's collinearity. This would
@@ -24,18 +21,18 @@ function checkPointInequality({_vertex_r, _triangles, _halfedges}) {
 }
 
 
-function checkTriangleInequality({_vertex_r, _triangles, _halfedges}) {
+function checkTriangleInequality({points, delaunator: {triangles, halfedges}}) {
     // check for skinny triangles
     const badAngleLimit = 30;
     let summary = new Array(badAngleLimit).fill(0);
     let count = 0;
-    for (let s = 0; s < _triangles.length; s++) {
-        let r0 = _triangles[s],
-            r1 = _triangles[TriangleMesh.s_next_s(s)],
-            r2 = _triangles[TriangleMesh.s_next_s(TriangleMesh.s_next_s(s))];
-        let p0 = _vertex_r[r0],
-            p1 = _vertex_r[r1],
-            p2 = _vertex_r[r2];
+    for (let s = 0; s < triangles.length; s++) {
+        let r0 = triangles[s],
+            r1 = triangles[TriangleMesh.s_next_s(s)],
+            r2 = triangles[TriangleMesh.s_next_s(TriangleMesh.s_next_s(s))];
+        let p0 = points[r0],
+            p1 = points[r1],
+            p2 = points[r2];
         let d0 = [p0[0]-p1[0], p0[1]-p1[1]];
         let d2 = [p2[0]-p1[0], p2[1]-p1[1]];
         let dotProduct = d0[0] * d2[0] + d0[1] + d2[1];
@@ -56,21 +53,21 @@ function checkTriangleInequality({_vertex_r, _triangles, _halfedges}) {
 }
 
 
-function checkMeshConnectivity({_vertex_r, _triangles, _halfedges}) {
+function checkMeshConnectivity({points, delaunator: {triangles, halfedges}}) {
     // 1. make sure each side's opposite is back to itself
     // 2. make sure region-circulating starting from each side works
-    let r_ghost = _vertex_r.length - 1, s_out = [];
-    for (let s0 = 0; s0 < _triangles.length; s0++) {
-        if (_halfedges[_halfedges[s0]] !== s0) {
+    let r_ghost = points.length - 1, s_out = [];
+    for (let s0 = 0; s0 < triangles.length; s0++) {
+        if (halfedges[halfedges[s0]] !== s0) {
             console.log(`FAIL _halfedges[_halfedges[${s0}]] !== ${s0}`);
         }
         let s = s0, count = 0;
         s_out.length = 0;
         do {
             count++; s_out.push(s);
-            s = TriangleMesh.s_next_s(_halfedges[s]);
-            if (count > 100 && _triangles[s0] !== r_ghost) {
-                console.log(`FAIL to circulate around region with start side=${s0} from region ${_triangles[s0]} to ${_triangles[TriangleMesh.s_next_s(s0)]}, out_s=${s_out}`);
+            s = TriangleMesh.s_next_s(halfedges[s]);
+            if (count > 100 && triangles[s0] !== r_ghost) {
+                console.log(`FAIL to circulate around region with start side=${s0} from region ${triangles[s0]} to ${triangles[TriangleMesh.s_next_s(s0)]}, out_s=${s_out}`);
                 break;
             }
         } while (s !== s0);
@@ -94,7 +91,7 @@ function checkMeshConnectivity({_vertex_r, _triangles, _halfedges}) {
  * I use a *slight* curve so that the Delaunay triangulation
  * doesn't make long thin triangles along the boundary.
  */
-function addBoundaryPoints({left, top, width, height}, boundarySpacing: number): Points {
+function addBoundaryPoints({left, top, width, height}, boundarySpacing: number): Point[] {
     const curvature = 1.0;
     let W = Math.ceil((width - 2 * curvature)/boundarySpacing);
     let H = Math.ceil((height - 2 * curvature)/boundarySpacing);
@@ -144,7 +141,7 @@ function addBoundaryPoints({left, top, width, height}, boundarySpacing: number):
  *    .create()
  */
 export default class MeshBuilder {
-    points: Points;
+    points: Point[];
     numBoundaryRegions: number;
     options: {left: number, top: number, width: number, height: number};
     
@@ -157,19 +154,19 @@ export default class MeshBuilder {
 
     /** pass in a function to return a new points array; note that
      * if there are existing boundary points, they should be preserved */
-    replacePointsFn(adder: (points: Points) => Points): this {
+    replacePointsFn(adder: (points: Point[]) => Point[]): this {
         this.points = adder(this.points);
         return this;
     }
     
     /** pass in an array of new points to append to the points array */
-    appendPoints(newPoints: Points): this {
+    appendPoint(newPoints: Point[]): this {
         this.points = this.points.concat(newPoints);
         return this;
     }
 
     /** Points will be [x, y] */
-    getNonBoundaryPoints(): Points {
+    getNonBoundaryPoints(): Point[] {
         return this.points.slice(this.numBoundaryRegions);
     }
     
@@ -181,11 +178,9 @@ export default class MeshBuilder {
     
     /** Build and return a TriangleMesh */
     create(runChecks:boolean=false) {
-        let delaunator = Delaunator.from(this.points);
-        let init = {
-            _vertex_r: this.points,
-            _triangles: delaunator.triangles,
-            _halfedges: delaunator.halfedges
+        let init: MeshInitializer = {
+            points: this.points,
+            delaunator: Delaunator.from(this.points),
         };
 
         // TODO: check that all bounding points are inside the bounding rectangle
@@ -196,13 +191,13 @@ export default class MeshBuilder {
             checkTriangleInequality(init);
         }
         
-        let graph = TriangleMesh.addGhostStructure(init);
-        graph.numBoundaryRegions = this.numBoundaryRegions;
+        let withGhost = TriangleMesh.addGhostStructure(init);
+        withGhost.numBoundaryRegions = this.numBoundaryRegions;
         if (runChecks) {
-            checkMeshConnectivity(init);
+            checkMeshConnectivity(withGhost);
         }
 
-        let mesh = new TriangleMesh(graph);
+        let mesh = new TriangleMesh(withGhost);
         mesh._options = this.options;
         return mesh;
     }

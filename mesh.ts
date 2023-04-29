@@ -8,7 +8,8 @@
  */
 
 import param from "./config.js";
-import MeshBuilder from "./dual-mesh/create.ts";
+import Delaunator from 'delaunator';
+import {TriangleMesh, MeshInitializer} from "./dual-mesh/index.ts";
 // import {choosePoints} from "./generate-points.ts";
 // import pointsFile from "./build/points-5.data";
 import {fromPointsFile} from "./serialize-points.ts";
@@ -20,14 +21,16 @@ export async function makeMesh() {
         fromPointsFile(new Uint16Array(await fetch(`build/points-${param.spacing}.data`).then(response => response.arrayBuffer())));
         // fromPointsFile(new Uint16Array(pointsFile.buffer));
 
-    let builder = new MeshBuilder()
-        .appendPoints(points);
-    let mesh = builder.create() as Mesh;
-    mesh.numBoundaryRegions = numExteriorBoundaryPoints;
+    let meshInit: MeshInitializer = TriangleMesh.addGhostStructure({
+        points,
+        delaunator: Delaunator.from(points),
+        numBoundaryRegions: numExteriorBoundaryPoints,
+    });
+    let mesh = new TriangleMesh(meshInit) as Mesh;
     console.log(`triangles = ${mesh.numTriangles} regions = ${mesh.numRegions}`);
 
     // Mark the triangles that are connected to a boundary region
-    // TODO: store 8 bits per byte instead of 1 bit per byte
+    // TODO: store 8 bits per byte instead of 1 bit per byte, or maybe a Set
     mesh.is_boundary_t = new Int8Array(mesh.numTriangles);
     for (let t = 0; t < mesh.numTriangles; t++) {
         mesh.is_boundary_t[t] = mesh.r_around_t(t).some(r => mesh.is_boundary_r(r)) ? 1 : 0;
@@ -45,10 +48,10 @@ export async function makeMesh() {
     // NOTE: these are all contigious so it could be shortened to a range
     // (they were not contiguous in earlier versions of mapgen4, so that's
     // why it's an array of indices)
-    let r_peaks = Array.from({length: numMountainPoints},
-                             (_, index) => index + numExteriorBoundaryPoints + numInteriorBoundaryPoints);
+    let r_peaks = Array.from(
+        {length: numMountainPoints},
+        (_, index) => index + numExteriorBoundaryPoints + numInteriorBoundaryPoints);
                 
-    
 
     // Poisson disc chooses mountain regions but we actually need mountain triangles
     // so we'll just pick one neighboring triangle for each region

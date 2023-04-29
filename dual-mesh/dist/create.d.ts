@@ -1,5 +1,4 @@
-import TriangleMesh from "./index.js";
-type Points = Array<[number, number]>;
+import { type Point, TriangleMesh } from "./index.js";
 /**
  * Build a dual mesh from points, with ghost triangles around the exterior.
  *
@@ -27,7 +26,7 @@ type Points = Array<[number, number]>;
  *    .create()
  */
 export default class MeshBuilder {
-    points: Points;
+    points: Point[];
     numBoundaryRegions: number;
     options: {
         left: number;
@@ -38,14 +37,13 @@ export default class MeshBuilder {
     constructor(options?: any);
     /** pass in a function to return a new points array; note that
      * if there are existing boundary points, they should be preserved */
-    replacePointsFn(adder: (points: Points) => Points): this;
+    replacePointsFn(adder: (points: Point[]) => Point[]): this;
     /** pass in an array of new points to append to the points array */
-    appendPoints(newPoints: Points): this;
+    appendPoint(newPoints: Point[]): this;
     /** Points will be [x, y] */
-    getNonBoundaryPoints(): Points;
+    getNonBoundaryPoints(): Point[];
     /** (used for more advanced mixing of different mesh types) */
     clearNonBoundaryPoints(): this;
     /** Build and return a TriangleMesh */
     create(runChecks?: boolean): TriangleMesh;
 }
-export {};

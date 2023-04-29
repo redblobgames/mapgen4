@@ -4,9 +4,18 @@
  * License: Apache v2.0 <http://www.apache.org/licenses/LICENSE-2.0.html>
  */
 
-type Delaunator = {
+export type Point = [number, number];
+
+export type Delaunator = {
     triangles: Int32Array;
     halfedges: Int32Array;
+}
+
+export type MeshInitializer = {
+    points: Point[];
+    delaunator: Delaunator;
+    numBoundaryRegions?: number;
+    numSolidSides?: number;
 }
 
 /**
@@ -40,11 +49,12 @@ type Delaunator = {
  * boundary regions to the ghost region. Elements that aren't "ghost"
  * are called "solid".
  */
-export default class TriangleMesh {
+export class TriangleMesh {
     static t_from_s(s: number): number { return (s/3) | 0; }
     static s_prev_s(s: number): number { return (s % 3 === 0) ? s+2 : s-1; }
     static s_next_s(s: number): number { return (s % 3 === 2) ? s-2 : s+1; }
 
+    // public data
     numSides: number;
     numSolidSides: number;
     numRegions: number;
@@ -53,6 +63,7 @@ export default class TriangleMesh {
     numSolidTriangles: number;
     numBoundaryRegions: number;
 
+    // internal data that has accessors
     _halfedges: Int32Array;
     _triangles: Int32Array;
     _s_of_r: Int32Array;
@@ -63,24 +74,30 @@ export default class TriangleMesh {
 
     
     /**
-     * Constructor takes partial mesh information and fills in the rest; the
-     * partial information is generated in create.js or in fromDelaunator.
+     * Constructor takes partial mesh information from Delaunator and
+     * constructs the rest.
      */
-    constructor ({numBoundaryRegions, numSolidSides, _vertex_r, _triangles, _halfedges}) {
-        Object.assign(this, {numBoundaryRegions, numSolidSides,
-                             _vertex_r, _triangles, _halfedges});
-        this._vertex_t = [];
-        this._update();
+    constructor (init: MeshInitializer | TriangleMesh) {
+        if ('points' in init) {
+            // Construct a new TriangleMesh from points + delaunator data
+            this.numBoundaryRegions = init.numBoundaryRegions ?? 0;
+            this.numSolidSides = init.numSolidSides ?? 0;
+            this._vertex_t = [];
+            this.update(init);
+        } else {
+            // Shallow copy an existing TriangleMesh data
+            Object.assign(this, init);
+        }
     }
 
     
     /**
      * Update internal data structures from Delaunator 
      */
-    update(points: [number, number][], delaunator: Delaunator) {
-        this._vertex_r = points;
-        this._triangles = delaunator.triangles;
-        this._halfedges = delaunator.halfedges;
+    update(init: MeshInitializer) {
+        this._vertex_r = init.points;
+        this._triangles = init.delaunator.triangles;
+        this._halfedges = init.delaunator.halfedges;
         this._update();
     }
 
@@ -143,42 +160,28 @@ export default class TriangleMesh {
 
     
     /**
-     * Construct a DualMesh from a Delaunator object, without any
-     * additional boundary regions.
-     */
-    static fromDelaunator(points: Array<[number, number]>, delaunator: Delaunator) {
-        return new TriangleMesh({
-            numBoundaryRegions: 0,
-            numSolidSides: delaunator.triangles.length,
-            _vertex_r: points,
-            _triangles: delaunator.triangles,
-            _halfedges: delaunator.halfedges,
-        });
-    }
-
-
-    /**
      * Construct ghost elements to complete the graph.
      */
-    static addGhostStructure({_vertex_r, _triangles, _halfedges}) {
-        const numSolidSides = _triangles.length;
+    static addGhostStructure(init: MeshInitializer): MeshInitializer {
+        const {triangles, halfedges} = init.delaunator;
+        const numSolidSides = triangles.length;
         
         let numUnpairedSides = 0, firstUnpairedEdge = -1;
         let s_unpaired_r = []; // seed to side
         for (let s = 0; s < numSolidSides; s++) {
-            if (_halfedges[s] === -1) {
+            if (halfedges[s] === -1) {
                 numUnpairedSides++;
-                s_unpaired_r[_triangles[s]] = s;
+                s_unpaired_r[triangles[s]] = s;
                 firstUnpairedEdge = s;
             }
         }
 
-        const r_ghost = _vertex_r.length;
-        let newvertex_r = _vertex_r.concat([[NaN, NaN]]);
+        const r_ghost = init.points.length;
+        let newpoints = init.points.concat([[NaN, NaN]]);
         let r_newstart_s = new Int32Array(numSolidSides + 3 * numUnpairedSides);
-        r_newstart_s.set(_triangles);
+        r_newstart_s.set(triangles);
         let s_newopposite_s = new Int32Array(numSolidSides + 3 * numUnpairedSides);
-        s_newopposite_s.set(_halfedges);
+        s_newopposite_s.set(halfedges);
 
         for (let i = 0, s = firstUnpairedEdge;
              i < numUnpairedSides;
@@ -200,13 +203,16 @@ export default class TriangleMesh {
 
         return {
             numSolidSides,
-            numBoundaryRegions: 0,
-            _vertex_r: newvertex_r,
-            _triangles: r_newstart_s,
-            _halfedges: s_newopposite_s
+            numBoundaryRegions: init.numBoundaryRegions,
+            points: newpoints,
+            delaunator: {
+                triangles: r_newstart_s,
+                halfedges: s_newopposite_s,
+            }
         };
     }
 
+    // Accessors
     
     x_of_r(r: number): number        { return this._vertex_r[r][0]; }
     y_of_r(r: number): number        { return this._vertex_r[r][1]; }

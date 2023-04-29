@@ -39,9 +39,9 @@ const mountain = {
  * field, but we only need an approximation. For increased
  * interestingness, we add some randomness to the distance field.
  */
-function calculateMountainDistance(mesh: Mesh, t_seeds: number[], spacing: number, jaggedness: number, randFloat: () => number, distance_t: Float32Array) {
+function calculateMountainDistance(mesh: Mesh, t_peaks: number[], spacing: number, jaggedness: number, randFloat: () => number, distance_t: Float32Array) {
     distance_t.fill(-1);
-    let t_queue = t_seeds.concat([]);
+    let t_queue = t_peaks.concat([]);
     for (let i = 0; i < t_queue.length; i++) {
         let t_current = t_queue[i];
         for (let j = 0; j < 3; j++) {

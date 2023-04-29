@@ -1,6 +1,13 @@
-type Delaunator = {
+export type Point = [number, number];
+export type Delaunator = {
     triangles: Int32Array;
     halfedges: Int32Array;
+};
+export type MeshInitializer = {
+    points: Point[];
+    delaunator: Delaunator;
+    numBoundaryRegions?: number;
+    numSolidSides?: number;
 };
 /**
  * Represent a triangle-polygon dual mesh with:
@@ -33,7 +40,7 @@ type Delaunator = {
  * boundary regions to the ghost region. Elements that aren't "ghost"
  * are called "solid".
  */
-export default class TriangleMesh {
+export declare class TriangleMesh {
     static t_from_s(s: number): number;
     static s_prev_s(s: number): number;
     static s_next_s(s: number): number;
@@ -51,20 +58,14 @@ export default class TriangleMesh {
     _vertex_r: Array<[number, number]>;
     _options: any;
     /**
-     * Constructor takes partial mesh information and fills in the rest; the
-     * partial information is generated in create.js or in fromDelaunator.
+     * Constructor takes partial mesh information from Delaunator and
+     * constructs the rest.
      */
-    constructor({ numBoundaryRegions, numSolidSides, _vertex_r, _triangles, _halfedges }: {
-        numBoundaryRegions: any;
-        numSolidSides: any;
-        _vertex_r: any;
-        _triangles: any;
-        _halfedges: any;
-    });
+    constructor(init: MeshInitializer | TriangleMesh);
     /**
      * Update internal data structures from Delaunator
      */
-    update(points: [number, number][], delaunator: Delaunator): void;
+    update(init: MeshInitializer): void;
     /**
      * Update internal data structures to match the input mesh.
      *
@@ -74,10 +75,9 @@ export default class TriangleMesh {
      */
     _update(): void;
     /**
-     * Construct a DualMesh from a Delaunator object, without any
-     * additional boundary regions.
+     * Construct ghost elements to complete the graph.
      */
-    static fromDelaunator(points: Array<[number, number]>, delaunator: Delaunator): TriangleMesh;
+    static addGhostStructure(init: MeshInitializer): MeshInitializer;
     x_of_r(r: number): number;
     y_of_r(r: number): number;
     x_of_t(t: number): number;
@@ -104,4 +104,3 @@ export default class TriangleMesh {
     is_boundary_s(s: number): boolean;
     is_boundary_r(r: number): boolean;
 }
-export {};
