@@ -3,21 +3,42 @@
  * Copyright 2017, 2023 Red Blob Games <redblobgames@gmail.com>
  * License: Apache v2.0 <http://www.apache.org/licenses/LICENSE-2.0.html>
  *
- * Generate a random triangle mesh for a rectangular area, optionally
- * with boundary points, optionally with ghost elements.
+ * Helper functions for building a TriangleMesh.
  *
+ * The TriangleMesh constructor takes points, delaunator output,
+ * and a count of the number of boundary points. The boundary points
+ * must be the prefix of the points array.
+ *
+ * To have equally spaced points added around a rectangular boundary,
+ * pass in a boundary with the rectangle size and the boundary
+ * spacing. If using Poisson disc points, I recommend √2 times the
+ * spacing used for Poisson disc.
+ *
+ * Recommended code structure:
+
+   import {generateInteriorBoundaryPoints} from "dual-mesh/create.js";
+   import {TriangleMesh} from "dual-mesh/index.js";
+
+   const bounds = {left: 0, top: 0, width: 1000, height: 1000};
+   const spacing = 50;
+   let points = generateInteriorBoundaryPoints(bounds, spacing);
+   let numBoundaryPoints = points.length;
+   let generator = new Poisson({
+     shape: [bounds.width, bounds.height]
+     minDistance: spacing / Math.sqrt(2),
+   });
+   for (let p of points) { generator.addPoint(p); }
+   points = generator.fill();
+
+   let init = {points, delaunator: Delaunator.from(points), numBoundaryPoints};
+   init = TriangleMesh.addGhostStructure(init);
+   let mesh = new TriangleMesh(init);
+
  */
 'use strict';
-import Delaunator from 'delaunator';
 import { TriangleMesh } from "./index.js";
-function checkPointInequality(_init) {
-    // TODO: check for collinear vertices. Around each red point P if
-    // there's a point Q and R both connected to it, and the angle P→Q and
-    // the angle P→R are 180° apart, then there's collinearity. This would
-    // indicate an issue with point selection.
-}
-function checkTriangleInequality({ points, delaunator: { triangles, halfedges } }) {
-    // check for skinny triangles
+/** Check for skinny triangles, indicating bad point selection */
+export function checkTriangleInequality({ points, delaunator: { triangles, halfedges } }) {
     const badAngleLimit = 30;
     let summary = new Array(badAngleLimit).fill(0);
     let count = 0;
@@ -41,138 +62,78 @@ function checkTriangleInequality({ points, delaunator: { triangles, halfedges } 
         console.log('  bad angles:', summary.join(" "));
     }
 }
-function checkMeshConnectivity({ points, delaunator: { triangles, halfedges } }) {
-    // 1. make sure each side's opposite is back to itself
-    // 2. make sure region-circulating starting from each side works
-    let r_ghost = points.length - 1, s_out = [];
-    for (let s0 = 0; s0 < triangles.length; s0++) {
-        if (halfedges[halfedges[s0]] !== s0) {
-            console.log(`FAIL _halfedges[_halfedges[${s0}]] !== ${s0}`);
-        }
-        let s = s0, count = 0;
-        s_out.length = 0;
-        do {
-            count++;
-            s_out.push(s);
-            s = TriangleMesh.s_next_s(halfedges[s]);
-            if (count > 100 && triangles[s0] !== r_ghost) {
-                console.log(`FAIL to circulate around region with start side=${s0} from region ${triangles[s0]} to ${triangles[TriangleMesh.s_next_s(s0)]}, out_s=${s_out}`);
-                break;
-            }
-        } while (s !== s0);
-    }
-}
-/*
- * Add vertices evenly along the boundary of the mesh
- * just barely inside the given boundary rectangle.
+/**
+ * Add vertices evenly along the boundary of the mesh just barely
+ * inside the given boundary rectangle.
  *
- * The boundarySpacing parameter should be roughly √2
- * times the poisson disk minDistance spacing or √½ the
- * maxDistance spacing.
+ * The boundarySpacing parameter should be roughly √2 times the
+ * poisson disk minDistance spacing or √½ the maxDistance spacing.
  *
- * They need to be inside and not outside so that these
- * points can be used with the poisson disk libraries I
- * commonly use. The libraries require that all points
- * be inside the range.
+ * They need to be inside and not outside so that these points can be
+ * used with the poisson disk libraries I commonly use. The libraries
+ * require that all points be inside the range.
  *
- * I use a *slight* curve so that the Delaunay triangulation
- * doesn't make long thin triangles along the boundary.
+ * Since these points are slightly inside the boundary, the triangle
+ * mesh will not fill the boundary. Generate exterior boundary points
+ * if you need to fill the boundary.
+ *
+ * I use a *slight* curve so that the Delaunay triangulation doesn't
+ * make long thin triangles along the boundary.
  */
-function addBoundaryPoints({ left, top, width, height }, boundarySpacing) {
+export function generateInteriorBoundaryPoints({ left, top, width, height }, boundarySpacing) {
+    // https://www.redblobgames.com/x/2314-poisson-with-boundary/
+    const epsilon = 1e-4;
     const curvature = 1.0;
     let W = Math.ceil((width - 2 * curvature) / boundarySpacing);
     let H = Math.ceil((height - 2 * curvature) / boundarySpacing);
     let points = [];
+    // Top and bottom
     for (let q = 0; q < W; q++) {
         let t = q / W;
         let dx = (width - 2 * curvature) * t;
-        let dy = curvature * 4 * (t - 0.5) ** 2;
+        let dy = epsilon + curvature * 4 * (t - 0.5) ** 2;
         points.push([left + curvature + dx, top + dy], [left + width - curvature - dx, top + height - dy]);
     }
+    // Left and right
     for (let r = 0; r < H; r++) {
         let t = r / H;
         let dy = (height - 2 * curvature) * t;
-        let dx = curvature * 4 * (t - 0.5) ** 2;
+        let dx = epsilon + curvature * 4 * (t - 0.5) ** 2;
         points.push([left + dx, top + height - curvature - dy], [left + width - dx, top + curvature + dy]);
     }
     return points;
 }
 /**
- * Build a dual mesh from points, with ghost triangles around the exterior.
+ * Add vertices evenly along the boundary of the mesh
+ * outside the given boundary rectangle.
  *
- * Options:
- *   - To have equally spaced points added around a rectangular boundary,
- *     pass in a boundary with the rectangle size and the boundary spacing.
- *     If using Poisson disc points, I recommend √2 times the spacing used
- *     for Poisson disc.
+ * The boundarySpacing parameter should be roughly √2 times the
+ * poisson disk minDistance spacing or √½ the maxDistance spacing.
  *
- * Phases:
- *   - Add boundary points
- *   - Add your own set of points
- *   - Add Poisson disc points
- *
- * The mesh generator runs some sanity checks but does not correct the
- * generated points.
- *
- * Examples:
- *
- * Build a mesh with poisson disc points and a boundary:
- *
- * TODO:
- * new MeshBuilder(options)
- *    .appendPoints(pointsArray)
- *    .create()
+ * If using poisson disc selection, the interior boundary points will
+ * be to keep the points separated and the exterior boundary points
+ * will be to make sure the entire map area is filled.
  */
-export default class MeshBuilder {
-    points;
-    numBoundaryRegions;
-    options;
-    constructor(options = {}) {
-        let boundaryPoints = options.boundarySpacing ? addBoundaryPoints(options.bounds, options.boundarySpacing) : [];
-        this.points = boundaryPoints;
-        this.numBoundaryRegions = boundaryPoints.length;
-        this.options = options;
+export function generateExteriorBoundaryPoints({ left, top, width, height }, boundarySpacing) {
+    // https://www.redblobgames.com/x/2314-poisson-with-boundary/
+    const curvature = 1.0;
+    const diagonal = boundarySpacing / Math.sqrt(2);
+    let points = [];
+    let W = Math.ceil((width - 2 * curvature) / boundarySpacing);
+    let H = Math.ceil((height - 2 * curvature) / boundarySpacing);
+    // Top and bottom
+    for (let q = 0; q < W; q++) {
+        let t = q / W;
+        let dx = (width - 2 * curvature) * t + boundarySpacing / 2;
+        points.push([left + dx, top - diagonal], [left + width - dx, top + height + diagonal]);
     }
-    /** pass in a function to return a new points array; note that
-     * if there are existing boundary points, they should be preserved */
-    replacePointsFn(adder) {
-        this.points = adder(this.points);
-        return this;
+    // Left and right
+    for (let r = 0; r < H; r++) {
+        let t = r / H;
+        let dy = (height - 2 * curvature) * t + boundarySpacing / 2;
+        points.push([left - diagonal, top + height - dy], [left + width + diagonal, top + dy]);
     }
-    /** pass in an array of new points to append to the points array */
-    appendPoint(newPoints) {
-        this.points = this.points.concat(newPoints);
-        return this;
-    }
-    /** Points will be [x, y] */
-    getNonBoundaryPoints() {
-        return this.points.slice(this.numBoundaryRegions);
-    }
-    /** (used for more advanced mixing of different mesh types) */
-    clearNonBoundaryPoints() {
-        this.points.splice(this.numBoundaryRegions, this.points.length);
-        return this;
-    }
-    /** Build and return a TriangleMesh */
-    create(runChecks = false) {
-        let init = {
-            points: this.points,
-            delaunator: Delaunator.from(this.points),
-        };
-        // TODO: check that all bounding points are inside the bounding rectangle
-        // TODO: check that the boundary points at the corners connect in a way that stays outside
-        // the bounding rectangle, so that the convex hull is entirely outside the rectangle
-        if (runChecks) {
-            checkPointInequality(init);
-            checkTriangleInequality(init);
-        }
-        let withGhost = TriangleMesh.addGhostStructure(init);
-        withGhost.numBoundaryRegions = this.numBoundaryRegions;
-        if (runChecks) {
-            checkMeshConnectivity(withGhost);
-        }
-        let mesh = new TriangleMesh(withGhost);
-        mesh._options = this.options;
-        return mesh;
-    }
+    // Corners
+    points.push([left - diagonal, top - diagonal], [left + width + diagonal, top - diagonal], [left - diagonal, top + height + diagonal], [left + width + diagonal, top + height + diagonal]);
+    return points;
 }

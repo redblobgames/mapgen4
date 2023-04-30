@@ -24,7 +24,7 @@ export async function makeMesh() {
     let meshInit: MeshInitializer = TriangleMesh.addGhostStructure({
         points,
         delaunator: Delaunator.from(points),
-        numBoundaryRegions: numExteriorBoundaryPoints,
+        numBoundaryPoints: numExteriorBoundaryPoints,
     });
     let mesh = new TriangleMesh(meshInit) as Mesh;
     console.log(`triangles = ${mesh.numTriangles} regions = ${mesh.numRegions}`);

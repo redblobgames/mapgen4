@@ -11,6 +11,7 @@
 
 import Poisson from 'fast-2d-poisson-disk-sampling';
 import {makeRandFloat} from "./prng.ts";
+import {generateInteriorBoundaryPoints, generateExteriorBoundaryPoints} from "./dual-mesh/create.ts";
 
 type Point = [number, number];
 type PointsData = {
@@ -36,40 +37,16 @@ type PointsData = {
 
  */
 export function choosePoints(seed: number, spacing: number, mountainSpacing: number): PointsData {
-    // First, generate both interior and exterior boundary points, using
-    // a double layer like I show on
+    // Generate both interior and exterior boundary points; see
     // https://www.redblobgames.com/x/2314-poisson-with-boundary/
-    const epsilon = 1e-4
     const boundarySpacing = spacing * Math.sqrt(2);
-    const left = 0, top = 0, width = 1000, height = 1000;
-    const curvature = 1.0;
-    let interiorBoundaryPoints = [], exteriorBoundaryPoints = [];
-    let W = Math.ceil((width - 2 * curvature) / boundarySpacing);
-    let H = Math.ceil((height - 2 * curvature) / boundarySpacing);
-    for (let q = 0; q < W; q++) {
-        let t = q / W;
-        let dx = (width - 2 * curvature) * t;
-        let dy = epsilon + curvature * 4 * (t - 0.5) ** 2;
-        interiorBoundaryPoints.push([left + curvature + dx, top + dy], [left + width - curvature - dx, top + height - dy]);
-        exteriorBoundaryPoints.push([left + dx + boundarySpacing/2, top - boundarySpacing/Math.sqrt(2)],
-                                    [left + width - dx - boundarySpacing/2, top + height + boundarySpacing/Math.sqrt(2)]);
-    }
-    for (let r = 0; r < H; r++) {
-        let t = r / H;
-        let dy = (height - 2 * curvature) * t;
-        let dx = epsilon + curvature * 4 * (t - 0.5) ** 2;
-        interiorBoundaryPoints.push([left + dx, top + height - curvature - dy], [left + width - dx, top + curvature + dy]);
-        exteriorBoundaryPoints.push([left - boundarySpacing/Math.sqrt(2), top + height - dy - boundarySpacing/2],
-                                    [left + width + boundarySpacing/Math.sqrt(2), top + dy + boundarySpacing/2]);
-    }
-    exteriorBoundaryPoints.push([left - boundarySpacing/Math.sqrt(2), top - boundarySpacing/Math.sqrt(2)],
-                                [left + width + boundarySpacing/Math.sqrt(2), top - boundarySpacing/Math.sqrt(2)],
-                                [left - boundarySpacing/Math.sqrt(2), top + height + boundarySpacing/Math.sqrt(2)],
-                                [left + width + boundarySpacing/Math.sqrt(2), top + height + boundarySpacing/Math.sqrt(2)]);
+    const bounds = {left: 0, top: 0, width: 1000, height: 1000}; // left,top must be 0 for poisson
+    let interiorBoundaryPoints = generateInteriorBoundaryPoints(bounds, boundarySpacing);
+    let exteriorBoundaryPoints = generateExteriorBoundaryPoints(bounds, boundarySpacing);
     
     // Second, generate the mountain points, with the interior boundary points pushing mountains away
     let mountainPointsGenerator = new Poisson({
-        shape: [width, height],
+        shape: [bounds.width, bounds.height],
         radius: mountainSpacing,
         tries: 30,
     }, makeRandFloat(seed));
@@ -79,7 +56,7 @@ export function choosePoints(seed: number, spacing: number, mountainSpacing: num
     
     // Generate the rest of the mesh points with the interior boundary points and mountain points as constraints
     let generator = new Poisson({
-        shape: [1000, 1000],
+        shape: [bounds.width, bounds.height],
         radius: spacing,
         tries: 6, // NOTE: below 5 is unstable, and 5 is borderline; defaults to 30, but lower is faster
     }, makeRandFloat(seed));

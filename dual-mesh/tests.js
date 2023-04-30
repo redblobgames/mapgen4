@@ -8,7 +8,11 @@
 
 import Delaunator from 'delaunator';
 import Poisson from 'poisson-disk-sampling';
-import MeshBuilder from "./dist/create.js";
+import {TriangleMesh} from "./dist/index.js";
+import {
+    generateInteriorBoundaryPoints,
+    checkTriangleInequality,
+} from "./dist/create.js";
 
 const Test = {
     count: 0,
@@ -26,19 +30,49 @@ const Test = {
 };
 
 
+/** Check mesh connectivity for a complete mesh (with ghost elements added) */
+function checkMeshConnectivity({points, delaunator: {triangles, halfedges}}) {
+    // 1. make sure each side's opposite is back to itself
+    // 2. make sure region-circulating starting from each side works
+    let r_ghost = points.length - 1, s_out = [];
+    for (let s0 = 0; s0 < triangles.length; s0++) {
+        if (halfedges[halfedges[s0]] !== s0) {
+            console.log(`FAIL _halfedges[_halfedges[${s0}]] !== ${s0}`);
+        }
+        let s = s0, count = 0;
+        s_out.length = 0;
+        do {
+            count++; s_out.push(s);
+            s = TriangleMesh.s_next_s(halfedges[s]);
+            if (count > 100 && triangles[s0] !== r_ghost) {
+                console.log(`FAIL to circulate around region with start side=${s0} from region ${triangles[s0]} to ${triangles[TriangleMesh.s_next_s(s0)]}, out_s=${s_out}`);
+                break;
+            }
+        } while (s !== s0);
+    }
+}
+
+
 function testStructuralInvariants() {
-    let mesh = new MeshBuilder({
-        bounds: {left: 0, top: 0, width: 1000, height: 1000},
-        boundarySpacing: 450})
-        .replacePointsFn((points) => {
-            let generator = new Poisson({
-                shape: [1000, 1000],
-                minDistance: 450,
-            });
-            for (let p of points) generator.addPoint(p);
-            return generator.fill();
-        })
-        .create(true);
+    const bounds = {left: 0, top: 0, width: 1000, height: 1000};
+    const spacing = 450;
+
+    let points = generateInteriorBoundaryPoints(bounds, spacing);
+    let numBoundaryPoints = points.length;
+    let generator = new Poisson({
+        shape: [bounds.width, bounds.height],
+        minDistance: spacing / Math.sqrt(2),
+    });
+    for (let p of points) { generator.addPoint(p); }
+    points = generator.fill();
+
+    let init = {points, delaunator: Delaunator.from(points), numBoundaryPoints};
+    checkTriangleInequality(init);
+
+    init = TriangleMesh.addGhostStructure(init);
+    checkMeshConnectivity(init);
+
+    let mesh = new TriangleMesh(init);
     
     let s_out = [];
     for (let s1 = 0; s1 < mesh.numSides; s1++) {

@@ -3,10 +3,20 @@ export type Delaunator = {
     triangles: Int32Array;
     halfedges: Int32Array;
 };
+/**
+ * Each initial point generates one region, where
+ * points.slice(0, numBoundaryPoints) are considered to be
+ * boundary points/regions.
+ *
+ * As created from Delaunator, the mesh has some sides without pairs.
+ * Optionally use TriangleMesh.addGhostStructure() to add "ghost"
+ * sides, triangles, and region to complete the mesh. Elements that
+ * aren't "ghost" are called "solid".
+ */
 export type MeshInitializer = {
     points: Point[];
     delaunator: Delaunator;
-    numBoundaryRegions?: number;
+    numBoundaryPoints?: number;
     numSolidSides?: number;
 };
 /**
@@ -31,14 +41,9 @@ export type MeshInitializer = {
  * r0, r1 are adjacent, there will be two sides representing the boundary,
  * r_begin_s and r_end_s.
  *
- * Each side will have a pair, accessed with s_opposite_s.
- *
- * If created using the functions in create.js, the mesh has no
- * boundaries; it wraps around the "back" using a "ghost" region. Some
- * regions are marked as the boundary; these are connected to the
- * ghost region. Ghost triangles and ghost sides connect these
- * boundary regions to the ghost region. Elements that aren't "ghost"
- * are called "solid".
+ * A side from p-->q will have a pair q-->p, at index
+ * s_opposite_s. It will be -1 if the side doesn't have a pair.
+ * Use addGhostStructure() to add ghost pairs to all sides.
  */
 export declare class TriangleMesh {
     static t_from_s(s: number): number;
