@@ -6,13 +6,14 @@
  * This module uses webgl+regl to render the generated maps
  */
 
-'use strict';
+import {vec2, vec4, mat4} from 'gl-matrix';
+import colormap from "./colormap.ts";
+import Geometry from "./geometry.ts";
+import type {Mesh} from "./types.d.ts";
 
-import {vec4, mat4} from 'gl-matrix';
-import colormap from './colormap';
-import Geometry from './geometry';
-import createREGL from 'regl';
-const regl = createREGL({
+import REGL from 'regl/dist/regl.min.js';
+// NOTE: the typescript definition for regl.prop so cumbersome I don't use it
+const regl = REGL({
     canvas: "#mapgen4",
     extensions: ['OES_element_index_uint']
 });
@@ -191,6 +192,7 @@ uniform float u_inverse_texture_size,
               u_outline_depth, u_outline_threshold,
               u_biome_colors;
 varying vec2 v_uv, v_xy, v_em;
+varying float v_z;
 
 const vec2 _decipher = vec2(1.0/256.0, 1);
 float decipher(vec4 v) {
@@ -217,11 +219,25 @@ void main() {
    em.y = v_em.y;
    vec3 neutral_biome_color = neutral_land_biome;
    vec4 water_color = texture2D(u_water, pos);
-   if (em.x >= 0.5) { em.x -= u_outline_water / 256.0 * (1.0 - water_color.a); }
+   if (em.x >= 0.5 && v_z >= 0.0) {
+     // on land, lower the elevation around rivers
+     em.x -= u_outline_water / 256.0 * (1.0 - water_color.a); 
+   } else {
+     // in the ocean, or underground, don't draw rivers
+     water_color.a = 0.0; neutral_biome_color = neutral_water_biome; 
+   }
    vec3 biome_color = texture2D(u_colormap, em).rgb;
-   if (em.x < 0.5) { water_color.a = 0.0; neutral_biome_color = neutral_water_biome; } // don't draw rivers in the ocean
    water_color = mix(vec4(neutral_water_biome * (1.2 - water_color.a), water_color.a), water_color, u_biome_colors);
    biome_color = mix(neutral_biome_color, biome_color, u_biome_colors);
+   if (v_z < 0.0) {
+      // at the exterior boundary, we'll draw soil or water underground
+      float land_or_water = smoothstep(0.0, -0.001, v_em.x - v_z);
+      vec3 soil_color = vec3(0.4, 0.3, 0.2);
+      vec3 underground_color = mix(soil_color, mix(neutral_water_biome, vec3(0.1, 0.1, 0.2), u_biome_colors), land_or_water) * smoothstep(-0.7, -0.1, v_z);
+      vec3 highlight_color = mix(vec3(0, 0, 0), mix(vec3(0.8, 0.8, 0.8), vec3(0.4, 0.5, 0.7), u_biome_colors), land_or_water);
+      biome_color = mix(underground_color, highlight_color, 0.5 * smoothstep(-0.025, 0.0, v_z));
+      light = 1.0 - 0.3 * smoothstep(0.8, 1.0, fract((v_em.x - v_z) * 20.0)); // add horizontal lines
+   }
    // if (fract(em.x * 10.0) < 10.0 * fwidth(em.x)) { biome_color = vec3(0,0,0); } // contour lines
 
    // TODO: add noise texture based on biome
@@ -259,11 +275,17 @@ uniform mat4 u_projection;
 attribute vec2 a_xy;
 attribute vec2 a_em;
 varying vec2 v_em, v_uv, v_xy;
-varying float v_e, v_m;
+varying float v_z;
 void main() {
-    vec4 pos = vec4(u_projection * vec4(a_xy, max(0.0, a_em.x), 1));
-    v_uv = a_xy / 1000.0;
     v_em = a_em;
+    vec2 xy_clamped = clamp(a_xy, vec2(0, 0), vec2(1000, 1000));
+    v_z = max(0.0, a_em.x); // oceans with e<0 still rendered at z=0
+    if (xy_clamped != a_xy) { // boundary points
+        v_z = -0.5;
+        v_em = vec2(0.0, 0.0);
+    }
+    vec4 pos = vec4(u_projection * vec4(xy_clamped, v_z, 1));
+    v_uv = a_xy / 1000.0;
     v_xy = (1.0 + pos.xy) * 0.5;
     gl_Position = pos;
 }`,
@@ -332,7 +354,27 @@ void main() {
 
 
 class Renderer {
-    constructor (mesh) {
+    numRiverTriangles: number = 0;
+    
+    topdown: mat4;
+    projection: mat4;
+    inverse_projection: mat4;
+    
+    a_quad_xy: Float32Array;
+    a_quad_em: Float32Array;
+    quad_elements: Int32Array;
+    a_river_xyuv: Float32Array;
+
+    buffer_quad_xy: REGL.Buffer;
+    buffer_quad_em: REGL.Buffer;
+    buffer_river_xyuv: REGL.Buffer;
+    buffer_quad_elements: REGL.Elements;
+
+    screenshotCanvas: HTMLCanvasElement;
+    screenshotCallback: () => void;
+    renderParam: any;
+    
+    constructor (mesh: Mesh) {
         this.resizeCanvas();
         
         this.topdown = mat4.create();
@@ -351,7 +393,6 @@ class Renderer {
          * each of the N/2 nodes will produce 2 triangles. On average
          * there will be 1.5 output triangles per input triangle. */
         this.a_river_xyuv = new Float32Array(1.5 * 3 * 4 * mesh.numSolidTriangles);
-        this.numRiverTriangles = 0;
         
         Geometry.setMeshGeometry(mesh, this.a_quad_xy);
         
@@ -390,11 +431,7 @@ class Renderer {
         this.startDrawingLoop();
     }
 
-    /**
-     * @param {[number, number]} coords - screen coordinates 0 ≤ x ≤ 1, 0 ≤ y ≤ 1
-     * @returns {[number, number]} - world coords 0 ≤ x ≤ 1000, 0 ≤ y ≤ 1000 
-     */
-    screenToWorld(coords) {
+    screenToWorld(coords: [number, number]): vec2 {
         /* convert from screen 2d (inverted y) to 4d for matrix multiply */
         let glCoords = vec4.fromValues(
             coords[0] * 2 - 1,
@@ -418,7 +455,7 @@ class Renderer {
 
     /* Allow drawing at a different resolution than the internal texture size */
     resizeCanvas() {
-        let canvas = /** @type{HTMLCanvasElement} */(document.getElementById('mapgen4'));
+        let canvas = document.getElementById('mapgen4') as HTMLCanvasElement;
         let size = canvas.clientWidth;
         size = 2048; /* could be smaller to increase performance */
         if (canvas.width !== size || canvas.height !== size) {
@@ -429,9 +466,26 @@ class Renderer {
     }
 
     startDrawingLoop() {
+        function clearBuffers() {
+            // I don't have to clear fbo_em because it doesn't have depth
+            // and will be redrawn every frame. I do have to clear
+            // fbo_river because even though it doesn't have depth, it
+            // doesn't draw all triangles.
+            fbo_river.use(() => {
+                regl.clear({color: [0, 0, 0, 0]});
+            });
+            fbo_z.use(() => {
+                regl.clear({color: [0, 0, 0, 1], depth: 1});
+            });
+            fbo_final.use(() => {
+                regl.clear({color: [0.3, 0.3, 0.35, 1], depth: 1});
+            });
+        }
+
         /* Only draw when render parameters have been passed in;
          * otherwise skip the render and wait for the next tick */
-        regl.frame(context => {
+        clearBuffers();
+        regl.frame(_context => {
             const renderParam = this.renderParam;
             if (!renderParam) { return; }
             this.renderParam = undefined;
@@ -529,25 +583,13 @@ class Renderer {
                 this.screenshotCallback();
                 this.screenshotCallback = null;
             }
-                
-            // I don't have to clear fbo_em because it doesn't have depth
-            // and will be redrawn every frame. I do have to clear
-            // fbo_river because even though it doesn't have depth, it
-            // doesn't draw all triangles.
-            fbo_river.use(() => {
-                regl.clear({color: [0, 0, 0, 0]});
-            });
-            fbo_z.use(() => {
-                regl.clear({color: [0, 0, 0, 1], depth: 1});
-            });
-            fbo_final.use(() => {
-                regl.clear({color: [0.2, 0.3, 0.5, 1], depth: 1});
-            });
+
+            clearBuffers();
         });
     }
     
 
-    updateView(renderParam) {
+    updateView(renderParam: any) {
         this.renderParam = renderParam;
     }
 }

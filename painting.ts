@@ -13,8 +13,8 @@
  * then send the elevation map to the generator to produce the output.
  */
 
-import SimplexNoise from 'simplex-noise';
-import {makeRandFloat} from '@redblobgames/prng';
+import {createNoise2D} from 'simplex-noise';
+import {makeRandFloat} from "./prng.ts";
 
 const CANVAS_SIZE = 128;
 
@@ -30,8 +30,12 @@ const currentStroke = {
 
 /* The elevation is -1.0 to 0.0 → water, 0.0 to +1.0 → land */
 class Generator {
+    seed = 0;
+    island = 0;
+    userHasPainted = false;
+    elevation: Float32Array;
+    
     constructor () {
-        this.userHasPainted = false;
         this.elevation = new Float32Array(CANVAS_SIZE * CANVAS_SIZE);
     }
 
@@ -47,7 +51,7 @@ class Generator {
     /** Use a noise function to determine the shape */
     generate() {
         const {elevation, island} = this;
-        const noise = new SimplexNoise(makeRandFloat(this.seed));
+        const noise2D = createNoise2D(makeRandFloat(this.seed));
         const persistence = 1/2;
         const amplitudes = Array.from({length: 5}, (_, octave) => Math.pow(persistence, octave));
 
@@ -55,7 +59,7 @@ class Generator {
             let sum = 0, sumOfAmplitudes = 0;
             for (let octave = 0; octave < amplitudes.length; octave++) {
                 let frequency = 1 << octave;
-                sum += amplitudes[octave] * noise.noise2D(nx * frequency, ny * frequency);
+                sum += amplitudes[octave] * noise2D(nx * frequency, ny * frequency);
                 sumOfAmplitudes += amplitudes[octave];
             }
             return sum / sumOfAmplitudes;
@@ -72,8 +76,8 @@ class Generator {
                 if (e > +1.0) { e = +1.0; }
                 elevation[p] = e;
                 if (e > 0.0) {
-                    let m = (0.5 * noise.noise2D(nx + 30, ny + 50)
-                             + 0.5 * noise.noise2D(2*nx + 33, 2*ny + 55));
+                    let m = (0.5 * noise2D(nx + 30, ny + 50)
+                             + 0.5 * noise2D(2*nx + 33, 2*ny + 55));
                     // TODO: make some of these into parameters
                     let mountain = Math.min(1.0, e * 5.0) * (1 - Math.abs(m) / 0.5);
                     if (mountain > 0.0) {
@@ -87,15 +91,12 @@ class Generator {
     }
 
     /**
-     * Paint a circular region
-     *
-     * @param {{elevation: number}} tool
-     * @param {number} x0 - should be 0 to 1
-     * @param {number} y0 - should be 0 to 1
-     * @param {{innerRadius: number, outerRadius: number, rate: number}} size
-     * @param {number} deltaTimeInMs
+     * Paint a circular region. x0, y0 should be 0 to 1
      */
-    paintAt(tool, x0, y0, size, deltaTimeInMs) {
+    paintAt(tool: { elevation: number; },
+            x0: number, y0: number,
+            size: { innerRadius: number; outerRadius: number; rate: number; },
+            deltaTimeInMs: number) {
         let {elevation} = this;
         /* This has two effects: first time you click the mouse it has a
          * strong effect, and it also limits the amount in case you
@@ -172,8 +173,7 @@ function displayCurrentTool() {
     document.getElementById(currentSize).classList.add(className);
 }
 
-/** @type {[string, string, function][]} */
-const controls = [
+const controls: [string, string, () => void][] = [
     ['1', "tiny",     () => { currentSize = 'tiny'; }],
     ['2', "small",    () => { currentSize = 'small'; }],
     ['3', "medium",   () => { currentSize = 'medium'; }],
@@ -201,10 +201,7 @@ function setUpPaintEventHandling() {
     let dragging = false;
     let timestamp = 0;
     
-    /**
-     * @param {PointerEvent} event
-     */
-    function start(event) {
+    function start(event: PointerEvent) {
         if (event.button !== 0) return; // left button only
         el.setPointerCapture(event.pointerId);
         
@@ -220,10 +217,7 @@ function setUpPaintEventHandling() {
         dragging = false;
     }
 
-    /**
-     * @param {PointerEvent} event
-     */
-    function move(event) {
+    function move(event: PointerEvent) {
         if (!dragging) return;
 
         const nowMs = Date.now();

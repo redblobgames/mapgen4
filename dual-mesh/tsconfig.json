@@ -1,0 +1,12 @@
+{
+    "compilerOptions": {
+        "target": "esnext",
+        "module": "esnext",
+        "moduleResolution": "nodenext",
+        "declaration": true,
+        "declarationDir": "dist",
+        "outDir": "dist"
+    },
+    "include": ["./index.ts", "./create.ts"],
+    "exclude": ["node_modules", "dist", "build"]
+}

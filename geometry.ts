@@ -5,80 +5,71 @@
  */
 
 import {vec2} from 'gl-matrix';
-import Map from './map';
-
-/**
- * @typedef { import("./types").Mesh } Mesh
- */
-
+import Map from "./map.ts";
+import type {Mesh} from "./types.d.ts";
 
 /**
  * Fill a buffer with data from the mesh.
- *
- * @param {Mesh} mesh
- * @param {Float32Array} P - x,y for each region, then for each triangle
  */
-function setMeshGeometry(mesh, P) {
+function setMeshGeometry(mesh: Mesh, P: Float32Array) {
     let {numRegions, numTriangles} = mesh;
     if (P.length !== 2 * (numRegions + numTriangles)) { throw "wrong size"; }
 
     let p = 0;
     for (let r = 0; r < numRegions; r++) {
-        P[p++] = mesh.r_x(r);
-        P[p++] = mesh.r_y(r);
+        P[p++] = mesh.x_of_r(r);
+        P[p++] = mesh.y_of_r(r);
     }
     for (let t = 0; t < numTriangles; t++) {
-        P[p++] = mesh.t_x(t);
-        P[p++] = mesh.t_y(t);
+        P[p++] = mesh.x_of_t(t);
+        P[p++] = mesh.y_of_t(t);
     }
 };
 
 /**
  * Fill an indexed buffer with data from the map.
- *
- * @param {Map} map
- * @param {Int32Array} I - indices into the data array
- * @param {Float32Array} P - elevation, rainfall data
  */
-function setMapGeometry(map, I, P) {
+function setMapGeometry(map: Map, I: Int32Array, P: Float32Array) {
     // TODO: V should probably depend on the slope, or elevation, or maybe it should be 0.95 in mountainous areas and 0.99 elsewhere
     const V = 0.95; // reduce elevation in valleys
-    let {mesh, s_flow, r_elevation, t_elevation, r_rainfall} = map;
-    let {numSolidSides, numRegions, numTriangles} = mesh;
+    let {mesh, flow_s, elevation_r, elevation_t, rainfall_r} = map;
+    let {numSolidSides, numRegions, numTriangles, is_boundary_t} = mesh;
 
     if (I.length !== 3 * numSolidSides) { throw "wrong size"; }
     if (P.length !== 2 * (numRegions + numTriangles)) { throw "wrong size"; }
 
     let p = 0;
     for (let r = 0; r < numRegions; r++) {
-        P[p++] = r_elevation[r];
-        P[p++] = r_rainfall[r];
+        P[p++] = elevation_r[r];
+        P[p++] = rainfall_r[r];
     }
     for (let t = 0; t < numTriangles; t++) {
-        P[p++] = V * t_elevation[t];
+        P[p++] = V * elevation_t[t];
         let s0 = 3*t;
-        let r1 = mesh.s_begin_r(s0),
-            r2 = mesh.s_begin_r(s0+1),
-            r3 = mesh.s_begin_r(s0+2);
-        P[p++] = 1/3 * (r_rainfall[r1] + r_rainfall[r2] + r_rainfall[r3]);
+        let r1 = mesh.r_begin_s(s0),
+            r2 = mesh.r_begin_s(s0+1),
+            r3 = mesh.r_begin_s(s0+2);
+        P[p++] = 1/3 * (rainfall_r[r1] + rainfall_r[r2] + rainfall_r[r3]);
     }
 
-    // TODO: split this into its own function; it can be updated separately, and maybe not as often
     let i = 0;
     for (let s = 0; s < numSolidSides; s++) {
-        let opposite_s = mesh.s_opposite_s(s),
-            r1 = mesh.s_begin_r(s),
-            r2 = mesh.s_begin_r(opposite_s),
-            t1 = mesh.s_inner_t(s),
-            t2 = mesh.s_inner_t(opposite_s);
+        let s_opposite = mesh.s_opposite_s(s),
+            r1 = mesh.r_begin_s(s),
+            r2 = mesh.r_begin_s(s_opposite),
+            t1 = mesh.t_inner_s(s),
+            t2 = mesh.t_inner_s(s_opposite);
         
         // Each quadrilateral is turned into two triangles, so each
         // half-edge gets turned into one. There are two ways to fold
         // a quadrilateral. This is usually a nuisance but in this
         // case it's a feature. See the explanation here
         // https://www.redblobgames.com/x/1725-procedural-elevation/#rendering
-        let coast = r_elevation[r1] < 0.0 || r_elevation[r2] < 0.0;
-        if (coast || s_flow[s] > 0 || s_flow[opposite_s] > 0) {
+        let is_valley = false;
+        if (elevation_r[r1] < 0.0 || elevation_r[r2] < 0.0) is_valley = true;
+        if (flow_s[s] > 0 || flow_s[s_opposite] > 0) is_valley = true;
+        if (is_boundary_t[t1] || is_boundary_t[t2]) is_valley = false;
+        if (is_valley) {
             // It's a coastal or river edge, forming a valley
             I[i++] = r1; I[i++] = numRegions+t2; I[i++] = numRegions+t1;
         } else {
@@ -100,13 +91,13 @@ function setMapGeometry(map, I, P) {
  * Cols will be the input flow rate
  * Rows will be the output flow rate
 */
-function assignTextureCoordinates(spacing, numSizes, textureSize) {
+function assignTextureCoordinates(spacing: number, numSizes: number, textureSize: number) {
     /* create (numSizes+1)^2 size combinations, each with two triangles */
-    function UV(x, y) {
+    function UV(x: number, y: number) {
         return {xy: [x, y], uv: [(x+0.5)/textureSize, (y+0.5)/textureSize]};
     }
 
-    let triangles = [[]];
+    let triangles: any = [[]];
     let width = Math.floor((textureSize - 2*spacing) / (2*numSizes+3)) - spacing,
         height = Math.floor((textureSize - 2*spacing) / (numSizes+1)) - spacing;
     for (let row = 0; row <= numSizes; row++) {
@@ -137,9 +128,9 @@ const riverTexturePositions = assignTextureCoordinates(riverTextureSpacing, numR
 function createRiverBitmap() {
     let canvas = document.createElement('canvas');
     canvas.width = canvas.height = riverTextureSize;
-    let ctx = canvas.getContext('2d');
+    let ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
 
-    function lineWidth(i) {
+    function lineWidth(i: number) {
         const spriteSize = riverTexturePositions[0][1][0][0].xy[0] - riverTexturePositions[0][0][0][0].xy[0];
         return i / numRiverSizes * spriteSize * riverMaximumFractionOfWidth;
     }
@@ -163,8 +154,6 @@ function createRiverBitmap() {
                 if (type === 1) {
                     // TODO: river delta/fork sprite
                 } else {
-                    const w = 1; /* TODO: draw a path and fill it; that will allow variable width */
-
                     if (col > 0) {
                         ctx.lineWidth = Math.min(lineWidth(col), lineWidth(row));
                         ctx.beginPath();
@@ -188,7 +177,7 @@ function createRiverBitmap() {
 };
 
 
-function clamp(x, lo, hi) {
+export function clamp(x: number, lo: number, hi: number): number {
     if (x < lo) { x = lo; }
     if (x > hi) { x = hi; }
     return x;
@@ -196,51 +185,45 @@ function clamp(x, lo, hi) {
 
 /**
  * Fill a buffer with river geometry
- *
- * @param {Map} map
- * @param {number} spacing - global param.spacing value
- * @param {any} riversParam - global param.rivers
- * @param {Float32Array} P - array of x,y,u,v triples for the river triangles
- * @returns {number} - how many triangles were needed (at most numSolidTriangles)
  */
-function setRiverTextures(map, spacing, riversParam, P) {
+function setRiverTextures(map: Map, spacing: number, riversParam: any, P: Float32Array): number {
     const MIN_FLOW = Math.exp(riversParam.lg_min_flow);
     const RIVER_WIDTH = Math.exp(riversParam.lg_river_width);
-    let {mesh, t_downslope_s, s_flow} = map;
-    let {numSolidTriangles, s_length} = mesh;
+    let {mesh, s_downslope_t, flow_s} = map;
+    let {numSolidTriangles, length_s} = mesh;
 
-    function riverSize(s, flow) {
+    function riverSize(s: number, flow: number): number {
         // TODO: performance: build a table of flow to width
         if (s < 0) { return 1; }
         let width = Math.sqrt(flow - MIN_FLOW) * spacing * RIVER_WIDTH;
-        let size = Math.ceil(width * numRiverSizes / s_length[s]);
+        let size = Math.ceil(width * numRiverSizes / length_s[s]);
         return clamp(size, 1, numRiverSizes);
     }
 
-    let p = 0, uv = [0, 0, 0, 0, 0, 0];
+    let p = 0;
     for (let t = 0; t < numSolidTriangles; t++) {
-        let out_s = t_downslope_s[t];
-        let out_flow = s_flow[out_s];
-        if (out_s < 0 || out_flow < MIN_FLOW) continue;
-        let r1 = mesh.s_begin_r(3*t    ),
-            r2 = mesh.s_begin_r(3*t + 1),
-            r3 = mesh.s_begin_r(3*t + 2);
-        let in1_s = mesh.s_next_s(out_s);
+        let s_out = s_downslope_t[t];
+        let outflow = flow_s[s_out];
+        if (s_out < 0 || outflow < MIN_FLOW) continue;
+        let r1 = mesh.r_begin_s(3*t    ),
+            r2 = mesh.r_begin_s(3*t + 1),
+            r3 = mesh.r_begin_s(3*t + 2);
+        let in1_s = mesh.s_next_s(s_out);
         let in2_s = mesh.s_next_s(in1_s);
-        let in1_flow = s_flow[mesh.s_opposite_s(in1_s)];
-        let in2_flow = s_flow[mesh.s_opposite_s(in2_s)];
-        let textureRow = riverSize(out_s, out_flow);
+        let in1_flow = flow_s[mesh.s_opposite_s(in1_s)];
+        let in2_flow = flow_s[mesh.s_opposite_s(in2_s)];
+        let textureRow = riverSize(s_out, outflow);
         
-        function add(r, c, i, j, k) {
+        function add(r: number, c: number, i: number, j: number, k: number) {
             const T = riverTexturePositions[r][c][0];
-            P[p    ] = mesh.r_x(r1);
-            P[p + 1] = mesh.r_y(r1);
-            P[p + 4] = mesh.r_x(r2);
-            P[p + 5] = mesh.r_y(r2);
-            P[p + 8] = mesh.r_x(r3);
-            P[p + 9] = mesh.r_y(r3);
-            P[p + 4*(out_s - 3*t) + 2] = T[i].uv[0];
-            P[p + 4*(out_s - 3*t) + 3] = T[i].uv[1];
+            P[p    ] = mesh.x_of_r(r1);
+            P[p + 1] = mesh.y_of_r(r1);
+            P[p + 4] = mesh.x_of_r(r2);
+            P[p + 5] = mesh.y_of_r(r2);
+            P[p + 8] = mesh.x_of_r(r3);
+            P[p + 9] = mesh.y_of_r(r3);
+            P[p + 4*(s_out - 3*t) + 2] = T[i].uv[0];
+            P[p + 4*(s_out - 3*t) + 3] = T[i].uv[1];
             P[p + 4*(in1_s - 3*t) + 2] = T[j].uv[0];
             P[p + 4*(in1_s - 3*t) + 3] = T[j].uv[1];
             P[p + 4*(in2_s - 3*t) + 2] = T[k].uv[0];

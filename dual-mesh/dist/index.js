@@ -1,0 +1,232 @@
+/*
+ * From https://www.redblobgames.com/x/2312-dual-mesh/
+ * Copyright 2017, 2023 Red Blob Games <redblobgames@gmail.com>
+ * License: Apache v2.0 <http://www.apache.org/licenses/LICENSE-2.0.html>
+ */
+/**
+ * Represent a triangle-polygon dual mesh with:
+ *   - Regions (r)
+ *   - Sides (s)
+ *   - Triangles (t)
+ *
+ * Each element has an id:
+ *   - 0 <= r < numRegions
+ *   - 0 <= s < numSides
+ *   - 0 <= t < numTriangles
+ *
+ * Naming convention: y_name_x takes x (r, s, t) as input and produces
+ * y (r, s, t) as output.
+ *
+ * A side is directed. If two triangles t0, t1 are adjacent, there will
+ * be two sides representing the boundary, one for t0 and one for t1. These
+ * can be accessed with t_inner_s and t_outer_s.
+ *
+ * A side also represents the boundary between two regions. If two regions
+ * r0, r1 are adjacent, there will be two sides representing the boundary,
+ * r_begin_s and r_end_s.
+ *
+ * A side from p-->q will have a pair q-->p, at index
+ * s_opposite_s. It will be -1 if the side doesn't have a pair.
+ * Use addGhostStructure() to add ghost pairs to all sides.
+ */
+export class TriangleMesh {
+    static t_from_s(s) { return (s / 3) | 0; }
+    static s_prev_s(s) { return (s % 3 === 0) ? s + 2 : s - 1; }
+    static s_next_s(s) { return (s % 3 === 2) ? s - 2 : s + 1; }
+    // public data
+    numSides;
+    numSolidSides;
+    numRegions;
+    numSolidRegions;
+    numTriangles;
+    numSolidTriangles;
+    numBoundaryRegions;
+    // internal data that has accessors
+    _halfedges;
+    _triangles;
+    _s_of_r;
+    _vertex_t;
+    _vertex_r;
+    _options; // any other information we need to carry
+    /**
+     * Constructor takes partial mesh information from Delaunator and
+     * constructs the rest.
+     */
+    constructor(init) {
+        if ('points' in init) {
+            // Construct a new TriangleMesh from points + delaunator data
+            this.numBoundaryRegions = init.numBoundaryPoints ?? 0;
+            this.numSolidSides = init.numSolidSides ?? 0;
+            this._vertex_t = [];
+            this.update(init);
+        }
+        else {
+            // Shallow copy an existing TriangleMesh data
+            Object.assign(this, init);
+        }
+    }
+    /**
+     * Update internal data structures from Delaunator
+     */
+    update(init) {
+        this._vertex_r = init.points;
+        this._triangles = init.delaunator.triangles;
+        this._halfedges = init.delaunator.halfedges;
+        this._update();
+    }
+    /**
+     * Update internal data structures to match the input mesh.
+     *
+     * Use if you have updated the triangles/halfedges with Delaunator
+     * and want the dual mesh to match the updated data. Note that
+     * this DOES not update boundary regions or ghost elements.
+     */
+    _update() {
+        let { _triangles, _halfedges, _vertex_r, _vertex_t } = this;
+        this.numSides = _triangles.length;
+        this.numRegions = _vertex_r.length;
+        this.numSolidRegions = this.numRegions - 1; // TODO: only if there are ghosts
+        this.numTriangles = this.numSides / 3;
+        this.numSolidTriangles = this.numSolidSides / 3;
+        if (this._vertex_t.length < this.numTriangles) {
+            // Extend this array to be big enough
+            const numOldTriangles = _vertex_t.length;
+            const numNewTriangles = this.numTriangles - numOldTriangles;
+            _vertex_t = _vertex_t.concat(new Array(numNewTriangles));
+            for (let t = numOldTriangles; t < this.numTriangles; t++) {
+                _vertex_t[t] = [0, 0];
+            }
+            this._vertex_t = _vertex_t;
+        }
+        // Construct an index for finding sides connected to a region
+        this._s_of_r = new Int32Array(this.numRegions);
+        for (let s = 0; s < _triangles.length; s++) {
+            let endpoint = _triangles[TriangleMesh.s_next_s(s)];
+            if (this._s_of_r[endpoint] === 0 || _halfedges[s] === -1) {
+                this._s_of_r[endpoint] = s;
+            }
+        }
+        // Construct triangle coordinates
+        for (let s = 0; s < _triangles.length; s += 3) {
+            let t = s / 3, a = _vertex_r[_triangles[s]], b = _vertex_r[_triangles[s + 1]], c = _vertex_r[_triangles[s + 2]];
+            if (this.is_ghost_s(s)) {
+                // ghost triangle center is just outside the unpaired side
+                let dx = b[0] - a[0], dy = b[1] - a[1];
+                let scale = 10 / Math.sqrt(dx * dx + dy * dy); // go 10units away from side
+                _vertex_t[t][0] = 0.5 * (a[0] + b[0]) + dy * scale;
+                _vertex_t[t][1] = 0.5 * (a[1] + b[1]) - dx * scale;
+            }
+            else {
+                // solid triangle center is at the centroid
+                _vertex_t[t][0] = (a[0] + b[0] + c[0]) / 3;
+                _vertex_t[t][1] = (a[1] + b[1] + c[1]) / 3;
+            }
+        }
+    }
+    /**
+     * Construct ghost elements to complete the graph.
+     */
+    static addGhostStructure(init) {
+        const { triangles, halfedges } = init.delaunator;
+        const numSolidSides = triangles.length;
+        let numUnpairedSides = 0, firstUnpairedEdge = -1;
+        let s_unpaired_r = []; // seed to side
+        for (let s = 0; s < numSolidSides; s++) {
+            if (halfedges[s] === -1) {
+                numUnpairedSides++;
+                s_unpaired_r[triangles[s]] = s;
+                firstUnpairedEdge = s;
+            }
+        }
+        const r_ghost = init.points.length;
+        let newpoints = init.points.concat([[NaN, NaN]]);
+        let r_newstart_s = new Int32Array(numSolidSides + 3 * numUnpairedSides);
+        r_newstart_s.set(triangles);
+        let s_newopposite_s = new Int32Array(numSolidSides + 3 * numUnpairedSides);
+        s_newopposite_s.set(halfedges);
+        for (let i = 0, s = firstUnpairedEdge; i < numUnpairedSides; i++, s = s_unpaired_r[r_newstart_s[TriangleMesh.s_next_s(s)]]) {
+            // Construct a ghost side for s
+            let s_ghost = numSolidSides + 3 * i;
+            s_newopposite_s[s] = s_ghost;
+            s_newopposite_s[s_ghost] = s;
+            r_newstart_s[s_ghost] = r_newstart_s[TriangleMesh.s_next_s(s)];
+            // Construct the rest of the ghost triangle
+            r_newstart_s[s_ghost + 1] = r_newstart_s[s];
+            r_newstart_s[s_ghost + 2] = r_ghost;
+            let k = numSolidSides + (3 * i + 4) % (3 * numUnpairedSides);
+            s_newopposite_s[s_ghost + 2] = k;
+            s_newopposite_s[k] = s_ghost + 2;
+        }
+        return {
+            numSolidSides,
+            numBoundaryPoints: init.numBoundaryPoints,
+            points: newpoints,
+            delaunator: {
+                triangles: r_newstart_s,
+                halfedges: s_newopposite_s,
+            }
+        };
+    }
+    // Accessors
+    x_of_r(r) { return this._vertex_r[r][0]; }
+    y_of_r(r) { return this._vertex_r[r][1]; }
+    x_of_t(t) { return this._vertex_t[t][0]; }
+    y_of_t(t) { return this._vertex_t[t][1]; }
+    pos_of_r(r, out = []) { out.length = 2; out[0] = this.x_of_r(r); out[1] = this.y_of_r(r); return out; }
+    pos_of_t(t, out = []) { out.length = 2; out[0] = this.x_of_t(t); out[1] = this.y_of_t(t); return out; }
+    r_begin_s(s) { return this._triangles[s]; }
+    r_end_s(s) { return this._triangles[TriangleMesh.s_next_s(s)]; }
+    t_inner_s(s) { return TriangleMesh.t_from_s(s); }
+    t_outer_s(s) { return TriangleMesh.t_from_s(this._halfedges[s]); }
+    s_next_s(s) { return TriangleMesh.s_next_s(s); }
+    s_prev_s(s) { return TriangleMesh.s_prev_s(s); }
+    s_opposite_s(s) { return this._halfedges[s]; }
+    s_around_t(t, out_s = []) { out_s.length = 3; for (let i = 0; i < 3; i++) {
+        out_s[i] = 3 * t + i;
+    } return out_s; }
+    r_around_t(t, out_r = []) { out_r.length = 3; for (let i = 0; i < 3; i++) {
+        out_r[i] = this._triangles[3 * t + i];
+    } return out_r; }
+    t_around_t(t, out_t = []) { out_t.length = 3; for (let i = 0; i < 3; i++) {
+        out_t[i] = this.t_outer_s(3 * t + i);
+    } return out_t; }
+    s_around_r(r, out_s = []) {
+        const s0 = this._s_of_r[r];
+        let incoming = s0;
+        out_s.length = 0;
+        do {
+            out_s.push(this._halfedges[incoming]);
+            let outgoing = TriangleMesh.s_next_s(incoming);
+            incoming = this._halfedges[outgoing];
+        } while (incoming !== -1 && incoming !== s0);
+        return out_s;
+    }
+    r_around_r(r, out_r = []) {
+        const s0 = this._s_of_r[r];
+        let incoming = s0;
+        out_r.length = 0;
+        do {
+            out_r.push(this.r_begin_s(incoming));
+            let outgoing = TriangleMesh.s_next_s(incoming);
+            incoming = this._halfedges[outgoing];
+        } while (incoming !== -1 && incoming !== s0);
+        return out_r;
+    }
+    t_around_r(r, out_t = []) {
+        const s0 = this._s_of_r[r];
+        let incoming = s0;
+        out_t.length = 0;
+        do {
+            out_t.push(TriangleMesh.t_from_s(incoming));
+            let outgoing = TriangleMesh.s_next_s(incoming);
+            incoming = this._halfedges[outgoing];
+        } while (incoming !== -1 && incoming !== s0);
+        return out_t;
+    }
+    r_ghost() { return this.numRegions - 1; }
+    is_ghost_s(s) { return s >= this.numSolidSides; }
+    is_ghost_r(r) { return r === this.numRegions - 1; }
+    is_ghost_t(t) { return this.is_ghost_s(3 * t); }
+    is_boundary_s(s) { return this.is_ghost_s(s) && (s % 3 === 0); }
+    is_boundary_r(r) { return r < this.numBoundaryRegions; }
+}

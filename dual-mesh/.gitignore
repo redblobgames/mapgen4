@@ -1,0 +1,8 @@
+/*.graphdata
+node_modules/
+
+/dist/dual-mesh.js
+docs/_bundle.js
+/index.bxml
+/index.html
+/build/

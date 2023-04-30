@@ -14,15 +14,17 @@
  */
 'use strict';
 
-import param from './config';
-import {makeMesh} from './mesh';
-import Painting from './painting';
-import Renderer from './render';
+import param from "./config.js";
+import {makeMesh} from "./mesh.ts";
+import Painting from "./painting.ts";
+import Renderer from "./render.ts";
+import type {Mesh} from "./types.d.ts";
+
 
 
 const initialParams = {
     elevation: [
-        ['seed', 187, 1, 1 << 30],
+        ['seed', 313, 1, 1 << 30],
         ['island', 0.5, 0, 1],
         ['noisy_coastlines', 0.01, 0, 0.1],
         ['hill_height', 0.02, 0, 0.1],
@@ -63,14 +65,10 @@ const initialParams = {
 };
 
     
-/** @typedef { import("./types").Mesh } Mesh */
-
 /**
  * Starts the UI, once the mesh has been loaded in.
- *
- * @param {{mesh: Mesh, peaks_t: number[]}} _
  */
-function main({mesh, peaks_t}) {
+function main({mesh, t_peaks}: { mesh: Mesh; t_peaks: number[]; }) {
     let render = new Renderer(mesh);
 
     /* set initial parameters */
@@ -92,7 +90,7 @@ function main({mesh, peaks_t}) {
             slider.setAttribute('min', min);
             slider.setAttribute('max', max);
             slider.setAttribute('step', step.toString());
-            slider.addEventListener('input', event => {
+            slider.addEventListener('input', _event => {
                 param[phase][name] = slider.valueAsNumber;
                 requestAnimationFrame(() => {
                     if (phase == 'render') { redraw(); }
@@ -101,17 +99,17 @@ function main({mesh, peaks_t}) {
             });
 
             /* improve slider behavior on iOS */
-            function handleTouch(e) {
+            function handleTouch(event: TouchEvent) {
                 let rect = slider.getBoundingClientRect();
-                let value = (e.changedTouches[0].clientX - rect.left) / rect.width;
+                let value = (event.changedTouches[0].clientX - rect.left) / rect.width;
                 value = min + value * (max - min);
                 value = Math.round(value / step) * step;
                 if (value < min) { value = min; }
                 if (value > max) { value = max; }
                 slider.value = value.toString();
                 slider.dispatchEvent(new Event('input'));
-                e.preventDefault();
-                e.stopPropagation();
+                event.preventDefault();
+                event.stopPropagation();
             };
             slider.addEventListener('touchmove', handleTouch);
             slider.addEventListener('touchstart', handleTouch);
@@ -186,9 +184,9 @@ function main({mesh, peaks_t}) {
 
     function updateUI() {
         let userHasPainted = Painting.userHasPainted();
-        document.querySelector("#slider-seed input").disabled = userHasPainted;
-        document.querySelector("#slider-island input").disabled = userHasPainted;
-        document.querySelector("#button-reset").disabled = !userHasPainted;
+        (document.querySelector("#slider-seed input") as HTMLInputElement).disabled = userHasPainted;
+        (document.querySelector("#slider-island input") as HTMLInputElement).disabled = userHasPainted;
+        (document.querySelector("#button-reset") as HTMLInputElement).disabled = !userHasPainted;
     }
     
     function generate() {
@@ -216,7 +214,7 @@ function main({mesh, peaks_t}) {
         }
     }
 
-    worker.postMessage({mesh, peaks_t, param});
+    worker.postMessage({mesh, t_peaks, param});
     generate();
 
     const downloadButton = document.getElementById('button-download');

@@ -17,7 +17,7 @@ If you use =yarn= 1:
 #+begin_src sh
 yarn global add esbuild
 yarn install
-make
+./build.sh
 #+end_src
 
 If you use =npm=:
@@ -25,7 +25,7 @@ If you use =npm=:
 #+begin_src sh
 npm install -g esbuild
 npm install
-make
+./build.sh
 #+end_src
 
 Run ~python3 -m http.server 8000~, then visit http://localhost:8000/embed.html in your browser.
@@ -54,7 +54,7 @@ There's plenty more that could be done to make it even faster and prettier. Ther
 
 * Code
 
-The entry point is [[mapgen4.js]]. The main data structures are from my dual-mesh library. The map generation algorithms are in [[map.js]]. The input painting is in [[painting.js]]. The output rendering is in [[render.js]]. Calculations are in [[worker.js]]. Some of the calculations are shared between the worker and renderer, and those are in [[geometry.js]].
+The entry point is [[mapgen4.ts]]. The main data structures are in the [[dual-mesh/]] folder. The map generation algorithms are in [[map.ts]]. The input painting is in [[painting.ts]]. The output rendering is in [[render.ts]]. Calculations are in [[worker.ts]]. Calculations shared between the worker and renderer are in [[geometry.ts]].
 
 * License
 
@@ -63,7 +63,7 @@ Mapgen4 and helper libraries I wrote (dual-mesh, prng) are licensed under Apache
 The map generator uses these libraries:
 
 - [[https://github.com/mapbox/delaunator.git][Delaunator]] from MapBox is licensed under the ISC license.
-- [[https://github.com/kchapelier/poisson-disk-sampling][poisson-disk-sampling]] from Kevin Chapelier is licensed under the MIT license.
+- [[https://github.com/kchapelier/fast-2d-poisson-disk-sampling][fast-2d-poisson-disk-sampling]] from Kevin Chapelier is licensed under the MIT license.
 - [[https://github.com/jwagner/simplex-noise.js][simplex-noise]] from Jonas Wagner is licensed under the MIT license.
 - [[https://github.com/mourner/flatqueue][flatqueue]] from Vladimir Agafonkin is licensed under the ISC license.
 

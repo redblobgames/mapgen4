@@ -7,25 +7,21 @@
  */
 'use strict';
 
-import DualMesh from '@redblobgames/dual-mesh';
-import Map      from './map';
-import Geometry from './geometry';
+import {TriangleMesh} from "./dual-mesh/index.ts";
+import Map      from "./map.ts";
+import Geometry from "./geometry.ts";
+import type {Mesh} from "./types.d.ts";
 
-/**
- * @typedef { import("./types").Mesh } Mesh
- */
+// NOTE: Typescript workaround https://github.com/Microsoft/TypeScript/issues/20595
+const worker: Worker = self as any;
 
 // This handler is for the initial message
-let handler = event => {
-    const param = event.data.param;
-
+let handler = (event) => {
     // NOTE: web worker messages only include the data; to
     // reconstruct the full object I call the constructor again
     // and then copy the data over
-    const mesh = /** @type{Mesh} */(new DualMesh(event.data.mesh));
-    Object.assign(mesh, event.data.mesh);
-    
-    const map = new Map(mesh, event.data.peaks_t, param);
+    const mesh = new TriangleMesh(event.data.mesh as TriangleMesh);
+    const map = new Map(mesh as Mesh, event.data.t_peaks, event.data.param);
 
     // TODO: placeholder - calculating elevation+biomes takes 35% of
     // the time on my laptop, and seeing the elevation change is the
@@ -43,7 +39,7 @@ let handler = event => {
     const run = {biomes: true, rivers: true};
     
     // This handler is for all subsequent messages
-    handler = event => {
+    handler = (event) => {
         let {param, constraints, quad_elements_buffer, a_quad_em_buffer, a_river_xyuv_buffer} = event.data;
 
         let numRiverTriangles = 0;
@@ -64,7 +60,7 @@ let handler = event => {
         }
         let elapsed = performance.now() - start_time;
 
-        self.postMessage(
+        worker.postMessage(
             {elapsed,
              numRiverTriangles,
              quad_elements_buffer,
@@ -82,4 +78,3 @@ let handler = event => {
 
 
 onmessage = event => handler(event);
-

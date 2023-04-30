@@ -8,7 +8,7 @@
  * filled in by the map generator.
  */
 
-module.exports = {
+export default {
     spacing: 5,
     mountainSpacing: 35,
     mountainDensity: 1500,
