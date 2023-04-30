@@ -2,6 +2,12 @@
 # yarn lockfile v1
 
 
+"@redblobgames/prng@https://github.com/redblobgames/prng":
+  version "1.0.0"
+  resolved "https://github.com/redblobgames/prng#1104cf92f9824d71cf631eeeedd5866e9b62ea9f"
+  dependencies:
+    hash-int "*"
+
 delaunator@^5:
   version "5.0.0"
   resolved "https://registry.yarnpkg.com/delaunator/-/delaunator-5.0.0.tgz#60f052b28bd91c9b4566850ebf7756efe821d81b"
@@ -23,6 +29,11 @@ gl-matrix@^3:
   version "3.3.0"
   resolved "https://registry.yarnpkg.com/gl-matrix/-/gl-matrix-3.3.0.tgz#232eef60b1c8b30a28cbbe75b2caf6c48fd6358b"
   integrity sha512-COb7LDz+SXaHtl/h4LeaFcNdJdAQSDeVqjiIihSXNrkWObZLhDI4hIkZC11Aeqp7bcE72clzB0BnDXr2SmslRA==
+
+hash-int@*:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/hash-int/-/hash-int-1.0.0.tgz#28cae10f5a651ed65d5680ccc0d08005cf372a0d"
+  integrity sha512-U1cDrvoPTR+AWCeFLXm0UjEcsgz74N5H4lQ3PjwDCIaLHgiXRmfsvq15/HGSjNAkig/bZMcESqg93ax9alWhkg==
 
 regl@^1:
   version "1.6.1"

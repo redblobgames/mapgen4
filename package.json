@@ -4,6 +4,7 @@
     "private": true,
     "type": "module",
     "dependencies": {
+        "@redblobgames/prng": "https://github.com/redblobgames/prng",
         "delaunator": "^5",
         "flatqueue": "^2",
         "gl-matrix": "^3",

@@ -14,7 +14,7 @@
  */
 
 import {createNoise2D} from 'simplex-noise';
-import {makeRandFloat} from "./prng.ts";
+import {makeRandFloat} from '@redblobgames/prng';
 
 const CANVAS_SIZE = 128;
 

@@ -10,7 +10,7 @@
 
 import {createNoise2D} from 'simplex-noise';
 import FlatQueue from 'flatqueue';
-import {makeRandFloat} from "./prng.ts";
+import {makeRandFloat} from '@redblobgames/prng';
 import {clamp} from "./geometry.ts";
 import type {Mesh} from "./types.d.ts";
 
@@ -25,8 +25,7 @@ type PrecalculatedNoise = {
 }
 
 const mountain = {
-    slope: 20,
-    density: 1500,
+    slope: 16,
 };
 
 /**
