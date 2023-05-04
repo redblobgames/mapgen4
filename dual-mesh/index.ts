@@ -237,44 +237,44 @@ export class TriangleMesh {
     
     s_opposite_s(s: number): number { return this._halfedges[s]; }
 
-    s_around_t(t: number, out_s: number[] = []): number[] { out_s.length = 3; for (let i = 0; i < 3; i++) { out_s[i] = 3*t + i; } return out_s; }
-    r_around_t(t: number, out_r: number[] = []): number[] { out_r.length = 3; for (let i = 0; i < 3; i++) { out_r[i] = this._triangles[3*t+i]; } return out_r; }
-    t_around_t(t: number, out_t: number[] = []): number[] { out_t.length = 3; for (let i = 0; i < 3; i++) { out_t[i] = this.t_outer_s(3*t+i); } return out_t; }
+    s_around_t(t: number, s_out: number[] = []): number[] { s_out.length = 3; for (let i = 0; i < 3; i++) { s_out[i] = 3*t + i; } return s_out; }
+    r_around_t(t: number, r_out: number[] = []): number[] { r_out.length = 3; for (let i = 0; i < 3; i++) { r_out[i] = this._triangles[3*t+i]; } return r_out; }
+    t_around_t(t: number, t_out: number[] = []): number[] { t_out.length = 3; for (let i = 0; i < 3; i++) { t_out[i] = this.t_outer_s(3*t+i); } return t_out; }
     
-    s_around_r(r: number, out_s: number[] = []): number[] {
+    s_around_r(r: number, s_out: number[] = []): number[] {
         const s0 = this._s_of_r[r];
         let incoming = s0;
-        out_s.length = 0;
+        s_out.length = 0;
         do {
-            out_s.push(this._halfedges[incoming]);
+            s_out.push(this._halfedges[incoming]);
             let outgoing = TriangleMesh.s_next_s(incoming);
             incoming = this._halfedges[outgoing];
         } while (incoming !== -1 && incoming !== s0);
-        return out_s;
+        return s_out;
     }
 
-    r_around_r(r: number, out_r: number[] = []): number[] {
+    r_around_r(r: number, r_out: number[] = []): number[] {
         const s0 = this._s_of_r[r];
         let incoming = s0;
-        out_r.length = 0;
+        r_out.length = 0;
         do {
-            out_r.push(this.r_begin_s(incoming));
+            r_out.push(this.r_begin_s(incoming));
             let outgoing = TriangleMesh.s_next_s(incoming);
             incoming = this._halfedges[outgoing];
         } while (incoming !== -1 && incoming !== s0);
-        return out_r;
+        return r_out;
     }
     
-    t_around_r(r: number, out_t: number[] = []): number[] {
+    t_around_r(r: number, t_out: number[] = []): number[] {
         const s0 = this._s_of_r[r];
         let incoming = s0;
-        out_t.length = 0;
+        t_out.length = 0;
         do {
-            out_t.push(TriangleMesh.t_from_s(incoming));
+            t_out.push(TriangleMesh.t_from_s(incoming));
             let outgoing = TriangleMesh.s_next_s(incoming);
             incoming = this._halfedges[outgoing];
         } while (incoming !== -1 && incoming !== s0);
-        return out_t;
+        return t_out;
     }
 
     r_ghost(): number                 { return this.numRegions - 1; }

@@ -6,15 +6,13 @@
     "type": "module",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
-    "dependencies": {
-        "delaunator": "^5.0.0"
-    },
     "devDependencies": {
+        "delaunator": "^5.0.0",
         "poisson-disk-sampling": "^2"
     },
     "scripts": {
         "test": "node tests.js",
         "dist": "tsc",
-        "libs": "tsc; echo \"export {default} from 'poisson-disk-sampling';\" | esbuild --bundle --minify --format=esm --outfile=build/_poisson-disk-sampling.js ; esbuild dist/create.js --bundle --sourcemap --format=esm --outfile=build/_meshbuilder.js"
+        "libs": "echo \"export {default as Poisson} from 'poisson-disk-sampling'; export {default as Delaunator} from 'delaunator';\" | esbuild --bundle --format=esm --outfile=build/_libs-for-docs.js"
     }
 }

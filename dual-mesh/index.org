@@ -132,10 +132,23 @@ Visually, I think of them as nested regions:
 </figure>
 #+end_export
 
+The boundary points must be /inside/ the bounding rectangle if used with Poisson Disc. These will be placed /barely/ inside with the =generateInteriorBoundaryPoints()= function:
+
 #+begin_export html
-<figure class="diagram-g6 show-ghosts">
-  <svg viewBox="-100 -100 1200 1200">
-    <rect x="-50" y="-50" width="1100" height="1100" fill="none" stroke="hsl(300 10% 50%)" stroke-width="5" />
+<figure class="diagram-g3">
+  <svg viewBox="-50 -50 1100 500">
+    <rect x="0" y="0" width="1000" height="400" fill="hsl(60 10% 95% / 0.3)" />
+    <a-region-points :graph="graph" :hover="hover" :radius="4" />
+  </svg>
+</figure>
+#+end_export
+
+But, barely inside means there's a tiny gap between the boundary points and the bounding rectangle. To fill that gap, add a second layer of boundary points with =generateExteriorBoundaryPoints()=:
+
+#+begin_export html
+<figure class="diagram-g4">
+  <svg viewBox="-50 -50 1100 500">
+    <rect x="0" y="0" width="1000" height="400" fill="hsl(60 10% 95% / 0.3)" />
     <a-region-points :graph="graph" :hover="hover" :radius="4" />
   </svg>
 </figure>
@@ -148,8 +161,13 @@ Visually, I think of them as nested regions:
 :END:
 
 #+begin_export html
-<figure class="diagram-g1">
-  <svg viewBox="0 0 600 300">
+<div class="diagram-g1">
+<figure :class="{'show-ghosts': showGhosts}">
+  <svg viewBox="-50 -25 700 350">
+    <g v-if="showGhosts">
+      <rect x="-50" y="-25" width="700" height="350" rx="15" fill="none" stroke="hsl(0 30% 50%)" stroke-width="5" />
+     <text x="15" y="-5" fill="hsl(0 30% 50%)">Ghost Region r{{graph.r_ghost()}}</text>
+    </g>
     <a-side-black-edges :graph="graph" :alpha="0.05"/>
     <a-side-white-edges :graph="graph" :alpha="0.03"/>
     <a-side-labels :graph="graph"/>
@@ -158,33 +176,45 @@ Visually, I think of them as nested regions:
     <a-triangle-points :graph="graph" :hover="hover"/>
     <a-triangle-labels :graph="graph"/>
   </svg>
+  <label><input v-model="showGhosts" type="checkbox" /> Show ghost elements</label>
 </figure>
 #+end_export
 
-- s_next_s(s), s_prev_s(s) :: move around triangle (s0 → s1 → s2 → s0)
-- r_begin_s(s), r_end_s(s) :: black edge endpoints (s0 → r0, r1)
-- t_inner_s(s), t_outer_s(s) :: white edge endpoints (s0 → t0, t1)
-- s_opposite_s(s) :: opposite of half-edge (s0 → s3; s3 → s0)
-- {r,s,t}_around_{r,t}(input, output=[]) :: fills neighbors and returns
-  output (t1 → r0, r2, r3; t1 → s3, s4, s5)
-- r_ghost() :: the ghost r index (not shown)
-- is_ghost_{s,r,t}(input) :: whether an element is a ghost
-- is_boundary_{s,r}(input) :: whether an element is on the boundary
-- {x,y,pos}_of_{r,t}(input) :: coordinates of a region (triangle vertex)
-  or triangle (region vertex)
+The accessor functions are named ~output = output_from_input(input)~. Some of them return an array, and will take an optional parameter to reuse an existing array (to avoid memory allocations).
 
-If s2 === s_opposite_s(s1):
 
-- s_opposite_s(s2) === s1
-- r_begin_s(s1) === r_end_s(s2)
-- r_begin_s(s2) === r_end_s(s1)
-- t_inner_s(s1) === t_outer_s(s2)
-- t_inner_s(s2) === t_outer_s(s1)
+- ~x_of_r(r)~, ~y_of_r(r)~, ~pos_of_r(r, out=[])~ :: the position of region =r= (red point).
+- ~x_of_t(t)~, ~y_of_t(t)~, ~pos_of_t(t, out=[])~ :: the center position of triangle =t= (blue point).
+- ~r_begin_s(s)~, ~r_end_s(s)~ :: the black edge endpoints (red). The black edge =s2= /begins/ at ={{test('r_begin_s',2)}}= and /ends/ at ={{test('r_end_s',2)}}=. 
+- ~t_inner_s(s)~, ~t_outer_s(s)~ :: the white edge endpoints (blue). The black edge =s2= has a white edge connecting /inner/ triangle ={{test('t_inner_s',2)}}= to /outer/ triangle ={{test('t_outer_s',2)}}=.
+- ~s_next_s(s)~, ~s_prev_s(s)~ :: next/prev around triangle. The black edge =s2= has /next/ edge ={{test('s_next_s',2)}}= and /previous/ edge ={{test('s_prev_s',2)}}=.
+- ~s_opposite_s(s)~ :: opposite of half-edge. The black edge =s2='s opposite is ={{test('s_opposite_s',2)}}= and =s5='s opposite is ={{test('s_opposite_s',5)}}=. If an edge has no opposite, it will return =-1=.
+- ~s_around_t(t, out=[])~ :: sides around a triangle. Triangle =t0='s sides are ={{test('s_around_t',0)}}=
+- ~r_around_t(t, out=[])~ :: regions around a triangle. Triangle =t0='s regions are ={{test('r_around_t',0)}}=
+- ~t_around_t(t, out=[])~ :: triangles neighboring a triangle. Triangle =t0='s neighbors are ={{test('t_around_t',0)}}= in this diagram@@html:<span v-if="!showGhosts">, but more commonly there would be three neighbors</span>@@.
+- ~s_around_r(r, out=[])~ :: sides around a region. Region =r0='s sides are ={{test('s_around_r',0)}}= in this diagram@@html:<span v-if="!showGhosts">, but more commonly would be more, as they form a voronoi cell for the region</span>@@.
+- ~r_around_r(r, out=[])~ :: regions neighboring a region. Region =r0='s neighbors are ={{test('r_around_r',0)}}=.
+- ~t_around_r(r, out=[])~ :: triangles around a region. Region =r0='s triangles are ={{test('t_around_r',0)}}= in this diagram@@html:<span v-if="!showGhosts">, but more commonly would be more</span>@@.
+- ~r_ghost(r)~ :: the ghost r index @@html:<span v-if="showGhosts">(outer edge)</span><span v-else="">(not shown in this diagram)</span>@@
+- ~is_ghost_{s,r,t}(id)~ :: whether an element is a ghost
+- ~is_boundary_{s,r}(id)~ :: whether an element is on the boundary
+
+#+begin_export html
+</div>
+#+end_export
+
+If ~s_opposite_s(s1)~ = =s2=:
+
+- ~s_opposite_s(s2)~ === =s1=
+- ~r_begin_s(s1)~ === ~r_end_s(s2)~
+- ~r_begin_s(s2)~ === ~r_end_s(s1)~
+- ~t_inner_s(s1)~ === ~t_outer_s(s2)~
+- ~t_inner_s(s2)~ === ~t_outer_s(s1)~
 
 Properties of circulation:
 
-- If s is returned by s_around_r(r), then r_begin_s(s) === r
-- If s is returned by s_around_t(t), then t_inner_s(s) === t
+- If =s= is returned by ~s_around_r(r)~, then ~r_begin_s(s)~ === =r=
+- If =s= is returned by ~s_around_t(t)~, then ~t_inner_s(s)~ === =t=
 
 ** History
 :PROPERTIES:
@@ -221,10 +251,10 @@ Feel free to look at [[https://github.com/redblobgames/dual-mesh][@redblobgames/
   .r.boundary { fill: hsl(200 50% 50%); }
   text.r, tspan.r { fill-opacity: 1.0; stroke: none; }
   .t { color: hsl(240 50% 50%); fill: hsl(240 50% 50%); stroke: white; stroke-width: 0.5px; font-weight: bold; }
-  .t.ghost { fill-opacity: 0.0; stroke-opacity: 0.0; }
+  .s.ghost, .t.ghost { fill-opacity: 0.0; stroke-opacity: 0.0; }
   text.t { stroke: none; }
 
-  .show-ghosts .ghost { fill-opacity: 0.7; stroke-opacity: 0.3; }
+  .show-ghosts .ghost { fill-opacity: 0.5; stroke-opacity: 0.3; }
 
   .diagram-g0 .w-side.ghost { stroke-opacity: 1.0; }
   .diagram-g0 .b-side { stroke-opacity: 0.3; }
@@ -232,14 +262,15 @@ Feel free to look at [[https://github.com/redblobgames/dual-mesh][@redblobgames/
   .diagram-g1 .b-side { marker-end: url(#arrowhead-black); }
   .diagram-g1 .w-side { marker-end: url(#arrowhead-white); }
   .diagram-g1 .ghost { marker-end: none; }
+  .diagram-g2 .s.ghost { fill-opacity: 0.1; }
 </style>
 
 <svg class="plain" width="0" height="0">
   <defs>
-    <marker id="arrowhead-black" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="strokeWidth" markerWidth="4" markerHeight="3" orient="auto">
+    <marker id="arrowhead-black" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="strokeWidth" markerWidth="7" markerHeight="5" orient="auto">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="black"/>
     </marker>
-    <marker id="arrowhead-white" viewBox="0 0 10 10" refX="15" refY="5" markerUnits="strokeWidth" markerWidth="4" markerHeight="3" orient="auto">
+    <marker id="arrowhead-white" viewBox="0 0 10 10" refX="15" refY="5" markerUnits="strokeWidth" markerWidth="6" markerHeight="4" orient="auto">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="white"/>
     </marker>
     <filter id="drop-shadow" x="-100%" y="-100%" width="300%" height="300%">
@@ -260,6 +291,6 @@ Feel free to look at [[https://github.com/redblobgames/dual-mesh][@redblobgames/
 </x:head>
 <x:footer>
   Created 31 Mar 2023 with the help of <a href="https://v2.vuejs.org/">Vue.js v2</a>; &#160;
-  <!-- hhmts start -->Last modified: 11 Apr 2023<!-- hhmts end -->
+  <!-- hhmts start -->Last modified: 02 May 2023<!-- hhmts end -->
 </x:footer>
 #+end_export
