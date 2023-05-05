@@ -1,12 +1,8 @@
 {
     "compilerOptions": {
         "target": "esnext",
-        "module": "esnext",
-        "moduleResolution": "nodenext",
-        "allowImportingTsExtensions": true,
-        "declaration": true,
-        "declarationDir": "dist",
-        "outDir": "dist"
+        "module": "nodenext",
+        "allowImportingTsExtensions": true
     },
     "include": ["./*.ts"],
     "exclude": ["node_modules", "build"]

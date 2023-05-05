@@ -13,8 +13,8 @@ import Poisson from 'fast-2d-poisson-disk-sampling';
 import {makeRandFloat} from '@redblobgames/prng';
 import {generateInteriorBoundaryPoints, generateExteriorBoundaryPoints} from "./dual-mesh/create.ts";
 
-type Point = [number, number];
-type PointsData = {
+export type Point = [number, number];
+export type PointsData = {
     points: Point[];
     numExteriorBoundaryPoints: number;
     numInteriorBoundaryPoints: number;

@@ -15,10 +15,10 @@ delaunator@^5:
   dependencies:
     robust-predicates "^3.0.0"
 
-fast-2d-poisson-disk-sampling@1.0.1:
-  version "1.0.1"
-  resolved "https://registry.yarnpkg.com/fast-2d-poisson-disk-sampling/-/fast-2d-poisson-disk-sampling-1.0.1.tgz#33a4b115c5e880db5a6f2f47f8352f87f7a52fe1"
-  integrity sha512-fY6swFqCZlMUfZtdqkpW2bN50I7FWH/7/p/KyWaiLVKnUIA3aCmt+pK1jbmzbd5MPo0VODSVpm5v193qqdbwLQ==
+fast-2d-poisson-disk-sampling@^1:
+  version "1.0.3"
+  resolved "https://registry.yarnpkg.com/fast-2d-poisson-disk-sampling/-/fast-2d-poisson-disk-sampling-1.0.3.tgz#fe84ee855ea71592f2f41815a1f6ef048f2e7f40"
+  integrity sha512-5jRLVwy1YCERwATyabp1OC34To0q2cKyfNBeglgjI1M1t4hpyqISY2Rb4jNayJ4IyV0sMbqVq85h5t11r7F9AA==
 
 flatqueue@^2:
   version "2.0.3"
@@ -26,9 +26,9 @@ flatqueue@^2:
   integrity sha512-RZCWZNkmxzUOh8jqEcEGZCycb3B8KAfpPwg3H//cURasunYxsg1eIvE+QDSjX+ZPHTIVfINfK1aLTrVKKO0i4g==
 
 gl-matrix@^3:
-  version "3.3.0"
-  resolved "https://registry.yarnpkg.com/gl-matrix/-/gl-matrix-3.3.0.tgz#232eef60b1c8b30a28cbbe75b2caf6c48fd6358b"
-  integrity sha512-COb7LDz+SXaHtl/h4LeaFcNdJdAQSDeVqjiIihSXNrkWObZLhDI4hIkZC11Aeqp7bcE72clzB0BnDXr2SmslRA==
+  version "3.4.3"
+  resolved "https://registry.yarnpkg.com/gl-matrix/-/gl-matrix-3.4.3.tgz#fc1191e8320009fd4d20e9339595c6041ddc22c9"
+  integrity sha512-wcCp8vu8FT22BnvKVPjXa/ICBWRq/zjFfdofZy1WSpQZpphblv12/bOQLBC1rMM7SGOFS9ltVmKOHil5+Ml7gA==
 
 hash-int@*:
   version "1.0.0"
@@ -36,9 +36,9 @@ hash-int@*:
   integrity sha512-U1cDrvoPTR+AWCeFLXm0UjEcsgz74N5H4lQ3PjwDCIaLHgiXRmfsvq15/HGSjNAkig/bZMcESqg93ax9alWhkg==
 
 regl@^1:
-  version "1.6.1"
-  resolved "https://registry.yarnpkg.com/regl/-/regl-1.6.1.tgz#6930172cda9b8fb65724abc0d4930d79333f5460"
-  integrity sha512-7Z9rmpEqmLNwC9kCYCyfyu47eWZaQWeNpwZfwz99QueXN8B/Ow40DB0N+OeUeM/yu9pZAB01+JgJ+XghGveVoA==
+  version "1.7.0"
+  resolved "https://registry.yarnpkg.com/regl/-/regl-1.7.0.tgz#0d185431044a356bf80e9b775b11b935ef2746d3"
+  integrity sha512-bEAtp/qrtKucxXSJkD4ebopFZYP0q1+3Vb2WECWv/T8yQEgKxDxJ7ztO285tAMaYZVR6mM1GgI6CCn8FROtL1w==
 
 robust-predicates@^3.0.0:
   version "3.0.1"

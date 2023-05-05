@@ -6,6 +6,7 @@
  * Serialize/deserialize point data
  */
 
+import {type PointsData} from "./generate-points.ts";
 
 const MAP_FLOAT_RANGE: [number, number] = [-100, 1000 + 100]; // assume spacing < 100
 const UINT_RANGE: [number, number] = [0, (1 << 16) - 1];

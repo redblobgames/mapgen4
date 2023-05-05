@@ -3,7 +3,7 @@
 
 [[http://unmaintained.tech/][http://unmaintained.tech/badge.svg]]
 
-[[https://www.redblobgames.com/maps/mapgen4/][Mapgen4]] is a procedural wilderness map generator I wrote during 2017 and 2018. It's written in JavaScript and designed to:
+[[https://www.redblobgames.com/maps/mapgen4/][Mapgen4]] is a procedural wilderness map generator I wrote during 2017 and 2018, and updated in 2023. It's written in JavaScript/TypeScript and designed to:
 
 - run /fast/ enough to regenerate in real time as you paint terrain
 - look /pretty/ instead of generating realistic terrain
@@ -55,6 +55,8 @@ There's plenty more that could be done to make it even faster and prettier. Ther
 * Code
 
 The entry point is [[mapgen4.ts]]. The main data structures are in the [[dual-mesh/]] folder. The map generation algorithms are in [[map.ts]]. The input painting is in [[painting.ts]]. The output rendering is in [[render.ts]]. Calculations are in [[worker.ts]]. Calculations shared between the worker and renderer are in [[geometry.ts]].
+
+Although the code is TypeScript, I'm using =esbuild= for building, which does /not/ check the types. Instead, I have type checking in the IDE only.
 
 * License
 

@@ -11,15 +11,14 @@ import param from "./config.js";
 import Delaunator from 'delaunator';
 import {TriangleMesh, MeshInitializer} from "./dual-mesh/index.ts";
 // import {choosePoints} from "./generate-points.ts";
-// import pointsFile from "./build/points-5.data";
 import {fromPointsFile} from "./serialize-points.ts";
 import type {Mesh} from "./types.d.ts";
 
 export async function makeMesh() {
+    let pointsData = await (await fetch(`build/points-${param.spacing}.data`)).arrayBuffer();
     let {points, numExteriorBoundaryPoints, numInteriorBoundaryPoints, numMountainPoints} =
+        fromPointsFile(new Uint16Array(pointsData));
         // choosePoints(param.mesh.seed, param.spacing, param.mountainSpacing);
-        fromPointsFile(new Uint16Array(await fetch(`build/points-${param.spacing}.data`).then(response => response.arrayBuffer())));
-        // fromPointsFile(new Uint16Array(pointsFile.buffer));
 
     let meshInit: MeshInitializer = TriangleMesh.addGhostStructure({
         points,

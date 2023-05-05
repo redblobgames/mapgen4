@@ -6,10 +6,10 @@
     "dependencies": {
         "@redblobgames/prng": "https://github.com/redblobgames/prng",
         "delaunator": "^5",
+        "fast-2d-poisson-disk-sampling": "^1",
         "flatqueue": "^2",
         "gl-matrix": "^3",
         "regl": "^1",
-        "simplex-noise": "^4",
-        "fast-2d-poisson-disk-sampling": "1.0.1"
+        "simplex-noise": "^4"
     }
 }
