@@ -24,7 +24,7 @@
    let points = generateInteriorBoundaryPoints(bounds, spacing);
    let numBoundaryPoints = points.length;
    let generator = new Poisson({
-     shape: [bounds.width, bounds.height]
+     shape: [bounds.width, bounds.height],
      minDistance: spacing / Math.sqrt(2),
    });
    for (let p of points) { generator.addPoint(p); }

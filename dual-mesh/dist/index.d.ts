@@ -96,12 +96,12 @@ export declare class TriangleMesh {
     s_next_s(s: number): number;
     s_prev_s(s: number): number;
     s_opposite_s(s: number): number;
-    s_around_t(t: number, out_s?: number[]): number[];
-    r_around_t(t: number, out_r?: number[]): number[];
-    t_around_t(t: number, out_t?: number[]): number[];
-    s_around_r(r: number, out_s?: number[]): number[];
-    r_around_r(r: number, out_r?: number[]): number[];
-    t_around_r(r: number, out_t?: number[]): number[];
+    s_around_t(t: number, s_out?: number[]): number[];
+    r_around_t(t: number, r_out?: number[]): number[];
+    t_around_t(t: number, t_out?: number[]): number[];
+    s_around_r(r: number, s_out?: number[]): number[];
+    r_around_r(r: number, r_out?: number[]): number[];
+    t_around_r(r: number, t_out?: number[]): number[];
     r_ghost(): number;
     is_ghost_s(s: number): boolean;
     is_ghost_r(r: number): boolean;

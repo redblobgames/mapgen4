@@ -6,7 +6,7 @@ This is a wrapper around [[https://mapbox.github.io/delaunator/][Delaunator]]. I
 
 [[https://redblobgames.github.io/dual-mesh/][Documentation is here]], but it's a bit rough. See [[http://www.redblobgames.com/x/1721-voronoi-alternative/][my blog post about centroid polygons]] and [[http://www.redblobgames.com/x/1722-b-rep-triangle-meshes/][my blog post about the dual mesh data structure]] for the history. Those blog posts used the names “seeds, edges, triangles” but now I call them “regions, sides, triangles”, and I use “ghost” elements to eliminate the boundaries.
 
-The naming convention is output-from-input: =x_name_y= takes type =y= (r, s, t) as input and produces type =x= (r, s, t) as output. For example, =r_begin_s= is a function that takes a side (=s=) as input and returns a region (=r=), and could be called ~r = mesh.r_begin_s(s)~. A previous version of this library used the opposite naming convention, input-to-output, but the author was persuaded to switch by [[https://tomforsyth1000.github.io/blog.wiki.html][Tom Forsyth's article on naming]].
+The naming convention is output-from-input: =x_name_y= takes type =y= (r, s, t) as input and produces type =x= (r, s, t) as output. For example, =r_begin_s= is a function that takes a side (=s=) as input and returns a region (=r=), and could be called ~r = mesh.r_begin_s(s)~. A previous version of this library used the opposite naming convention, input-to-output, but the author was persuaded to switch by [[https://tomforsyth1000.github.io/blog.wiki.html#\[\[BMatrix maths and names\]\]][Tom Forsyth's article on naming]].
 
 For efficiency, functions that return an array take an optional parameter where the result should be written:
 

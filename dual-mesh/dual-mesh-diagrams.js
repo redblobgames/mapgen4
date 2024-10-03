@@ -184,6 +184,7 @@ Vue.component('a-side-white-edges', {
 `,
     methods: {
         w_side: function(s) {
+            if (this.graph.is_ghost_s(s)) return ``;
             const alpha = this.alpha || 0.0;
             let begin = this.graph.pos_of_t(this.graph.t_inner_s(s));
             let end = this.graph.pos_of_t(this.graph.t_outer_s(s));

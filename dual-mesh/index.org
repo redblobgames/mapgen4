@@ -180,14 +180,24 @@ But, barely inside means there's a tiny gap between the boundary points and the 
 </figure>
 #+end_export
 
-The accessor functions are named ~output = output_from_input(input)~. Some of them return an array, and will take an optional parameter to reuse an existing array (to avoid memory allocations).
+Public data includes:
 
+- ~numSides, ~numSolidSides~
+- ~numRegions, ~numSolidRegions~
+- ~numTriangles~, ~numSolidTriangles~
+- ~numBoundaryRegions~
+
+Static helpers:
+
+- ~t_from_s(s)~ :: returns the triangle id from a side id
+- ~s_next_s(s)~, ~s_prev_s(s)~ :: next/prev around triangle. The black edge =s2= has /next/ edge ={{test('s_next_s',2)}}= and /previous/ edge ={{test('s_prev_s',2)}}=.
+
+The accessor functions are named ~output = output_from_input(input)~. Some of them return an array, and will take an optional parameter to reuse an existing array (to avoid memory allocations).
 
 - ~x_of_r(r)~, ~y_of_r(r)~, ~pos_of_r(r, out=[])~ :: the position of region =r= (red point).
 - ~x_of_t(t)~, ~y_of_t(t)~, ~pos_of_t(t, out=[])~ :: the center position of triangle =t= (blue point).
 - ~r_begin_s(s)~, ~r_end_s(s)~ :: the black edge endpoints (red). The black edge =s2= /begins/ at ={{test('r_begin_s',2)}}= and /ends/ at ={{test('r_end_s',2)}}=. 
 - ~t_inner_s(s)~, ~t_outer_s(s)~ :: the white edge endpoints (blue). The black edge =s2= has a white edge connecting /inner/ triangle ={{test('t_inner_s',2)}}= to /outer/ triangle ={{test('t_outer_s',2)}}=.
-- ~s_next_s(s)~, ~s_prev_s(s)~ :: next/prev around triangle. The black edge =s2= has /next/ edge ={{test('s_next_s',2)}}= and /previous/ edge ={{test('s_prev_s',2)}}=.
 - ~s_opposite_s(s)~ :: opposite of half-edge. The black edge =s2='s opposite is ={{test('s_opposite_s',2)}}= and =s5='s opposite is ={{test('s_opposite_s',5)}}=. If an edge has no opposite, it will return =-1=.
 - ~s_around_t(t, out=[])~ :: sides around a triangle. Triangle =t0='s sides are ={{test('s_around_t',0)}}=
 - ~r_around_t(t, out=[])~ :: regions around a triangle. Triangle =t0='s regions are ={{test('r_around_t',0)}}=
@@ -215,6 +225,8 @@ Properties of circulation:
 
 - If =s= is returned by ~s_around_r(r)~, then ~r_begin_s(s)~ === =r=
 - If =s= is returned by ~s_around_t(t)~, then ~t_inner_s(s)~ === =t=
+
+- constructor, ~addGhostStructure()~, ~_update()~ set the internal data structures from Delaunator's data, type =MeshInitializer { points: Point[]; delaunator: Delaunator; numBoundaryPoints?: number; numSolidSides?: number }=
 
 ** History
 :PROPERTIES:
@@ -291,6 +303,6 @@ Feel free to look at [[https://github.com/redblobgames/dual-mesh][@redblobgames/
 </x:head>
 <x:footer>
   Created 31 Mar 2023 with the help of <a href="https://v2.vuejs.org/">Vue.js v2</a>; &#160;
-  <!-- hhmts start -->Last modified: 02 May 2023<!-- hhmts end -->
+  <!-- hhmts start -->Last modified: 24 Jun 2024<!-- hhmts end -->
 </x:footer>
 #+end_export

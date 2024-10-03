@@ -181,47 +181,47 @@ export class TriangleMesh {
     s_next_s(s) { return TriangleMesh.s_next_s(s); }
     s_prev_s(s) { return TriangleMesh.s_prev_s(s); }
     s_opposite_s(s) { return this._halfedges[s]; }
-    s_around_t(t, out_s = []) { out_s.length = 3; for (let i = 0; i < 3; i++) {
-        out_s[i] = 3 * t + i;
-    } return out_s; }
-    r_around_t(t, out_r = []) { out_r.length = 3; for (let i = 0; i < 3; i++) {
-        out_r[i] = this._triangles[3 * t + i];
-    } return out_r; }
-    t_around_t(t, out_t = []) { out_t.length = 3; for (let i = 0; i < 3; i++) {
-        out_t[i] = this.t_outer_s(3 * t + i);
-    } return out_t; }
-    s_around_r(r, out_s = []) {
+    s_around_t(t, s_out = []) { s_out.length = 3; for (let i = 0; i < 3; i++) {
+        s_out[i] = 3 * t + i;
+    } return s_out; }
+    r_around_t(t, r_out = []) { r_out.length = 3; for (let i = 0; i < 3; i++) {
+        r_out[i] = this._triangles[3 * t + i];
+    } return r_out; }
+    t_around_t(t, t_out = []) { t_out.length = 3; for (let i = 0; i < 3; i++) {
+        t_out[i] = this.t_outer_s(3 * t + i);
+    } return t_out; }
+    s_around_r(r, s_out = []) {
         const s0 = this._s_of_r[r];
         let incoming = s0;
-        out_s.length = 0;
+        s_out.length = 0;
         do {
-            out_s.push(this._halfedges[incoming]);
+            s_out.push(this._halfedges[incoming]);
             let outgoing = TriangleMesh.s_next_s(incoming);
             incoming = this._halfedges[outgoing];
         } while (incoming !== -1 && incoming !== s0);
-        return out_s;
+        return s_out;
     }
-    r_around_r(r, out_r = []) {
+    r_around_r(r, r_out = []) {
         const s0 = this._s_of_r[r];
         let incoming = s0;
-        out_r.length = 0;
+        r_out.length = 0;
         do {
-            out_r.push(this.r_begin_s(incoming));
+            r_out.push(this.r_begin_s(incoming));
             let outgoing = TriangleMesh.s_next_s(incoming);
             incoming = this._halfedges[outgoing];
         } while (incoming !== -1 && incoming !== s0);
-        return out_r;
+        return r_out;
     }
-    t_around_r(r, out_t = []) {
+    t_around_r(r, t_out = []) {
         const s0 = this._s_of_r[r];
         let incoming = s0;
-        out_t.length = 0;
+        t_out.length = 0;
         do {
-            out_t.push(TriangleMesh.t_from_s(incoming));
+            t_out.push(TriangleMesh.t_from_s(incoming));
             let outgoing = TriangleMesh.s_next_s(incoming);
             incoming = this._halfedges[outgoing];
         } while (incoming !== -1 && incoming !== s0);
-        return out_t;
+        return t_out;
     }
     r_ghost() { return this.numRegions - 1; }
     is_ghost_s(s) { return s >= this.numSolidSides; }
