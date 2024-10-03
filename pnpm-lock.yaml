@@ -1,0 +1,86 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      '@redblobgames/prng':
+        specifier: https://github.com/redblobgames/prng
+        version: https://codeload.github.com/redblobgames/prng/tar.gz/1104cf92f9824d71cf631eeeedd5866e9b62ea9f
+      delaunator:
+        specifier: ^5
+        version: 5.0.1
+      fast-2d-poisson-disk-sampling:
+        specifier: ^1
+        version: 1.0.3
+      flatqueue:
+        specifier: ^2
+        version: 2.0.3
+      gl-matrix:
+        specifier: ^3
+        version: 3.4.3
+      regl:
+        specifier: ^1
+        version: 1.7.0
+      simplex-noise:
+        specifier: ^4
+        version: 4.0.3
+
+packages:
+
+  '@redblobgames/prng@https://codeload.github.com/redblobgames/prng/tar.gz/1104cf92f9824d71cf631eeeedd5866e9b62ea9f':
+    resolution: {tarball: https://codeload.github.com/redblobgames/prng/tar.gz/1104cf92f9824d71cf631eeeedd5866e9b62ea9f}
+    version: 1.0.0
+
+  delaunator@5.0.1:
+    resolution: {integrity: sha512-8nvh+XBe96aCESrGOqMp/84b13H9cdKbG5P2ejQCh4d4sK9RL4371qou9drQjMhvnPmhWl5hnmqbEE0fXr9Xnw==}
+
+  fast-2d-poisson-disk-sampling@1.0.3:
+    resolution: {integrity: sha512-5jRLVwy1YCERwATyabp1OC34To0q2cKyfNBeglgjI1M1t4hpyqISY2Rb4jNayJ4IyV0sMbqVq85h5t11r7F9AA==}
+
+  flatqueue@2.0.3:
+    resolution: {integrity: sha512-RZCWZNkmxzUOh8jqEcEGZCycb3B8KAfpPwg3H//cURasunYxsg1eIvE+QDSjX+ZPHTIVfINfK1aLTrVKKO0i4g==}
+    engines: {node: '>= 12.17.0'}
+
+  gl-matrix@3.4.3:
+    resolution: {integrity: sha512-wcCp8vu8FT22BnvKVPjXa/ICBWRq/zjFfdofZy1WSpQZpphblv12/bOQLBC1rMM7SGOFS9ltVmKOHil5+Ml7gA==}
+
+  hash-int@1.0.0:
+    resolution: {integrity: sha512-U1cDrvoPTR+AWCeFLXm0UjEcsgz74N5H4lQ3PjwDCIaLHgiXRmfsvq15/HGSjNAkig/bZMcESqg93ax9alWhkg==}
+
+  regl@1.7.0:
+    resolution: {integrity: sha512-bEAtp/qrtKucxXSJkD4ebopFZYP0q1+3Vb2WECWv/T8yQEgKxDxJ7ztO285tAMaYZVR6mM1GgI6CCn8FROtL1w==}
+
+  robust-predicates@3.0.2:
+    resolution: {integrity: sha512-IXgzBWvWQwE6PrDI05OvmXUIruQTcoMDzRsOd5CDvHCVLcLHMTSYvOK5Cm46kWqlV3yAbuSpBZdJ5oP5OUoStg==}
+
+  simplex-noise@4.0.3:
+    resolution: {integrity: sha512-qSE2I4AngLQG7BXqoZj51jokT4WUXe8mOBrvfOXpci8+6Yu44+/dD5zqDpOx3Ux792eamTd2lLcI8jqFntk/lg==}
+
+snapshots:
+
+  '@redblobgames/prng@https://codeload.github.com/redblobgames/prng/tar.gz/1104cf92f9824d71cf631eeeedd5866e9b62ea9f':
+    dependencies:
+      hash-int: 1.0.0
+
+  delaunator@5.0.1:
+    dependencies:
+      robust-predicates: 3.0.2
+
+  fast-2d-poisson-disk-sampling@1.0.3: {}
+
+  flatqueue@2.0.3: {}
+
+  gl-matrix@3.4.3: {}
+
+  hash-int@1.0.0: {}
+
+  regl@1.7.0: {}
+
+  robust-predicates@3.0.2: {}
+
+  simplex-noise@4.0.3: {}

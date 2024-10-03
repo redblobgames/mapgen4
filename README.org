@@ -12,15 +12,7 @@
 
 * Install
 
-If you use =yarn= 1:
-
-#+begin_src sh
-yarn global add esbuild
-yarn install
-./build.sh
-#+end_src
-
-If you use =npm=:
+With =npm= or =pnpm=:
 
 #+begin_src sh
 npm install -g esbuild
