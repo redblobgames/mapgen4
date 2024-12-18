@@ -19,6 +19,7 @@ import SimplexNoise from 'simplex-noise';
 import {makeRandFloat} from '@redblobgames/prng';
 
 const CANVAS_SIZE = 128;
+const FRAMES_PER_SECOND = 24; // for 2218-mapgen4-animated
 
 const currentStroke = {
     /* elevation before the current paint stroke began */
@@ -35,6 +36,19 @@ class Generator {
     constructor () {
         this.userHasPainted = false;
         this.elevation = new Float32Array(CANVAS_SIZE * CANVAS_SIZE);
+        this.animation = {
+            time: 0,
+            meander: {
+                x: 0,
+                y: 0,
+                d_angle: 0,
+                angle: Math.PI,
+            },
+            zoom: {
+                z: 1,
+                angle: 0,
+            },
+        };
     }
 
     setElevationParam(elevationParam) {
@@ -45,21 +59,60 @@ class Generator {
             this.generate();
         }
     }
-    
+
+    // The current animation depends on which mode we're in
+    updateAnimationState() {
+        const animationStyle = document.querySelector("input[name='animate'][type='radio']:checked").value;
+        switch (animationStyle) {
+            case 'time':
+                this.animation.time += 2e-3;
+                break;
+            case 'meander':
+                const step = 0.002;
+                this.animation.meander.d_angle =
+                    (this.animation.meander.d_angle * 0.995 + 3 * (Math.random() - Math.random()));
+                this.animation.meander.angle += 0.0005 * this.animation.meander.d_angle;
+                this.animation.meander.x += step * Math.cos(this.animation.meander.angle);
+                this.animation.meander.y += step * Math.sin(this.animation.meander.angle);
+                break;
+            case 'zoom':
+                this.animation.zoom.z += 0.005;
+                this.animation.zoom.angle += 0.003;
+                break;
+        }
+    }
+
     /** Use a noise function to determine the shape */
     generate() {
-        const time = Date.now() * 2e-4;
+        this.updateAnimationState();
         const {elevation, island} = this;
         const noise = new SimplexNoise(makeRandFloat(this.seed));
         const persistence = 1/2;
-        const amplitudes = Array.from({length: 5}, (_, octave) => Math.pow(persistence, octave));
+        const amplitudes = [0, ...Array.from({length: 5}, (_, octave) => Math.pow(persistence, octave)), 0];
 
-        function fbm_noise(nx, ny) {
+        const noise2D = (x, y, base_x=0, base_y=0) => {
+            const {time, meander, zoom} = this.animation;
+            [x, y] = [Math.cos(zoom.angle) * x + Math.sin(zoom.angle) * y,
+                      -Math.sin(zoom.angle) * x + Math.cos(zoom.angle) * y];
+            return noise.noise3D(
+                meander.x + x + base_x,
+                meander.y + y + base_y,
+                time
+            );
+        };
+
+        function lerp(a, b, t) { return a * (1-t) + b * t; }
+        const fbm_noise = (nx, ny) => {
             let sum = 0, sumOfAmplitudes = 0;
-            for (let octave = 0; octave < amplitudes.length; octave++) {
-                let frequency = 1 << octave;
-                sum += amplitudes[octave] * noise.noise3D(time, nx * frequency, ny * frequency);
-                sumOfAmplitudes += amplitudes[octave];
+            // To implement zoom I want to have a sliding window of octaves,
+            // similar to Shepard Tone I think
+            let phase = this.animation.zoom.z % 1.0;
+            for (let octave = 0; octave < amplitudes.length-1; octave++) {
+                // TODO: there's a discontinuity in velocity here, and this lerp timing isn't right
+                let amplitude = lerp(amplitudes[octave+1], amplitudes[octave], (2**phase)-1);
+                let frequency = (1 << octave) / (1.0 + phase);
+                sum += amplitude * noise2D(nx * frequency, ny * frequency);
+                sumOfAmplitudes += amplitude;
             }
             return sum / sumOfAmplitudes;
         }
@@ -75,8 +128,8 @@ class Generator {
                 if (e > +1.0) { e = +1.0; }
                 elevation[p] = e;
                 if (e > 0.0) {
-                    let m = (0.5 * noise.noise2D(nx + 30, ny + 50)
-                             + 0.5 * noise.noise2D(2*nx + 33, 2*ny + 55));
+                    let m = (0.5 * noise2D(nx, ny, 30, 50)
+                             + 0.5 * noise2D(2*nx, 2*ny, 33, 55));
                     // TODO: make some of these into parameters
                     let mountain = Math.min(1.0, e * 5.0) * (1 - Math.abs(m) / 0.5);
                     if (mountain > 0.0) {
@@ -197,6 +250,6 @@ displayCurrentTool();
 setInterval(() => {
     heightMap.generate();
     exported.onUpdate();
-}, 1000/24);
+}, 1000/FRAMES_PER_SECOND);
     
 export default exported;

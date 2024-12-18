@@ -23,7 +23,7 @@ import Renderer from './render';
 const initialParams = {
     elevation: [
         ['seed', 187, 1, 1 << 30],
-        ['island', 0.5, 0, 1],
+        ['island', 0.2, 0, 1],
         ['noisy_coastlines', 0.02, 0, 0.1],
         ['hill_height', 0.02, 0, 0.1],
         ['mountain_jagged', 0, 0, 1],
