@@ -19,12 +19,9 @@ import {makeRandFloat} from '@redblobgames/prng';
 const CANVAS_SIZE = 128;
 
 const currentStroke = {
-    /* elevation before the current paint stroke began */
-    previousElevation: new Float32Array(CANVAS_SIZE * CANVAS_SIZE),
-    /* how long, in milliseconds, was spent painting */
-    time: new Float32Array(CANVAS_SIZE * CANVAS_SIZE),
-    /* maximum strength applied */
-    strength: new Float32Array(CANVAS_SIZE * CANVAS_SIZE),
+    /* only thing that matters is the current position */
+    x: 0,
+    y: 0,
 };
 
 
@@ -52,7 +49,7 @@ class Generator {
     generate() {
         const {elevation, island} = this;
         const noise4D = createNoise4D(makeRandFloat(this.seed))
-        const noise2D = (x, y) => noise4D(x, y, 0, 0);
+        const noise2D = (x: number, y: number) => noise4D(x, y, currentStroke.x, currentStroke.y);
         const persistence = 1/2;
         const amplitudes = Array.from({length: 5}, (_, octave) => Math.pow(persistence, octave));
 
@@ -89,45 +86,6 @@ class Generator {
         }
 
         this.userHasPainted = false;
-    }
-
-    /**
-     * Paint a circular region. x0, y0 should be 0 to 1
-     */
-    paintAt(tool: { elevation: number; },
-            x0: number, y0: number,
-            size: { innerRadius: number; outerRadius: number; rate: number; },
-            deltaTimeInMs: number) {
-        let {elevation} = this;
-        /* This has two effects: first time you click the mouse it has a
-         * strong effect, and it also limits the amount in case you
-         * pause */
-        deltaTimeInMs = Math.min(100, deltaTimeInMs);
-
-        let newElevation = tool.elevation;
-        let {innerRadius, outerRadius, rate} = size;
-        let xc = (x0 * CANVAS_SIZE) | 0, yc = (y0 * CANVAS_SIZE) | 0;
-        let top = Math.ceil(Math.max(0, yc - outerRadius)),
-            bottom = Math.floor(Math.min(CANVAS_SIZE-1, yc + outerRadius));
-        for (let y = top; y <= bottom; y++) {
-            let s = Math.sqrt(outerRadius * outerRadius - (y - yc) * (y - yc)) | 0;
-            let left = Math.max(0, xc - s),
-                right = Math.min(CANVAS_SIZE-1, xc + s);
-            for (let x = left; x <= right; x++) {
-                let p = y * CANVAS_SIZE + x;
-                let distance = Math.sqrt((x - xc) * (x - xc) + (y - yc) * (y - yc));
-                let strength = 1.0 - Math.min(1, Math.max(0, (distance - innerRadius) / (outerRadius - innerRadius)));
-                let factor = rate/1000 * deltaTimeInMs;
-                currentStroke.time[p] += strength * factor;
-                if (strength > currentStroke.strength[p]) {
-                    currentStroke.strength[p] = (1 - factor) * currentStroke.strength[p] + factor * strength;
-                }
-                let mix = currentStroke.strength[p] * Math.min(1, currentStroke.time[p]);
-                elevation[p] = (1 - mix) * currentStroke.previousElevation[p] + mix * newElevation;
-            }
-        }
-
-        this.userHasPainted = true;
     }
 }
 let heightMap = new Generator();
@@ -190,6 +148,51 @@ for (let control of controls) {
     document.getElementById(control[1]).addEventListener('click', () => { control[2](); displayCurrentTool(); } );
 }
 displayCurrentTool();
+
+
+function setUpPaintEventHandling() {
+    const el = document.getElementById('mapgen4');
+    let dragging = false;
+
+    function start(event: PointerEvent) {
+        if (event.button !== 0) return; // left button only
+        el.setPointerCapture(event.pointerId);
+
+        dragging = true;
+        move(event);
+    }
+
+    function end(_event) {
+        dragging = false;
+    }
+
+    function move(event: PointerEvent) {
+        // We're going to run this whether we're in dragging (mouse down) or not (mouse up).
+        // The expectation is that mouse interaction will use mouse-up and touch interaction
+        // will be mouse-down.
+        const bounds = el.getBoundingClientRect();
+        let coords = [
+            (event.x - bounds.left) / bounds.width,
+            (event.y - bounds.top) / bounds.height,
+        ];
+        coords = exported.screenToWorldCoords(coords);
+        if (0 <= coords[0] && coords[0] <= 1
+            && 0 <= coords[1] && coords[1] <= 1) {
+            currentStroke.x = 3 * (coords[0] - 0.5);
+            currentStroke.y = 3 * (coords[1] - 0.5);
+            heightMap.userHasPainted = true;
+            heightMap.generate();
+            exported.onUpdate();
+        }
+    }
+
+    el.addEventListener('pointerdown', start);
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+    el.addEventListener('pointermove', move)
+    el.addEventListener('touchstart', (e) => e.preventDefault()); // prevent scroll
+}
+setUpPaintEventHandling();
 
 
 export default exported;
