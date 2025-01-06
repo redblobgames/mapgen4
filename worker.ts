@@ -20,8 +20,11 @@ let handler = (event) => {
     // NOTE: web worker messages only include the data; to
     // reconstruct the full object I call the constructor again
     // and then copy the data over
+    const overlayCanvas = event.data.overlayCanvas;
     const mesh = new TriangleMesh(event.data.mesh as TriangleMesh);
     const map = new Map(mesh as Mesh, event.data.t_peaks, event.data.param);
+
+    const ctx = overlayCanvas.getContext('2d', {premultipliedAlpha: true});
 
     // TODO: placeholder - calculating elevation+biomes takes 35% of
     // the time on my laptop, and seeing the elevation change is the
@@ -44,7 +47,21 @@ let handler = (event) => {
 
         let numRiverTriangles = 0;
         let start_time = performance.now();
-        
+
+        // TODO: draw an overlay -- this is just a placeholder
+        ctx.reset();
+        ctx.clearRect(0, 0, 2048, 2048);
+        ctx.beginPath();
+        const gradient = ctx.createLinearGradient(512, 512, 1536, 512);
+        gradient.addColorStop(0, 'hsl(0 50% 0% / 0.5)');
+        gradient.addColorStop(1, 'hsl(240 50% 100% / 0.5)');
+        ctx.fillStyle = gradient;
+        ctx.strokeStyle = "hsl(0 100% 50% / 0.5)";
+        ctx.lineWidth = 40;
+        ctx.rect(512, 512, 1024, 1024);
+        ctx.fill();
+        ctx.stroke();
+
         if (run.biomes) {
             map.assignElevation(param.elevation, constraints);
             map.assignRainfall(param.biomes);

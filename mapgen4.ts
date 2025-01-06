@@ -18,6 +18,7 @@ import param from "./config.js";
 import {makeMesh} from "./mesh.ts";
 import Painting from "./painting.ts";
 import Renderer from "./render.ts";
+import overlay from "./overlay.ts";
 import type {Mesh} from "./types.d.ts";
 
 
@@ -172,6 +173,7 @@ function main({mesh, t_peaks}: { mesh: Mesh; t_peaks: number[]; }) {
         render.a_quad_em = new Float32Array(a_quad_em_buffer);
         render.a_river_xyuv = new Float32Array(a_river_xyuv_buffer);
         render.numRiverTriangles = numRiverTriangles;
+        render.overlayCanvas = overlay.canvas;
         render.updateMap();
         redraw();
         if (workRequested) {
@@ -214,7 +216,11 @@ function main({mesh, t_peaks}: { mesh: Mesh; t_peaks: number[]; }) {
         }
     }
 
-    worker.postMessage({mesh, t_peaks, param});
+    let offscreen = overlay.canvas.transferControlToOffscreen();
+    worker.postMessage(
+        {mesh, t_peaks, param, overlayCanvas: offscreen},
+        [offscreen]
+    );
     generate();
 
     const downloadButton = document.getElementById('button-download');

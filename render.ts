@@ -9,7 +9,6 @@
 import {vec2, vec4, mat4} from 'gl-matrix';
 import colormap from "./colormap.ts";
 import Geometry from "./geometry.ts";
-import {canvas as overlayCanvas} from "./overlay.ts";
 import type {Mesh} from "./types.d.ts";
 
 import REGL from 'regl/dist/regl.min.js';
@@ -31,7 +30,6 @@ const fbo_river = regl.framebuffer({color: fbo_river_texture});
 const fbo_final_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size, min: 'linear', mag: 'linear'});
 const fbo_final = regl.framebuffer({color: fbo_final_texture});
 const overlay_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size, min: 'linear'});
-overlay_texture(overlayCanvas);
 
 /* draw rivers to a texture, which will be draped on the map surface */
 const drawRivers = regl({
@@ -221,6 +219,12 @@ void main() {
    vec2 em = texture2D(u_mapdata, pos).yz;
    em.y = v_em.y;
    vec3 neutral_biome_color = neutral_land_biome;
+
+   // The overlay is an arbitary image we're draping on top of everything
+   // else. It seems to be premultiplied alpha, and we need to undo that (why?)
+   vec4 overlay_color = texture2D(u_overlay, v_uv);
+   overlay_color.rgb = clamp(overlay_color.rgb / overlay_color.a, 0.0, 1.0);
+
    vec4 water_color = texture2D(u_water, pos);
    if (em.x >= 0.5 && v_z >= 0.0) {
      // on land, lower the elevation around rivers
@@ -232,13 +236,13 @@ void main() {
    vec3 biome_color = texture2D(u_colormap, em).rgb;
    water_color = mix(vec4(neutral_water_biome * (1.2 - water_color.a), water_color.a), water_color, u_biome_colors);
    biome_color = mix(neutral_biome_color, biome_color, u_biome_colors);
-   if (v_z < 0.0) {
-      // at the exterior boundary, we'll draw soil or water underground
+   if (v_z < 0.0) { // underground areas seen from the side: draw soil or water
       float land_or_water = smoothstep(0.0, -0.001, v_em.x - v_z);
       vec3 soil_color = vec3(0.4, 0.3, 0.2);
       vec3 underground_color = mix(soil_color, mix(neutral_water_biome, vec3(0.1, 0.1, 0.2), u_biome_colors), land_or_water) * smoothstep(-0.7, -0.1, v_z);
       vec3 highlight_color = mix(vec3(0, 0, 0), mix(vec3(0.8, 0.8, 0.8), vec3(0.4, 0.5, 0.7), u_biome_colors), land_or_water);
       biome_color = mix(underground_color, highlight_color, 0.5 * smoothstep(-0.025, 0.0, v_z));
+      overlay_color = vec4(0, 0, 0, 0); // don't apply overlay underground
       light = 1.0 - 0.3 * smoothstep(0.8, 1.0, fract((v_em.x - v_z) * 20.0)); // add horizontal lines
    }
    // if (fract(em.x * 10.0) < 10.0 * fwidth(em.x)) { biome_color = vec3(0,0,0); } // contour lines
@@ -270,7 +274,6 @@ void main() {
    if (em.x <= 0.5 && max(depth1, depth2) > 1.0/256.0 && neighboring_river <= 0.2) { outline += u_outline_coast * 256.0 * (max(depth1, depth2) - 2.0*(em.x - 0.5)); }
 
    vec3 map_color = mix(biome_color, water_color.rgb, water_color.a) * light / outline;
-   vec4 overlay_color = texture2D(u_overlay, v_uv);
    gl_FragColor = vec4(mix(map_color, overlay_color.rgb, overlay_color.a), 1);
 }`,
 
@@ -375,6 +378,8 @@ class Renderer {
     buffer_quad_em: REGL.Buffer;
     buffer_river_xyuv: REGL.Buffer;
     buffer_quad_elements: REGL.Elements;
+
+    overlayCanvas: HTMLCanvasElement;
 
     screenshotCanvas: HTMLCanvasElement;
     screenshotCallback: () => void;
@@ -542,7 +547,9 @@ class Renderer {
                     u_projection: this.projection
                 });
             }
-            
+
+            overlay_texture(this.overlayCanvas); // for prototype, assume it's changed every frame
+
             drawDrape({
                 elements: this.buffer_quad_elements,
                 a_xy: this.buffer_quad_xy,
