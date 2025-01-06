@@ -9,6 +9,7 @@
 import {vec2, vec4, mat4} from 'gl-matrix';
 import colormap from "./colormap.ts";
 import Geometry from "./geometry.ts";
+import {canvas as overlayCanvas} from "./overlay.ts";
 import type {Mesh} from "./types.d.ts";
 
 import REGL from 'regl/dist/regl.min.js';
@@ -29,7 +30,8 @@ const fbo_river_texture = regl.texture({width: fbo_texture_size, height: fbo_tex
 const fbo_river = regl.framebuffer({color: fbo_river_texture});
 const fbo_final_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size, min: 'linear', mag: 'linear'});
 const fbo_final = regl.framebuffer({color: fbo_final_texture});
-
+const overlay_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size, min: 'linear'});
+overlay_texture(overlayCanvas);
 
 /* draw rivers to a texture, which will be draped on the map surface */
 const drawRivers = regl({
@@ -184,6 +186,7 @@ uniform sampler2D u_colormap;
 uniform sampler2D u_mapdata;
 uniform sampler2D u_water;
 uniform sampler2D u_depth;
+uniform sampler2D u_overlay;
 uniform vec2 u_light_angle;
 uniform float u_inverse_texture_size, 
               u_slope, u_flat,
@@ -266,7 +269,9 @@ void main() {
    );
    if (em.x <= 0.5 && max(depth1, depth2) > 1.0/256.0 && neighboring_river <= 0.2) { outline += u_outline_coast * 256.0 * (max(depth1, depth2) - 2.0*(em.x - 0.5)); }
 
-   gl_FragColor = vec4(mix(biome_color, water_color.rgb, water_color.a) * light / outline, 1);
+   vec3 map_color = mix(biome_color, water_color.rgb, water_color.a) * light / outline;
+   vec4 overlay_color = texture2D(u_overlay, v_uv);
+   gl_FragColor = vec4(mix(map_color, overlay_color.rgb, overlay_color.a), 1);
 }`,
 
     vert: `
@@ -301,6 +306,7 @@ void main() {
         u_depth: regl.prop('u_depth'),
         u_colormap: regl.texture({width: colormap.width, height: colormap.height, data: colormap.data, wrapS: 'clamp', wrapT: 'clamp'}),
         u_mapdata: () => fbo_land_texture,
+        u_overlay: overlay_texture,
         u_water: regl.prop('u_water'),
         u_inverse_texture_size: 1.5 / fbo_texture_size,
         u_light_angle: regl.prop('u_light_angle'),
