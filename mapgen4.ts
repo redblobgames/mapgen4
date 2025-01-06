@@ -18,7 +18,6 @@ import param from "./config.js";
 import {makeMesh} from "./mesh.ts";
 import Painting from "./painting.ts";
 import Renderer from "./render.ts";
-import overlay from "./overlay.ts";
 import type {Mesh} from "./types.d.ts";
 
 
@@ -71,6 +70,7 @@ const initialParams = {
  */
 function main({mesh, t_peaks}: { mesh: Mesh; t_peaks: number[]; }) {
     let render = new Renderer(mesh);
+    render.overlayCanvas = document.getElementById('overlay-drape') as HTMLCanvasElement;
 
     /* set initial parameters */
     for (let phase of ['elevation', 'biomes', 'rivers', 'render']) {
@@ -173,7 +173,6 @@ function main({mesh, t_peaks}: { mesh: Mesh; t_peaks: number[]; }) {
         render.a_quad_em = new Float32Array(a_quad_em_buffer);
         render.a_river_xyuv = new Float32Array(a_river_xyuv_buffer);
         render.numRiverTriangles = numRiverTriangles;
-        render.overlayCanvas = overlay.canvas;
         render.updateMap();
         redraw();
         if (workRequested) {
@@ -216,7 +215,7 @@ function main({mesh, t_peaks}: { mesh: Mesh; t_peaks: number[]; }) {
         }
     }
 
-    let offscreen = overlay.canvas.transferControlToOffscreen();
+    let offscreen = render.overlayCanvas.transferControlToOffscreen();
     worker.postMessage(
         {mesh, t_peaks, param, overlayCanvas: offscreen},
         [offscreen]

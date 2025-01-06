@@ -29,7 +29,7 @@ const fbo_river_texture = regl.texture({width: fbo_texture_size, height: fbo_tex
 const fbo_river = regl.framebuffer({color: fbo_river_texture});
 const fbo_final_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size, min: 'linear', mag: 'linear'});
 const fbo_final = regl.framebuffer({color: fbo_final_texture});
-const overlay_texture = regl.texture({width: fbo_texture_size, height: fbo_texture_size, min: 'linear'});
+const overlay_texture = regl.texture();
 
 /* draw rivers to a texture, which will be draped on the map surface */
 const drawRivers = regl({
@@ -548,7 +548,7 @@ class Renderer {
                 });
             }
 
-            overlay_texture(this.overlayCanvas); // for prototype, assume it's changed every frame
+            overlay_texture({data: this.overlayCanvas, min: 'linear'}); // for prototype, assume it's changed every frame
 
             drawDrape({
                 elements: this.buffer_quad_elements,

@@ -15,6 +15,29 @@ import type {Mesh} from "./types.d.ts";
 // NOTE: Typescript workaround https://github.com/Microsoft/TypeScript/issues/20595
 const worker: Worker = self as any;
 
+// Draw any overlay annotations that should be "draped" over the terrain surface
+function drawOverlay(ctx, map: Map) {
+    ctx.reset();
+    ctx.clearRect(0, 0, 4096, 4096);
+
+    ctx.fillStyle = "hsl(0 50% 50% / 0.5)";
+    ctx.strokeStyle = "black";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.rect(1024, 1024, 2048, 2048);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = "100px sans-serif";
+    ctx.fillStyle = "black";
+    ctx.strokeStyle = "hsl(0 0% 100% / 0.5)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.fillText("Elysian Fields", 1536, 1536);
+    ctx.strokeText("Elysian Fields", 1535, 1536);
+}
+
+
 // This handler is for the initial message
 let handler = (event) => {
     // NOTE: web worker messages only include the data; to
@@ -48,19 +71,7 @@ let handler = (event) => {
         let numRiverTriangles = 0;
         let start_time = performance.now();
 
-        // TODO: draw an overlay -- this is just a placeholder
-        ctx.reset();
-        ctx.clearRect(0, 0, 2048, 2048);
-        ctx.beginPath();
-        const gradient = ctx.createLinearGradient(512, 512, 1536, 512);
-        gradient.addColorStop(0, 'hsl(0 50% 0% / 0.5)');
-        gradient.addColorStop(1, 'hsl(240 50% 100% / 0.5)');
-        ctx.fillStyle = gradient;
-        ctx.strokeStyle = "hsl(0 100% 50% / 0.5)";
-        ctx.lineWidth = 40;
-        ctx.rect(512, 512, 1024, 1024);
-        ctx.fill();
-        ctx.stroke();
+        drawOverlay(ctx, map);
 
         if (run.biomes) {
             map.assignElevation(param.elevation, constraints);
