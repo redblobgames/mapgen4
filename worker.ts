@@ -18,7 +18,7 @@ const worker: Worker = self as any;
 // Draw any overlay annotations that should be "draped" over the terrain surface
 function drawOverlay(ctx: OffscreenCanvasRenderingContext2D, map: Map) {
     ctx.reset();
-    ctx.scale(4096/1000, 4096/1000); // mapgen4 draws to a 1000✕1000 region
+    ctx.scale(2048/1000, 2048/1000); // mapgen4 draws to a 1000✕1000 region
     ctx.clearRect(0, 0, 1000, 1000);
 
     // A sample region
@@ -126,19 +126,21 @@ let handler = (event) => {
 
         let elapsed = performance.now() - start_time;
 
-        worker.postMessage(
-            {elapsed,
-             numRiverTriangles,
-             quad_elements_buffer,
-             a_quad_em_buffer,
-             a_river_xyuv_buffer,
-            },
-            [
-                quad_elements_buffer,
-                a_quad_em_buffer,
-                a_river_xyuv_buffer,
-            ]
-        );
+        requestAnimationFrame(() => {
+            worker.postMessage(
+                {elapsed,
+                 numRiverTriangles,
+                 quad_elements_buffer,
+                 a_quad_em_buffer,
+                 a_river_xyuv_buffer,
+                },
+                [
+                    quad_elements_buffer,
+                    a_quad_em_buffer,
+                    a_river_xyuv_buffer,
+                ]
+            );
+        });
     };
 };
 
