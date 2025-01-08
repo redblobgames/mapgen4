@@ -221,7 +221,8 @@ void main() {
    vec3 neutral_biome_color = neutral_land_biome;
 
    // The overlay is an arbitary image we're draping on top of everything
-   // else. It seems to be premultiplied alpha, and we need to undo that (why?)
+   // else. In Firefox it seems to be premultiplied alpha, and we need to undo that,
+   // but in Safari and Chrome it's a regular texture. TODO: check browser
    vec4 overlay_color = texture2D(u_overlay, v_uv);
    overlay_color.rgb = clamp(overlay_color.rgb / overlay_color.a, 0.0, 1.0);
 

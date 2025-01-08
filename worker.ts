@@ -72,7 +72,6 @@ function drawOverlay(ctx: OffscreenCanvasRenderingContext2D, map: Map) {
         }
     }
     ctx.restore();
-    ctx.commit();
 }
 
 
