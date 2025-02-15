@@ -5,7 +5,6 @@
  *
  * This module allows the user to paint constraints for the map generator
  */
-'use strict';
 
 /*
  * The painting interface uses a square array of elevations. As you

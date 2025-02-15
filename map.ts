@@ -6,7 +6,6 @@
  *
  * This module has the procedural map generation algorithms (elevations, rivers)
  */
-'use strict';
 
 import {createNoise2D} from 'simplex-noise';
 import FlatQueue from 'flatqueue';

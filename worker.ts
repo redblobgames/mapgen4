@@ -5,7 +5,6 @@
  *
  * This module runs the worker thread that calculates the map data.
  */
-'use strict';
 
 import {TriangleMesh} from "./dual-mesh/index.ts";
 import Map      from "./map.ts";
