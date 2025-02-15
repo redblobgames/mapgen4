@@ -208,10 +208,10 @@ function setRiverTextures(map: Map, spacing: number, riversParam: any, P: Float3
         let r1 = mesh.r_begin_s(3*t    ),
             r2 = mesh.r_begin_s(3*t + 1),
             r3 = mesh.r_begin_s(3*t + 2);
-        let in1_s = mesh.s_next_s(s_out);
-        let in2_s = mesh.s_next_s(in1_s);
-        let in1_flow = flow_s[mesh.s_opposite_s(in1_s)];
-        let in2_flow = flow_s[mesh.s_opposite_s(in2_s)];
+        let s_in1 = mesh.s_next_s(s_out);
+        let s_in2 = mesh.s_next_s(s_in1);
+        let flow_in1 = flow_s[mesh.s_opposite_s(s_in1)];
+        let flow_in2 = flow_s[mesh.s_opposite_s(s_in2)];
         let textureRow = riverSize(s_out, outflow);
         
         function add(r: number, c: number, i: number, j: number, k: number) {
@@ -224,18 +224,18 @@ function setRiverTextures(map: Map, spacing: number, riversParam: any, P: Float3
             P[p + 9] = mesh.y_of_r(r3);
             P[p + 4*(s_out - 3*t) + 2] = T[i].uv[0];
             P[p + 4*(s_out - 3*t) + 3] = T[i].uv[1];
-            P[p + 4*(in1_s - 3*t) + 2] = T[j].uv[0];
-            P[p + 4*(in1_s - 3*t) + 3] = T[j].uv[1];
-            P[p + 4*(in2_s - 3*t) + 2] = T[k].uv[0];
-            P[p + 4*(in2_s - 3*t) + 3] = T[k].uv[1];
+            P[p + 4*(s_in1 - 3*t) + 2] = T[j].uv[0];
+            P[p + 4*(s_in1 - 3*t) + 3] = T[j].uv[1];
+            P[p + 4*(s_in2 - 3*t) + 2] = T[k].uv[0];
+            P[p + 4*(s_in2 - 3*t) + 3] = T[k].uv[1];
             p += 12;
         }
         
-        if (in1_flow >= MIN_FLOW) {
-            add(textureRow, riverSize(in1_s, in1_flow), 0, 2, 1);
+        if (flow_in1 >= MIN_FLOW) {
+            add(textureRow, riverSize(s_in1, flow_in1), 0, 2, 1);
         }
-        if (in2_flow >= MIN_FLOW) {
-            add(textureRow, riverSize(in2_s, in2_flow), 2, 1, 0);
+        if (flow_in2 >= MIN_FLOW) {
+            add(textureRow, riverSize(s_in2, flow_in2), 2, 1, 0);
         }
     }
 
