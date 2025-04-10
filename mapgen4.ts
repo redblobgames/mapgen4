@@ -16,7 +16,6 @@
 import param from "./config.js";
 import {makeMesh} from "./mesh.ts";
 import Painting from "./painting.ts";
-import Renderer from "./render.ts";
 import type {Mesh} from "./types.d.ts";
 
 
@@ -38,28 +37,9 @@ const initialParams = {
         ['evaporation', 0.5, 0, 1],
     ],
     rivers: [
-        ['lg_min_flow', 2.7, -5, 5],
+        ['lg_min_flow', 1, -5, 5],
         ['lg_river_width', -2.7, -5, 5],
         ['flow', 0.2, 0, 1],
-    ],
-    render: [
-        ['zoom', 100/480, 100/1000, 100/50],
-        ['x', 500, 0, 1000],
-        ['y', 500, 0, 1000],
-        ['light_angle_deg', 80, 0, 360],
-        ['slope', 2, 0, 5],
-        ['flat', 2.5, 0, 5],
-        ['ambient', 0.25, 0, 1],
-        ['overhead', 30, 0, 60],
-        ['tilt_deg', 0, 0, 90],
-        ['rotate_deg', 0, -180, 180],
-        ['mountain_height', 50, 0, 250],
-        ['outline_depth', 1, 0, 2],
-        ['outline_strength', 15, 0, 30],
-        ['outline_threshold', 0, 0, 100],
-        ['outline_coast', 0, 0, 1],
-        ['outline_water', 10.0, 0, 20], // things start going wrong when this is high
-        ['biome_colors', 1, 0, 1],
     ],
 };
 
@@ -67,11 +47,9 @@ const initialParams = {
 /**
  * Starts the UI, once the mesh has been loaded in.
  */
-function main({mesh, t_peaks}: { mesh: Mesh; t_peaks: number[]; }) {
-    let render = new Renderer(mesh);
-
+async function main({mesh, t_peaks}: { mesh: Mesh; t_peaks: number[]; }) {
     /* set initial parameters */
-    for (let phase of ['elevation', 'biomes', 'rivers', 'render']) {
+    for (let phase of ['elevation', 'biomes', 'rivers']) {
         const container = document.createElement('div');
         const header = document.createElement('h3');
         header.appendChild(document.createTextNode(phase));
@@ -91,10 +69,7 @@ function main({mesh, t_peaks}: { mesh: Mesh; t_peaks: number[]; }) {
             slider.setAttribute('step', step.toString());
             slider.addEventListener('input', _event => {
                 param[phase][name] = slider.valueAsNumber;
-                requestAnimationFrame(() => {
-                    if (phase == 'render') { redraw(); }
-                    else { generate(); }
-                });
+                requestAnimationFrame(() => generate())
             });
 
             /* improve slider behavior on iOS */
@@ -123,28 +98,8 @@ function main({mesh, t_peaks}: { mesh: Mesh; t_peaks: number[]; }) {
         }
     }
     
-    function redraw() {
-        render.updateView(param.render);
-    }
-
-    /* Ask render module to copy WebGL into Canvas */
-    function download() {
-        render.screenshotCallback = () => {
-            let a = document.createElement('a');
-            render.screenshotCanvas.toBlob(blob => {
-                // TODO: Firefox doesn't seem to allow a.click() to
-                // download; is it everyone or just my setup?
-                a.href = URL.createObjectURL(blob);
-                a.setAttribute('download', `mapgen4-${param.elevation.seed}.png`);
-                a.click();
-            });
-        };
-        render.updateView(param.render);
-    }
-    
     Painting.screenToWorldCoords = (coords) => {
-        let out = render.screenToWorld(coords);
-        return [out[0] / 1000, out[1] / 1000];
+        return coords; // 1:1 mapping in mapgen2; it's only in mapgen4's renderer where it matters
     };
 
     Painting.onUpdate = () => {
@@ -162,17 +117,11 @@ function main({mesh, t_peaks}: { mesh: Mesh; t_peaks: number[]; }) {
     
     worker.addEventListener('message', event => {
         working = false;
-        let {elapsed, numRiverTriangles, quad_elements_buffer, a_quad_em_buffer, a_river_xyuv_buffer} = event.data;
+        let {elapsed, numRiverTriangles} = event.data;
         elapsedTimeHistory.push(elapsed | 0);
         if (elapsedTimeHistory.length > 10) { elapsedTimeHistory.splice(0, 1); }
         const timingDiv = document.getElementById('timing');
         if (timingDiv) { timingDiv.innerText = `${elapsedTimeHistory.join(' ')} milliseconds`; }
-        render.quad_elements = new Int32Array(quad_elements_buffer);
-        render.a_quad_em = new Float32Array(a_quad_em_buffer);
-        render.a_river_xyuv = new Float32Array(a_river_xyuv_buffer);
-        render.numRiverTriangles = numRiverTriangles;
-        render.updateMap();
-        redraw();
         if (workRequested) {
             requestAnimationFrame(() => {
                 workRequested = false;
@@ -199,25 +148,27 @@ function main({mesh, t_peaks}: { mesh: Mesh; t_peaks: number[]; }) {
                     size: Painting.size,
                     constraints: Painting.constraints,
                 },
-                quad_elements_buffer: render.quad_elements.buffer,
-                a_quad_em_buffer: render.a_quad_em.buffer,
-                a_river_xyuv_buffer: render.a_river_xyuv.buffer,
-            }, [
-                render.quad_elements.buffer,
-                render.a_quad_em.buffer,
-                render.a_river_xyuv.buffer,
-            ]
-            );
+            });
         } else {
             workRequested = true;
         }
     }
 
-    worker.postMessage({mesh, t_peaks, param});
-    generate();
+    const mapIconsConfig = {left: 9, top: 4, filename: "map-icons.png"};
+    const mapIconsConfigImage = new Image();
+    mapIconsConfigImage.onload = start;
+    mapIconsConfigImage.src = mapIconsConfig.filename;
 
-    const downloadButton = document.getElementById('button-download');
-    if (downloadButton) downloadButton.addEventListener('click', download);
+    async function start(_loadEvent) {
+        let overlayCanvas = document.querySelector("#mapgen2") as HTMLCanvasElement;
+        let offscreen = overlayCanvas.transferControlToOffscreen();
+        let mapIconsBitmap = await createImageBitmap(mapIconsConfigImage);
+        worker.postMessage(
+            {mesh, t_peaks, param, mapIconsConfig, mapIconsBitmap, overlayCanvas: offscreen},
+            [offscreen, mapIconsBitmap]
+        );
+        generate();
+    }
 }
 
 makeMesh().then(main);

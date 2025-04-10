@@ -6,21 +6,47 @@
  * This module runs the worker thread that calculates the map data.
  */
 
+import {makeRandInt}  from '@redblobgames/prng';
 import {TriangleMesh} from "./dual-mesh/index.ts";
-import Map      from "./map.ts";
-import Geometry from "./geometry.ts";
-import type {Mesh} from "./types.d.ts";
+import Map            from "./map.ts";
+import type {Mesh}    from "./types.d.ts";
+import * as Draw      from "./draw.js";
+import * as Colormap2 from "./colormap2.js";
 
 // NOTE: Typescript workaround https://github.com/Microsoft/TypeScript/issues/20595
 const worker: Worker = self as any;
+
+// Draw any overlay annotations that should be "draped" over the terrain surface
+function drawOverlay(ctx: OffscreenCanvasRenderingContext2D, param: any, mapIconsConfig: any, map: Map) {
+    ctx.reset();
+    ctx.scale(2048/1000, 2048/1000); // mapgen4 draws to a 1000✕1000 region
+    ctx.clearRect(0, 0, 1000, 1000);
+
+    const noisyEdges = false;
+    const colormap = new Colormap2.Smooth();
+    colormap.riversParam = param.rivers;
+    colormap.spacingParam = param.spacing;
+    Draw.background(ctx, colormap);
+    Draw.noisyRegions(ctx, map, colormap, noisyEdges);
+    Draw.rivers(ctx, map, colormap, noisyEdges, true);
+    // Draw.noisyEdges(ctx, map, colormap, noisyEdges, 15);]
+    Draw.coastlines(ctx, map, colormap, noisyEdges);
+    Draw.regionIcons(ctx, map, mapIconsConfig, makeRandInt(12345));
+}
+
 
 // This handler is for the initial message
 let handler = (event) => {
     // NOTE: web worker messages only include the data; to
     // reconstruct the full object I call the constructor again
     // and then copy the data over
+    const overlayCanvas = event.data.overlayCanvas as OffscreenCanvas;
     const mesh = new TriangleMesh(event.data.mesh as TriangleMesh);
     const map = new Map(mesh as Mesh, event.data.t_peaks, event.data.param);
+    const mapIconsConfig = event.data.mapIconsConfig;
+    mapIconsConfig.image = event.data.mapIconsBitmap;
+
+    const ctx = overlayCanvas.getContext('2d');
 
     // TODO: placeholder - calculating elevation+biomes takes 35% of
     // the time on my laptop, and seeing the elevation change is the
@@ -39,7 +65,7 @@ let handler = (event) => {
     
     // This handler is for all subsequent messages
     handler = (event) => {
-        let {param, constraints, quad_elements_buffer, a_quad_em_buffer, a_river_xyuv_buffer} = event.data;
+        let {param, constraints} = event.data;
 
         let numRiverTriangles = 0;
         let start_time = performance.now();
@@ -51,26 +77,15 @@ let handler = (event) => {
         if (run.rivers) {
             map.assignRivers(param.rivers);
         }
-        if (run.biomes || run.rivers) {
-            Geometry.setMapGeometry(map, new Int32Array(quad_elements_buffer), new Float32Array(a_quad_em_buffer));
-        }
-        if (run.rivers) {
-            numRiverTriangles = Geometry.setRiverTextures(map, param.spacing, param.rivers, new Float32Array(a_river_xyuv_buffer));
-        }
+
+        drawOverlay(ctx, param, mapIconsConfig, map);
+
         let elapsed = performance.now() - start_time;
 
         worker.postMessage(
             {elapsed,
              numRiverTriangles,
-             quad_elements_buffer,
-             a_quad_em_buffer,
-             a_river_xyuv_buffer,
-            },
-            [
-                quad_elements_buffer,
-                a_quad_em_buffer,
-                a_river_xyuv_buffer,
-            ]
+            }
         );
     };
 };

@@ -196,7 +196,7 @@ displayCurrentTool();
 
 
 function setUpPaintEventHandling() {
-    const el = document.getElementById('mapgen4');
+    const el = document.getElementById('mapgen2');
     let dragging = false;
     let timestamp = 0;
     

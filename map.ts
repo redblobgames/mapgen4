@@ -10,8 +10,9 @@
 import {createNoise2D} from 'simplex-noise';
 import FlatQueue from 'flatqueue';
 import {makeRandFloat} from '@redblobgames/prng';
-import {clamp} from "./geometry.ts";
 import type {Mesh} from "./types.d.ts";
+
+function clamp(x, lo, hi) { return x < lo ? lo : x > hi ? hi : x; }
 
 type PrecalculatedNoise = {
     noise0_t: Float32Array;
