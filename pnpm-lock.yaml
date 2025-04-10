@@ -20,12 +20,6 @@ importers:
       flatqueue:
         specifier: ^2
         version: 2.0.3
-      gl-matrix:
-        specifier: ^3
-        version: 3.4.3
-      regl:
-        specifier: ^1
-        version: 1.7.0
       simplex-noise:
         specifier: ^4
         version: 4.0.3
@@ -46,14 +40,8 @@ packages:
     resolution: {integrity: sha512-RZCWZNkmxzUOh8jqEcEGZCycb3B8KAfpPwg3H//cURasunYxsg1eIvE+QDSjX+ZPHTIVfINfK1aLTrVKKO0i4g==}
     engines: {node: '>= 12.17.0'}
 
-  gl-matrix@3.4.3:
-    resolution: {integrity: sha512-wcCp8vu8FT22BnvKVPjXa/ICBWRq/zjFfdofZy1WSpQZpphblv12/bOQLBC1rMM7SGOFS9ltVmKOHil5+Ml7gA==}
-
   hash-int@1.0.0:
     resolution: {integrity: sha512-U1cDrvoPTR+AWCeFLXm0UjEcsgz74N5H4lQ3PjwDCIaLHgiXRmfsvq15/HGSjNAkig/bZMcESqg93ax9alWhkg==}
-
-  regl@1.7.0:
-    resolution: {integrity: sha512-bEAtp/qrtKucxXSJkD4ebopFZYP0q1+3Vb2WECWv/T8yQEgKxDxJ7ztO285tAMaYZVR6mM1GgI6CCn8FROtL1w==}
 
   robust-predicates@3.0.2:
     resolution: {integrity: sha512-IXgzBWvWQwE6PrDI05OvmXUIruQTcoMDzRsOd5CDvHCVLcLHMTSYvOK5Cm46kWqlV3yAbuSpBZdJ5oP5OUoStg==}
@@ -75,11 +63,7 @@ snapshots:
 
   flatqueue@2.0.3: {}
 
-  gl-matrix@3.4.3: {}
-
   hash-int@1.0.0: {}
-
-  regl@1.7.0: {}
 
   robust-predicates@3.0.2: {}
 
