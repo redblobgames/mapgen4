@@ -89,10 +89,8 @@ function renderMap(ctx: OffscreenCanvasRenderingContext2D, param: any, mapIconsC
     Draw.regionIcons(ctx, map, mapIconsConfig, makeRandInt(12345));
 }
 
-function renderOverlay(canvas: OffscreenCanvas, map: Map, travel: Travel) {
+function renderOverlay(canvas: OffscreenCanvas, ctx: OffscreenCanvasRenderingContext2D, map: Map, travel: Travel) {
     const size = canvas.width;
-    const ctx = canvas.getContext('2d');
-    ctx.imageSmoothingEnabled = false;
     const imageData = ctx.getImageData(0, 0, size, size);
     const pixels = imageData.data;
 
@@ -126,7 +124,9 @@ let handler = (event) => {
     const mapIconsConfig = event.data.mapIconsConfig;
     mapIconsConfig.image = event.data.mapIconsBitmap;
 
-    const ctx = mapCanvas.getContext('2d');
+    const ctxMap = mapCanvas.getContext('2d');
+    const ctxOverlay = overlayCanvas.getContext('2d', {willReadFrequently: true});
+    ctxOverlay.imageSmoothingEnabled = false;
     let param = null;
 
     let travel = new Travel(map);
@@ -134,7 +134,7 @@ let handler = (event) => {
         travel.simulate();
         // NOTE: have to put this in requestAnimationFrame to avoid flickering
         // with an offscreen canvas
-        requestAnimationFrame(() => renderOverlay(overlayCanvas, map, travel));
+        requestAnimationFrame(() => renderOverlay(overlayCanvas, ctxOverlay, map, travel));
     }
     setInterval(tick, 1000/15);
 
@@ -155,7 +155,7 @@ let handler = (event) => {
         if (newOverlaySize !== overlayCanvas.width) { // resetting size erases canvas, so do it only when it changes
             overlayCanvas.width = overlayCanvas.height = newOverlaySize;
         }
-        renderMap(ctx, param, mapIconsConfig, map);
+        renderMap(ctxMap, param, mapIconsConfig, map);
 
         let elapsed = performance.now() - start_time;
 
