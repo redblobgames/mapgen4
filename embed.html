@@ -16,7 +16,7 @@
         grid-row-gap: 10px;
         grid-column-gap: 10px;
     }
-    #map        { grid-area: 1 / 2 / span 4 / span 1; width:100%; height:100%; }
+    #map-base, #map-overlay { grid-area: 1 / 2 / span 4 / span 1; width:100%; height:100%; }
     #tiny       { grid-area: 1 / 3 / span 1 / span 1; }
     #small      { grid-area: 1 / 4 / span 1 / span 1; }
     #medium     { grid-area: 1 / 5 / span 1 / span 1; }
@@ -45,7 +45,10 @@
         #sliders { grid-area: 2 / 3 / span 5 / span 1; justify-self: end; width: 100%; column-width: 20ch; }
     }
 
-    #mapgen2 { width: 100%; height: 100%; cursor: crosshair; }
+    #map-base canvas { width: 100%; height: 100%; cursor: crosshair; }
+    #map-overlay canvas { width: 100%; height: 100%; image-rendering: crisp-edges; image-rendering: pixelated; }
+    #map-overlay { pointer-events: none; /* let them pass through to #map-base */ }
+
     #sliders h3 {
         background-color: hsl(60,20%,90%);
         margin: 0.5em 0;
@@ -90,7 +93,8 @@
     <button id="button-reset">Reset</button>
   </div>
   
-  <div id="map"><canvas id="mapgen2" width="2048" height="2048"/></div>
+  <div id="map-base"><canvas width="2048" height="2048"/></div>
+  <div id="map-overlay"><canvas width="512" height="512"/></div>
   </div>
   <script defer="defer" src="build/_bundle.js"></script>
 </div>

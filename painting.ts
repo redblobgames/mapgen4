@@ -196,7 +196,7 @@ displayCurrentTool();
 
 
 function setUpPaintEventHandling() {
-    const el = document.getElementById('mapgen2');
+    const el = document.querySelector("#map-base canvas");
     let dragging = false;
     let timestamp = 0;
     

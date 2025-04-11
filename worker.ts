@@ -16,8 +16,64 @@ import * as Colormap2 from "./colormap2.js";
 // NOTE: Typescript workaround https://github.com/Microsoft/TypeScript/issues/20595
 const worker: Worker = self as any;
 
-// Draw any overlay annotations that should be "draped" over the terrain surface
-function drawOverlay(ctx: OffscreenCanvasRenderingContext2D, param: any, mapIconsConfig: any, map: Map) {
+function lerp(a: number, b: number, t: number): number { return a * (1-t) + b * t; }
+function mod(a: number, b: number): number { return (a % b + b) % b; }
+
+const NUM_PATH_GROUPS = 1000;
+const PATHS_PER_GROUP = 30;
+class Travel {
+    tick: number;
+    map: Map;
+    paths: Array<Array<[number, number, number, number]>>;
+    randInt: (max: number) => number;
+
+    constructor (map: Map) {
+        this.tick = 0;
+        this.map = map;
+        this.randInt = makeRandInt(12345);
+        // TODO: this isn't great; we need each individual path to have an expiration time
+        // because they can be different lengths, so they can't go into groups; instead,
+        // generate a new path when the previous one expires. So I need to have startTick,endTick
+        // on each path. This also has the benefit of separating speed from groups, and I can
+        // have some routes be slower than others. But eventually I'll need to do that anyway
+        // to show slow movement through forest etc.
+        this.paths = Array.from({length: NUM_PATH_GROUPS}, () => this.constructParticleGroup());
+    }
+
+    constructParticleGroup(): Array<[number, number, number, number]> {
+        let group = [];
+        for (let i = 0; i < PATHS_PER_GROUP; i++) {
+            let r1 = this.randInt(this.map.mesh.numSolidRegions);
+            let r2 = this.randInt(this.map.mesh.numSolidRegions);
+            let pos1 = this.map.mesh.pos_of_r(r1);
+            let pos2 = this.map.mesh.pos_of_r(r2);
+            pos2 = [-(pos1[1]-500) + 500, pos1[0]]; // HACK: rotational movement only
+            group.push([pos1[0], pos1[1], pos2[0], pos2[1]]);
+        }
+        return group;
+    }
+
+    simulate() {
+        this.paths[this.tick % NUM_PATH_GROUPS] = this.constructParticleGroup();
+        this.tick++;
+    }
+
+    particles() {
+        // Calculate the current particle positions
+        let positions = [];
+        for (let j = 0; j < this.paths.length; j++) {
+            for (let i = 0; i < this.paths[j].length; i++) {
+                let [x1, y1, x2, y2] = this.paths[j][i];
+                let t = mod((i - this.tick), NUM_PATH_GROUPS) / NUM_PATH_GROUPS;
+                positions.push([lerp(x1, x2, t), lerp(y1, y2, t)]);
+            }
+        }
+        return positions;
+    }
+}
+
+// Draw the mapgen2 output for mapgen4 maps
+function renderMap(ctx: OffscreenCanvasRenderingContext2D, param: any, mapIconsConfig: any, map: Map) {
     ctx.reset();
     ctx.scale(2048/1000, 2048/1000); // mapgen4 draws to a 1000✕1000 region
     ctx.clearRect(0, 0, 1000, 1000);
@@ -29,9 +85,32 @@ function drawOverlay(ctx: OffscreenCanvasRenderingContext2D, param: any, mapIcon
     Draw.background(ctx, colormap);
     Draw.noisyRegions(ctx, map, colormap, noisyEdges);
     Draw.rivers(ctx, map, colormap, noisyEdges, true);
-    // Draw.noisyEdges(ctx, map, colormap, noisyEdges, 15);]
     Draw.coastlines(ctx, map, colormap, noisyEdges);
     Draw.regionIcons(ctx, map, mapIconsConfig, makeRandInt(12345));
+}
+
+function renderOverlay(canvas: OffscreenCanvas, map: Map, travel: Travel) {
+    const size = canvas.width;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    const imageData = ctx.getImageData(0, 0, size, size);
+    const pixels = imageData.data;
+
+    pixels.fill(0);
+    let particles = travel.particles();
+    for (let i = 0; i < particles.length; i++) {
+        let [x, y] = particles[i];
+        x = lerp(0, size, x/1000.0) | 0;
+        y = lerp(0, size, y/1000.0) | 0;
+        if (0 <= x && x < size && 0 <= y && y < size) {
+            let start = 4 * (y * size + x);
+            for (let channel = 0; channel < 3; channel++) { // r, g, b
+                pixels[start+channel] = 255; // white for now
+            }
+            pixels[start+3] = 255; // alpha
+        }
+    }
+    ctx.putImageData(imageData, 0, 0);
 }
 
 
@@ -40,45 +119,43 @@ let handler = (event) => {
     // NOTE: web worker messages only include the data; to
     // reconstruct the full object I call the constructor again
     // and then copy the data over
+    const mapCanvas = event.data.mapCanvas as OffscreenCanvas;
     const overlayCanvas = event.data.overlayCanvas as OffscreenCanvas;
     const mesh = new TriangleMesh(event.data.mesh as TriangleMesh);
     const map = new Map(mesh as Mesh, event.data.t_peaks, event.data.param);
     const mapIconsConfig = event.data.mapIconsConfig;
     mapIconsConfig.image = event.data.mapIconsBitmap;
 
-    const ctx = overlayCanvas.getContext('2d');
+    const ctx = mapCanvas.getContext('2d');
+    let param = null;
 
-    // TODO: placeholder - calculating elevation+biomes takes 35% of
-    // the time on my laptop, and seeing the elevation change is the
-    // most important thing to do every frame, so it might be worth
-    // splitting this work up into multiple frames where
-    // elevation+biomes happen every frame but rivers happen every N
-    // frames. To do this I could either put the logic on the caller
-    // side to decide on partial vs full update, or have the code here
-    // decide. The advantage of deciding here is that we have the
-    // timing information and can do full updates on faster machines
-    // and partial updates on slower machines. But the advantage of
-    // deciding in the caller is that it knows whether there's
-    // painting going on, and can sneak in river updates while the
-    // user has stopped painting.
-    const run = {biomes: true, rivers: true};
-    
-    // This handler is for all subsequent messages
+    let travel = new Travel(map);
+    function tick() {
+        travel.simulate();
+        // NOTE: have to put this in requestAnimationFrame to avoid flickering
+        // with an offscreen canvas
+        requestAnimationFrame(() => renderOverlay(overlayCanvas, map, travel));
+    }
+    setInterval(tick, 1000/15);
+
+    // This handler is for all subsequent messages, and it only gets
+    // called after the user changes the map by painting
     handler = (event) => {
-        let {param, constraints} = event.data;
+        let {constraints, outputBoundingRect} = event.data;
+        param = event.data.param;
 
         let numRiverTriangles = 0;
         let start_time = performance.now();
         
-        if (run.biomes) {
-            map.assignElevation(param.elevation, constraints);
-            map.assignRainfall(param.biomes);
-        }
-        if (run.rivers) {
-            map.assignRivers(param.rivers);
-        }
+        map.assignElevation(param.elevation, constraints);
+        map.assignRainfall(param.biomes);
+        map.assignRivers(param.rivers);
 
-        drawOverlay(ctx, param, mapIconsConfig, map);
+        let newOverlaySize = Math.floor(outputBoundingRect.width);
+        if (newOverlaySize !== overlayCanvas.width) { // resetting size erases canvas, so do it only when it changes
+            overlayCanvas.width = overlayCanvas.height = newOverlaySize;
+        }
+        renderMap(ctx, param, mapIconsConfig, map);
 
         let elapsed = performance.now() - start_time;
 

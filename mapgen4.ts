@@ -148,6 +148,7 @@ async function main({mesh, t_peaks}: { mesh: Mesh; t_peaks: number[]; }) {
                     size: Painting.size,
                     constraints: Painting.constraints,
                 },
+                outputBoundingRect: document.querySelector("#map-overlay canvas").getBoundingClientRect(),
             });
         } else {
             workRequested = true;
@@ -160,12 +161,12 @@ async function main({mesh, t_peaks}: { mesh: Mesh; t_peaks: number[]; }) {
     mapIconsConfigImage.src = mapIconsConfig.filename;
 
     async function start(_loadEvent) {
-        let overlayCanvas = document.querySelector("#mapgen2") as HTMLCanvasElement;
-        let offscreen = overlayCanvas.transferControlToOffscreen();
+        let mapCanvas = (document.querySelector("#map-base canvas") as HTMLCanvasElement).transferControlToOffscreen();
+        let overlayCanvas = (document.querySelector("#map-overlay canvas") as HTMLCanvasElement).transferControlToOffscreen();
         let mapIconsBitmap = await createImageBitmap(mapIconsConfigImage);
         worker.postMessage(
-            {mesh, t_peaks, param, mapIconsConfig, mapIconsBitmap, overlayCanvas: offscreen},
-            [offscreen, mapIconsBitmap]
+            {mesh, t_peaks, param, mapIconsConfig, mapIconsBitmap, mapCanvas, overlayCanvas},
+            [mapCanvas, overlayCanvas, mapIconsBitmap]
         );
         generate();
     }
