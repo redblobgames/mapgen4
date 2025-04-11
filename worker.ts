@@ -1,9 +1,10 @@
 /*
- * From https://www.redblobgames.com/maps/mapgen4/
- * Copyright 2018 Red Blob Games <redblobgames@gmail.com>
+ * From https://www.redblobgames.com/x/2515-mapgen-trading/
+ * Copyright 2018, 2025 Red Blob Games <redblobgames@gmail.com>
  * License: Apache v2.0 <http://www.apache.org/licenses/LICENSE-2.0.html>
  *
- * This module runs the worker thread that calculates the map data.
+ * This module runs the worker thread that calculates the map data,
+ * simulates the traders, and renders everything to <canvas> elements.
  */
 
 import {makeRandInt}  from '@redblobgames/prng';
@@ -17,56 +18,70 @@ import * as Colormap2 from "./colormap2.js";
 const worker: Worker = self as any;
 
 function lerp(a: number, b: number, t: number): number { return a * (1-t) + b * t; }
+function unlerp(a: number, b: number, t: number): number { return (t - a) / (b - a); }
+function rescale(v: number, from_lo: number, from_hi: number, to_lo: number, to_hi: number): number { return lerp(to_lo, to_hi, unlerp(from_lo, from_hi, v)); }
 function mod(a: number, b: number): number { return (a % b + b) % b; }
 
-const NUM_PATH_GROUPS = 1000;
-const PATHS_PER_GROUP = 30;
+
+type Waypoint = {x: number, y: number, at: number};
+
+const NUM_PATHS = 50000;
+const PARTICLE_SPEED = 3;
 class Travel {
     tick: number;
     map: Map;
-    paths: Array<Array<[number, number, number, number]>>;
+    paths: Array<Array<Waypoint>>; // stored in reverse order
     randInt: (max: number) => number;
 
     constructor (map: Map) {
         this.tick = 0;
         this.map = map;
         this.randInt = makeRandInt(12345);
-        // TODO: this isn't great; we need each individual path to have an expiration time
-        // because they can be different lengths, so they can't go into groups; instead,
-        // generate a new path when the previous one expires. So I need to have startTick,endTick
-        // on each path. This also has the benefit of separating speed from groups, and I can
-        // have some routes be slower than others. But eventually I'll need to do that anyway
-        // to show slow movement through forest etc.
-        this.paths = Array.from({length: NUM_PATH_GROUPS}, () => this.constructParticleGroup());
+        this.paths = Array.from({length: NUM_PATHS}, () => this.constructParticle());
     }
 
-    constructParticleGroup(): Array<[number, number, number, number]> {
-        let group = [];
-        for (let i = 0; i < PATHS_PER_GROUP; i++) {
-            let r1 = this.randInt(this.map.mesh.numSolidRegions);
-            let r2 = this.randInt(this.map.mesh.numSolidRegions);
-            let pos1 = this.map.mesh.pos_of_r(r1);
-            let pos2 = this.map.mesh.pos_of_r(r2);
-            pos2 = [-(pos1[1]-500) + 500, pos1[0]]; // HACK: rotational movement only
-            group.push([pos1[0], pos1[1], pos2[0], pos2[1]]);
-        }
-        return group;
+    constructParticle(): Array<Waypoint> {
+        const SPREAD = 5.0;
+        let r1 = this.randInt(this.map.mesh.numSolidRegions);
+        let r2 = this.randInt(this.map.mesh.numSolidRegions);
+        let [x1, y1] = this.map.mesh.pos_of_r(r1);
+        let [x2, y2] = this.map.mesh.pos_of_r(r2);
+        x1 += SPREAD * (Math.random() - Math.random());
+        y1 += SPREAD * (Math.random() - Math.random());
+        [x2, y2] = [-(y1-500) + 500, x1]; // HACK: rotational movement only
+        return [ // reverse order
+            {x: x2, y: y2, at: this.tick + Math.ceil(Math.hypot(x1-x2, y1-y2) / PARTICLE_SPEED)},
+            {x: x1, y: y1, at: this.tick},
+        ];
     }
 
     simulate() {
-        this.paths[this.tick % NUM_PATH_GROUPS] = this.constructParticleGroup();
+        // Move along paths, and generate new path once one has expired
+        for (let i = 0; i < this.paths.length; i++) {
+            while (this.paths[i].length > 1 && this.tick >= this.paths[i].at(-2).at) {
+                this.paths[i].pop(); // waypoint expired
+            }
+            if (this.paths[i].length === 1) { // entire path expired
+                this.paths[i] = this.constructParticle();
+            }
+            if (this.paths[i].length === 0) {
+                throw "Invalid empty path";
+            }
+            // NOTE it can still be possible to get a too short path here, if start and end points were the same
+        }
+
         this.tick++;
     }
 
     particles() {
         // Calculate the current particle positions
         let positions = [];
-        for (let j = 0; j < this.paths.length; j++) {
-            for (let i = 0; i < this.paths[j].length; i++) {
-                let [x1, y1, x2, y2] = this.paths[j][i];
-                let t = mod((i - this.tick), NUM_PATH_GROUPS) / NUM_PATH_GROUPS;
-                positions.push([lerp(x1, x2, t), lerp(y1, y2, t)]);
-            }
+        for (let i = 0; i < this.paths.length; i++) {
+            if (this.paths[i].length < 2) continue;
+            let p1 = this.paths[i].at(-1),
+                p2 = this.paths[i].at(-2);
+            let t = unlerp(p1.at, p2.at, this.tick);
+            positions.push([lerp(p1.x, p2.x, t), lerp(p1.y, p2.y, t)]);
         }
         return positions;
     }
