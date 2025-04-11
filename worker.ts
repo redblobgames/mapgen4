@@ -8,6 +8,7 @@
  */
 
 import {makeRandInt}  from '@redblobgames/prng';
+import FlatQueue from 'flatqueue';
 import {TriangleMesh} from "./dual-mesh/index.ts";
 import Map            from "./map.ts";
 import type {Mesh}    from "./types.d.ts";
@@ -25,37 +26,112 @@ function mod(a: number, b: number): number { return (a % b + b) % b; }
 
 type Waypoint = {x: number, y: number, at: number};
 
-const NUM_PATHS = 50000;
-const PARTICLE_SPEED = 3;
+const NUM_PATHS = 20000;
+const PARTICLE_SPEED = 2;
+const PATHS_PER_DESTINATION = 50; // batch size to reuse dijkstra output for this many paths
 class Travel {
     tick: number;
     map: Map;
-    paths: Array<Array<Waypoint>>; // stored in reverse order
     randInt: (max: number) => number;
+    r_queue: FlatQueue<number>;
+    cost_to_r: Float32Array;
+    r_came_from_r: Int16Array;
+    _paths_left_before_running_dijsktra: number;
+    paths: Array<Array<Waypoint>>; // stored in reverse order
 
     constructor (map: Map) {
         this.tick = 0;
         this.map = map;
         this.randInt = makeRandInt(12345);
-        this.paths = Array.from({length: NUM_PATHS}, () => this.constructParticle());
+        this.r_queue = new FlatQueue<number>();
+        this.r_queue.ids = new Uint16Array(map.mesh.numRegions);
+        this.r_queue.values = new Float32Array(map.mesh.numRegions);
+        this.r_came_from_r = new Int16Array(map.mesh.numRegions);
+        this.cost_to_r = new Float32Array(map.mesh.numRegions);
+        this._paths_left_before_running_dijsktra = 0;
+        this.paths = [];
     }
 
+    pickRandomRegion(): number {
+        // Pick only one of the land regions
+        return this.map.r_land[this.randInt(this.map.r_land.length || 1)];
+    }
+
+    findAllPathsToRegion(r_goal: number) {
+        // NOTE: allow moving through water, but cost depends on coast vs ocean
+        const {r_queue, cost_to_r, r_came_from_r, map} = this;
+        const {mesh} = map;
+        r_came_from_r.fill(-1);
+        cost_to_r.fill(Infinity);
+        cost_to_r[r_goal] = 0.0;
+        r_queue.clear();
+        r_queue.push(r_goal, 0.0);
+
+        let s_out = [];
+        while (r_queue.length > 0) {
+            let r_current = r_queue.pop();
+            for (let s of mesh.s_around_r(r_current, s_out)) {
+                let r_next = mesh.r_end_s(s);
+                if (mesh.is_ghost_r(r_next)) continue;
+                if (map.elevation_r[r_next] < 0) continue;
+                if (map.flow_s[s] + map.flow_s[mesh.s_opposite_s(s)] > 5) continue; // can't cross wide rivers
+                // TODO: calculate shallowocean_r and allow travel on it
+                let cost = Math.hypot(
+                    mesh.x_of_r(r_current) - mesh.x_of_r(r_next),
+                    mesh.y_of_r(r_current) - mesh.y_of_r(r_next)
+                ) / PARTICLE_SPEED; // TODO: allow shallow water, encourage rivers
+                let temperature = (1.0 - map.elevation_r[r_next]) ** 2;
+                if (temperature < 0.2) cost *= 15; // mountains
+                else if (temperature < 0.5) cost *= 5; // hills
+
+                let cost_next = cost_to_r[r_current] + cost;
+                if (cost_next < cost_to_r[r_next]) {
+                    cost_to_r[r_next] = cost_next;
+                    r_came_from_r[r_next] = r_current;
+                    r_queue.push(r_next, cost_next);
+                }
+            }
+        }
+    }
+
+    // Construct a particle from a random region to whichever
+    // region was selected for this tick's dijkstra's algorithm
+    // (this is for efficiency, so we can get hundreds of agents
+    // using one pathfinding call instead of each one running A*)
     constructParticle(): Array<Waypoint> {
         const SPREAD = 5.0;
-        let r1 = this.randInt(this.map.mesh.numSolidRegions);
-        let r2 = this.randInt(this.map.mesh.numSolidRegions);
-        let [x1, y1] = this.map.mesh.pos_of_r(r1);
-        let [x2, y2] = this.map.mesh.pos_of_r(r2);
-        x1 += SPREAD * (Math.random() - Math.random());
-        y1 += SPREAD * (Math.random() - Math.random());
-        [x2, y2] = [-(y1-500) + 500, x1]; // HACK: rotational movement only
-        return [ // reverse order
-            {x: x2, y: y2, at: this.tick + Math.ceil(Math.hypot(x1-x2, y1-y2) / PARTICLE_SPEED)},
-            {x: x1, y: y1, at: this.tick},
-        ];
-    }
 
+        if (--this._paths_left_before_running_dijsktra < 0) {
+            this._paths_left_before_running_dijsktra = PATHS_PER_DESTINATION;
+            this.findAllPathsToRegion(this.pickRandomRegion());
+        }
+        
+        let r_from = this.pickRandomRegion();
+        let waypoints: Array<Waypoint> = [];
+
+        let r = r_from;
+        while (r >= 0) {
+            let x = this.map.mesh.x_of_r(r),
+                y = this.map.mesh.y_of_r(r);
+            x += SPREAD * (Math.random() - Math.random());
+            y += SPREAD * (Math.random() - Math.random());
+            waypoints.push({x, y, at: this.tick + this.cost_to_r[r_from] - this.cost_to_r[r]});
+            r = this.r_came_from_r[r];
+        }
+        waypoints.reverse(); // we ran Dijkstra's *from* a random point, but we want a path *to* that point
+        return waypoints;
+    }
+    
     simulate() {
+        if (this.map.r_land.length === 0) return; // hasn't been initialized
+
+        if (this.paths.length < NUM_PATHS) {
+            const BATCH_SIZE = 500;
+            for (let i = 0; i < BATCH_SIZE && this.paths.length < NUM_PATHS; i++) {
+                this.paths.push(this.constructParticle());
+            }
+        }
+
         // Move along paths, and generate new path once one has expired
         for (let i = 0; i < this.paths.length; i++) {
             while (this.paths[i].length > 1 && this.tick >= this.paths[i].at(-2).at) {

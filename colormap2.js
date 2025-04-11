@@ -40,6 +40,10 @@ function smoothColoring(e, t, m) {
     let r = 210 - 100*m;
     let g = 185 - 45*m;
     let b = 139 - 45*m;
+    /* darken to make particles easier to see */
+    r *= 0.8;
+    g *= 0.8;
+    b *= 0.8;
     r = 255 * e + r * (1-e);
     g = 255 * e + g * (1-e);
     b = 255 * e + b * (1-e);

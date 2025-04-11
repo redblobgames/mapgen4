@@ -99,6 +99,7 @@ export default class Map {
     r_wind_order: Int32Array;
     wind_sort_r: Float32Array;
     mountain_distance_t: Float32Array;
+    r_land: Array<number>;
 
     constructor (public mesh: Mesh, public t_peaks: number[], param: any) {
         this.spacing = param.spacing;
@@ -114,6 +115,7 @@ export default class Map {
         this.r_wind_order        = new Int32Array(mesh.numRegions);
         this.wind_sort_r         = new Float32Array(mesh.numRegions);
         this.mountain_distance_t = new Float32Array(mesh.numTriangles);
+        this.r_land              = [];
     }
 
     assignTriangleElevation(elevationParam: { noisy_coastlines: number; mountain_sharpness: number; hill_height: number; ocean_depth: number; },
@@ -200,7 +202,8 @@ export default class Map {
     }
 
     assignRegionElevation() {
-        let {mesh, elevation_t, elevation_r} = this;
+        this.r_land = [];
+        let {mesh, elevation_t, elevation_r, r_land} = this;
         let {numRegions, _s_of_r, _halfedges} = mesh;
         for (let r = 0; r < numRegions; r++) {
             let count = 0, e = 0, water = false;
@@ -216,6 +219,7 @@ export default class Map {
             } while (s_incoming !== s0);
             e /= count;
             if (water && e >= 0) { e = -0.001; }
+            if (!water) { r_land.push(r); }
             elevation_r[r] = e;
         }
     }
