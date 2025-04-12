@@ -185,6 +185,13 @@ function renderOverlay(canvas: OffscreenCanvas, ctx: OffscreenCanvasRenderingCon
     const imageData = ctx.getImageData(0, 0, size, size);
     const pixels = imageData.data;
 
+    // Suppose the "reference" resolution is 1024✕1024. Then one pixel
+    // uses 1/1024² of the space. But if the resolution is instead
+    // 2048✕2048, then one pixel uses ¼ as much space, so I want it to
+    // be 4✕ as bright. So
+    const pixelBrightnessAdjust = (size/1024) ** 2;
+    const pixelBrightness = (128 * pixelBrightnessAdjust) | 0;
+
     pixels.fill(0);
     let particles = travel.particles();
     for (let i = 0; i < particles.length; i++) {
@@ -193,10 +200,10 @@ function renderOverlay(canvas: OffscreenCanvas, ctx: OffscreenCanvasRenderingCon
         y = lerp(0, size, y/1000.0) | 0;
         if (0 <= x && x < size && 0 <= y && y < size) {
             let start = 4 * (y * size + x);
-            for (let channel = 0; channel < 3; channel++) { // r, g, b
+            for (let channel = 0; channel < 3; channel++) {
                 pixels[start+channel] = 255; // white for now
             }
-            pixels[start+3] = 255; // alpha
+            pixels[start+3] += pixelBrightness;
         }
     }
     ctx.putImageData(imageData, 0, 0);
