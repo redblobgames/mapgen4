@@ -24,20 +24,22 @@ function rescale(v: number, from_lo: number, from_hi: number, to_lo: number, to_
 function mod(a: number, b: number): number { return (a % b + b) % b; }
 
 
-type Waypoint = {x: number, y: number, at: number};
+type Waypoint = {x: number, y: number, s: number};
+type Path = {startTick: number, endTick: number, waypoints: Array<Waypoint>}; // waypoints, plus animation about current segment
 
 const NUM_PATHS = 20000;
-const PARTICLE_SPEED = 2;
-const PATHS_PER_DESTINATION = 50; // batch size to reuse dijkstra output for this many paths
+const PARTICLE_SPEED = 3;
+const PATHS_PER_DESTINATION = 500; // batch size to reuse dijkstra output for this many paths
 class Travel {
     tick: number;
     map: Map;
     randInt: (max: number) => number;
     r_queue: FlatQueue<number>;
+    movement_cost_s: Float32Array;
     cost_to_r: Float32Array;
-    r_came_from_r: Int16Array;
+    s_enter_r: Int16Array; // for any given r, the side that led to r
     _paths_left_before_running_dijsktra: number;
-    paths: Array<Array<Waypoint>>; // stored in reverse order
+    paths: Array<Path>; // waypoints stored in reverse order
 
     constructor (map: Map) {
         this.tick = 0;
@@ -46,7 +48,8 @@ class Travel {
         this.r_queue = new FlatQueue<number>();
         this.r_queue.ids = new Uint16Array(map.mesh.numRegions);
         this.r_queue.values = new Float32Array(map.mesh.numRegions);
-        this.r_came_from_r = new Int16Array(map.mesh.numRegions);
+        this.movement_cost_s = new Float32Array(map.mesh.numSides);
+        this.s_enter_r = new Int16Array(map.mesh.numRegions);
         this.cost_to_r = new Float32Array(map.mesh.numRegions);
         this._paths_left_before_running_dijsktra = 0;
         this.paths = [];
@@ -57,11 +60,44 @@ class Travel {
         return this.map.r_land[this.randInt(this.map.r_land.length || 1)];
     }
 
+    // calculate the movement cost between the adjacent regions along side s
+    movementCost(s: number) {
+        const {map} = this;
+        const {mesh} = map;
+
+        const r1 = mesh.r_begin_s(s),
+              r2 = mesh.r_end_s(s);
+
+        if (map.elevation_r[r2] < 0) return Infinity; // ocean
+        if (map.flow_s[s] + map.flow_s[mesh.s_opposite_s(s)] > 5) return Infinity; // wide rivers
+        // TODO: calculate shallowocean_r and have lower cost travel on it
+
+        let cost = Math.hypot(
+            mesh.x_of_r(r1) - mesh.x_of_r(r2),
+            mesh.y_of_r(r1) - mesh.y_of_r(r2)
+        ) / PARTICLE_SPEED;
+
+        if (map.elevation_r[r1] > 0.5) cost *= 15; // mountains
+        else if (map.elevation_r[r2] > 0.5) cost *= 15; // mountains
+        else if (map.elevation_r[r1] > 0.25) cost *= 5; // hills
+        else if (map.elevation_r[r2] > 0.25) cost *= 5; // hills
+
+        return cost;
+    }
+
+    // For performance we'll cache some information about the current map, and
+    // update it when the map changes, but not update it every tick
+    updateCache() {
+        for (let s = 0; s < this.map.mesh.numSides; s++) {
+            this.movement_cost_s[s] = this.movementCost(s);
+        }
+    }
+
     findAllPathsToRegion(r_goal: number) {
         // NOTE: allow moving through water, but cost depends on coast vs ocean
-        const {r_queue, cost_to_r, r_came_from_r, map} = this;
+        const {r_queue, cost_to_r, s_enter_r, map} = this;
         const {mesh} = map;
-        r_came_from_r.fill(-1);
+        s_enter_r.fill(-1);
         cost_to_r.fill(Infinity);
         cost_to_r[r_goal] = 0.0;
         r_queue.clear();
@@ -73,21 +109,12 @@ class Travel {
             for (let s of mesh.s_around_r(r_current, s_out)) {
                 let r_next = mesh.r_end_s(s);
                 if (mesh.is_ghost_r(r_next)) continue;
-                if (map.elevation_r[r_next] < 0) continue;
-                if (map.flow_s[s] + map.flow_s[mesh.s_opposite_s(s)] > 5) continue; // can't cross wide rivers
-                // TODO: calculate shallowocean_r and allow travel on it
-                let cost = Math.hypot(
-                    mesh.x_of_r(r_current) - mesh.x_of_r(r_next),
-                    mesh.y_of_r(r_current) - mesh.y_of_r(r_next)
-                ) / PARTICLE_SPEED; // TODO: allow shallow water, encourage rivers
-                let temperature = (1.0 - map.elevation_r[r_next]) ** 2;
-                if (temperature < 0.2) cost *= 15; // mountains
-                else if (temperature < 0.5) cost *= 5; // hills
-
+                let cost = this.movement_cost_s[s];
+                if (cost === Infinity) continue;
                 let cost_next = cost_to_r[r_current] + cost;
                 if (cost_next < cost_to_r[r_next]) {
                     cost_to_r[r_next] = cost_next;
-                    r_came_from_r[r_next] = r_current;
+                    s_enter_r[r_next] = s;
                     r_queue.push(r_next, cost_next);
                 }
             }
@@ -98,7 +125,7 @@ class Travel {
     // region was selected for this tick's dijkstra's algorithm
     // (this is for efficiency, so we can get hundreds of agents
     // using one pathfinding call instead of each one running A*)
-    constructParticle(): Array<Waypoint> {
+    constructParticle(): Path {
         const SPREAD = 5.0;
 
         if (--this._paths_left_before_running_dijsktra < 0) {
@@ -115,11 +142,11 @@ class Travel {
                 y = this.map.mesh.y_of_r(r);
             x += SPREAD * (Math.random() - Math.random());
             y += SPREAD * (Math.random() - Math.random());
-            waypoints.push({x, y, at: this.tick + this.cost_to_r[r_from] - this.cost_to_r[r]});
-            r = this.r_came_from_r[r];
+            waypoints.push({x, y, s: this.s_enter_r[r]});
+            r = this.map.mesh.r_begin_s(this.s_enter_r[r]);
         }
         waypoints.reverse(); // we ran Dijkstra's *from* a random point, but we want a path *to* that point
-        return waypoints;
+        return {startTick: this.tick, endTick: this.tick + this.movement_cost_s[waypoints.at(-1).s], waypoints};
     }
     
     simulate() {
@@ -134,13 +161,19 @@ class Travel {
 
         // Move along paths, and generate new path once one has expired
         for (let i = 0; i < this.paths.length; i++) {
-            while (this.paths[i].length > 1 && this.tick >= this.paths[i].at(-2).at) {
-                this.paths[i].pop(); // waypoint expired
+            let path = this.paths[i];
+            while (path.waypoints.length > 1 && this.tick >= path.endTick) { // waypoint expired
+                let s = path.waypoints.at(-1).s;
+                path.waypoints.pop();
+                path.startTick = path.endTick;
+                path.endTick += this.movement_cost_s[s];
             }
-            if (this.paths[i].length === 1) { // entire path expired
+            if (path.waypoints.length === 1) { // entire path expired
                 this.paths[i] = this.constructParticle();
-            }
-            if (this.paths[i].length === 0) {
+            } else if (!isFinite(path.endTick)) { // path got stuck
+                // TODO: why doesn't this happen immediately when drawing water to block a path?
+                this.paths[i] = this.constructParticle();
+            } else if (path.waypoints.length === 0) {
                 throw "Invalid empty path";
             }
             // NOTE it can still be possible to get a too short path here, if start and end points were the same
@@ -153,10 +186,10 @@ class Travel {
         // Calculate the current particle positions
         let positions = [];
         for (let i = 0; i < this.paths.length; i++) {
-            if (this.paths[i].length < 2) continue;
-            let p1 = this.paths[i].at(-1),
-                p2 = this.paths[i].at(-2);
-            let t = unlerp(p1.at, p2.at, this.tick);
+            if (this.paths[i].waypoints.length < 2) continue;
+            let p1 = this.paths[i].waypoints.at(-1),
+                p2 = this.paths[i].waypoints.at(-2);
+            let t = unlerp(this.paths[i].startTick, this.paths[i].endTick, this.tick);
             positions.push([lerp(p1.x, p2.x, t), lerp(p1.y, p2.y, t)]);
         }
         return positions;
@@ -188,7 +221,8 @@ function renderOverlay(canvas: OffscreenCanvas, ctx: OffscreenCanvasRenderingCon
     // Suppose the "reference" resolution is 1024✕1024. Then one pixel
     // uses 1/1024² of the space. But if the resolution is instead
     // 2048✕2048, then one pixel uses ¼ as much space, so I want it to
-    // be 4✕ as bright. So
+    // be 4✕ as bright. So let's say 128 is the reference brightness
+    // at 1024✕1024, and scale it up or down.
     const pixelBrightnessAdjust = (size/1024) ** 2;
     const pixelBrightness = (128 * pixelBrightnessAdjust) | 0;
 
@@ -248,6 +282,8 @@ let handler = (event) => {
         map.assignElevation(param.elevation, constraints);
         map.assignRainfall(param.biomes);
         map.assignRivers(param.rivers);
+
+        travel.updateCache();
 
         let newOverlaySize = Math.floor(outputBoundingRect.width);
         if (newOverlaySize !== overlayCanvas.width) { // resetting size erases canvas, so do it only when it changes
