@@ -169,6 +169,7 @@ async function main({mesh, t_peaks}: { mesh: Mesh; t_peaks: number[]; }) {
             [mapCanvas, overlayCanvas, mapIconsBitmap]
         );
         generate();
+        new ResizeObserver(() => generate()).observe(document.querySelector("#map-overlay canvas"));
     }
 }
 
