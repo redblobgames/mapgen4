@@ -107,8 +107,8 @@ class Travel {
         while (r_queue.length > 0) {
             let r_current = r_queue.pop();
             for (let s of mesh.s_around_r(r_current, s_out)) {
+                if (mesh.is_ghost_s(s)) continue;
                 let r_next = mesh.r_end_s(s);
-                if (mesh.is_ghost_r(r_next)) continue;
                 let cost = this.movement_cost_s[s];
                 if (cost === Infinity) continue;
                 let cost_next = cost_to_r[r_current] + cost;
@@ -136,17 +136,31 @@ class Travel {
         let r_from = this.pickRandomRegion();
         let waypoints: Array<Waypoint> = [];
 
+        // Although the paths are region to region, I want to store
+        // waypoints on the region *sides*
         let r = r_from;
+        let positionOnSide = 0.1 + Math.random() * 0.45;
         while (r >= 0) {
-            let x = this.map.mesh.x_of_r(r),
-                y = this.map.mesh.y_of_r(r);
-            x += SPREAD * (Math.random() - Math.random());
-            y += SPREAD * (Math.random() - Math.random());
+            let s = this.s_enter_r[r];
+            if (s < 0) break; // path could not reach target, so let's stop here
+            let t1 = this.map.mesh.t_inner_s(s),
+                t2 = this.map.mesh.t_outer_s(s);
+            let x1 = this.map.mesh.x_of_t(t1),
+                y1 = this.map.mesh.y_of_t(t1),
+                x2 = this.map.mesh.x_of_t(t2),
+                y2 = this.map.mesh.y_of_t(t2);
+            let position = positionOnSide + 0.1 * (Math.random() - Math.random());
+            let x = lerp(x1, x2, position),
+                y = lerp(y1, y2, position);
             waypoints.push({x, y, s: this.s_enter_r[r]});
             r = this.map.mesh.r_begin_s(this.s_enter_r[r]);
         }
         waypoints.reverse(); // we ran Dijkstra's *from* a random point, but we want a path *to* that point
-        return {startTick: this.tick, endTick: this.tick + this.movement_cost_s[waypoints.at(-1).s], waypoints};
+        if (waypoints.length > 0) {
+            return {startTick: this.tick, endTick: this.tick + this.movement_cost_s[waypoints.at(-1).s], waypoints};
+        } else {
+            return {startTick: this.tick, endTick: this.tick-1, waypoints};
+        }
     }
     
     simulate() {
@@ -170,13 +184,9 @@ class Travel {
             }
             if (path.waypoints.length === 1) { // entire path expired
                 this.paths[i] = this.constructParticle();
-            } else if (!isFinite(path.endTick)) { // path got stuck
-                // TODO: why doesn't this happen immediately when drawing water to block a path?
+            } else if (!isFinite(path.endTick) || path.waypoints.length === 0) { // path got stuck
                 this.paths[i] = this.constructParticle();
-            } else if (path.waypoints.length === 0) {
-                throw "Invalid empty path";
             }
-            // NOTE it can still be possible to get a too short path here, if start and end points were the same
         }
 
         this.tick++;

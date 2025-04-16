@@ -219,7 +219,7 @@ export default class Map {
             } while (s_incoming !== s0);
             e /= count;
             if (water && e >= 0) { e = -0.001; }
-            if (!water) { r_land.push(r); }
+            if (!water && !mesh.is_ghost_r(r)) { r_land.push(r); }
             elevation_r[r] = e;
         }
     }
