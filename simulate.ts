@@ -59,6 +59,7 @@ export class Travelers {
         const r1 = mesh.r_begin_s(s),
               r2 = mesh.r_end_s(s);
 
+        if (map.elevation_r[r1] < 0) return Infinity; // ocean
         if (map.elevation_r[r2] < 0) return Infinity; // ocean
         if (map.flow_s[s] + map.flow_s[mesh.s_opposite_s(s)] > 5) return Infinity; // wide rivers
         // TODO: calculate shallowocean_r and have lower cost travel on it
@@ -116,7 +117,7 @@ export class Travelers {
     // region was selected for this tick's dijkstra's algorithm
     // (this is for efficiency, so we can get hundreds of agents
     // using one pathfinding call instead of each one running A*)
-    constructParticle(): Path {
+    constructParticle(r_previous=undefined): Path {
         const SPREAD = 5.0;
 
         if (--this._paths_left_before_running_dijsktra < 0) {
@@ -124,7 +125,7 @@ export class Travelers {
             this.findAllPathsToRegion(this.pickRandomRegion());
         }
 
-        let r_from = this.pickRandomRegion();
+        let r_from = r_previous ?? this.pickRandomRegion();
         let waypoints: Array<Waypoint> = [];
 
         // Although the paths are region to region, I want to store
@@ -173,10 +174,18 @@ export class Travelers {
                 path.startTick = path.endTick;
                 path.endTick += this.movement_cost_s[s];
             }
-            if (path.waypoints.length === 1) { // entire path expired
+
+            if (path.waypoints.length <= 1) { // entire path expired, or path got stuck
                 this.paths[i] = this.constructParticle();
-            } else if (!isFinite(path.endTick) || path.waypoints.length === 0) { // path got stuck
-                this.paths[i] = this.constructParticle();
+            } else {
+                let r_current = this.map.mesh.r_begin_s(path.waypoints.at(-1).s);
+                if (path.endTick === Infinity || this.map.elevation_r[r_current] < 0) { // fell in water
+                    // Use the previous region and hope it's still good, so that the traveler
+                    // turns around from this point and goes to some other destination
+                    // TODO: this doesn't look right either, but looks better than what I had before
+                    let r_previous = this.map.mesh.r_begin_s(path.waypoints.at(-2).s);
+                    this.paths[i] = this.constructParticle(r_previous);
+                }
             }
         }
 
