@@ -88,13 +88,24 @@ let handler = (event) => {
     let param = null;
 
     let travel = new Travelers(map);
-    function tick() {
-        travel.simulate();
-        // NOTE: have to put this in requestAnimationFrame to avoid flickering
-        // with an offscreen canvas
-        requestAnimationFrame(() => renderOverlay(overlayCanvas, ctxOverlay, map, travel));
+    let lastTickRanAtMs = Date.now();
+    function tickMaybe() {
+        const TICKS_PER_SECOND = 15;
+        const MS_BETWEEN_TICKS = 1000/TICKS_PER_SECOND;
+        let nowMs = Date.now();
+        if (nowMs - lastTickRanAtMs > MS_BETWEEN_TICKS) {
+            lastTickRanAtMs = nowMs;
+            travel.simulate();
+            renderOverlay(overlayCanvas, ctxOverlay, map, travel);
+        }
+        // NOTE: I use requestAnimationFrame instead of setInterval so
+        // that it stops when the page isn't visible. I could use the
+        // page visibility api but it's not available in workers, so I
+        // would have to put it in the main thread and then have a
+        // message which seemed like more work than doing this.
+        requestAnimationFrame(tickMaybe);
     }
-    setInterval(tick, 1000/15);
+    tickMaybe();
 
     // This handler is for all subsequent messages, and it only gets
     // called after the user changes the map by painting
@@ -109,7 +120,7 @@ let handler = (event) => {
         map.assignRainfall(param.biomes);
         map.assignRivers(param.rivers);
 
-        travel.updateCache();
+        travel.updateCache(param.pathfinding);
 
         let newOverlaySize = Math.floor(outputBoundingRect.width);
         if (newOverlaySize !== overlayCanvas.width) { // resetting size erases canvas, so do it only when it changes

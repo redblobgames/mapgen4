@@ -22,13 +22,22 @@ import type {Mesh} from "./types.d.ts";
 
 const initialParams = {
     elevation: [
-        ['seed', 187, 1, 1 << 30],
+        ['seed', 201, 1, 1 << 30],
         ['island', 0.5, 0, 1],
         ['noisy_coastlines', 0.01, 0, 0.1],
         ['hill_height', 0.02, 0, 0.1],
         ['mountain_jagged', 0, 0, 1],
         ['mountain_sharpness', 9.8, 9.1, 12.5],
         ['ocean_depth', 1.5, 1, 3],
+    ],
+    pathfinding: [
+        ['sloped', 2, 0.5, 10],
+        ['mountains', 15, 1, 100],
+        ['hills', 5, 1, 100],
+        ['mode_switch', 3, 1, 10],
+        ['speed', 3, 1, 10],
+        ['lane_width', 0.4, 0.0, 0.5],
+        ['lane_changing', 0.1, 0.0, 0.5],
     ],
     biomes: [
         ['wind_angle_deg', 0, 0, 360],
@@ -38,7 +47,7 @@ const initialParams = {
     ],
     rivers: [
         ['lg_min_flow', 1, -5, 5],
-        ['lg_river_width', -2.7, -5, 5],
+        ['lg_river_width', -2.7, -5, -1],
         ['flow', 0.2, 0, 1],
     ],
 };
@@ -49,7 +58,7 @@ const initialParams = {
  */
 async function main({mesh, t_peaks}: { mesh: Mesh; t_peaks: number[]; }) {
     /* set initial parameters */
-    for (let phase of ['elevation', 'biomes', 'rivers']) {
+    for (let phase of ['elevation', 'pathfinding', 'biomes', 'rivers']) {
         const container = document.createElement('div');
         const header = document.createElement('h3');
         header.appendChild(document.createTextNode(phase));

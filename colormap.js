@@ -28,10 +28,13 @@ export const discreteColors = {
     TROPICAL_SEASONAL_FOREST: "#559944",
 };
 
-function smoothColoring(e, t, m) {
+function smoothColoring(e, isCoast, t, m) {
     // adapted from <https://www.redblobgames.com/maps/terrain-from-noise/>
     if (e < 0.0) {
-        return `rgb(${(48 + 48*e) | 0}, ${(64 + 64*e) | 0}, ${(127 + 128*e) | 0})`;
+        let r = 48 + 48*e,
+            g = 96 + 48*e + (isCoast?48:0),
+            b = 127 + 128*e;
+        return `rgb(${r | 0}, ${g | 0}, ${b | 0})`;
     }
 
     // Green or brown at low elevation, and make it more white-ish
@@ -75,10 +78,6 @@ class Coloring {
               water_at_r1 = map.elevation_r[r1] < 0.0;
         return ((map.flow_s[s] >= MIN_FLOW || map.flow_s[map.mesh.s_opposite_s(s)] >= MIN_FLOW)
             && !water_at_r0 && !water_at_r1);
-    }
-
-    biome(map, r) {
-        return "red";
     }
 
     side(map, s) {
@@ -127,6 +126,7 @@ export class Smooth extends Coloring {
     biome(map, r) {
         return smoothColoring(
             map.elevation_r[r],
+            map.r_coastal.has(r),
             Math.min(1, Math.max(0, 1.0 - map.elevation_r[r])),
             Math.min(1, Math.max(0, map.rainfall_r[r]))
         );

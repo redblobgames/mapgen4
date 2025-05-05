@@ -16,10 +16,10 @@ export default {
     },
     elevation: {
     },
+    pathfinding: {
+    },
     biomes: {
     },
     rivers: {
-    },
-    render: {
     },
 };

@@ -155,7 +155,7 @@ const SIZES = {
 
 const TOOLS = {
     ocean:    {elevation: -0.25},
-    shallow:  {elevation: -0.05},
+    shallow:  {elevation: -0.03},
     valley:   {elevation: +0.05},
     mountain: {elevation: +1.0},
 };

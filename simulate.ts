@@ -17,11 +17,12 @@ type Waypoint = {x: number, y: number, s: number};
 type Path = {startTick: number, endTick: number, waypoints: Array<Waypoint>}; // waypoints, plus animation about current segment
 
 const NUM_PATHS = 20000;
-const PARTICLE_SPEED = 3;
 const PATHS_PER_DESTINATION = 500; // batch size to reuse dijkstra output for this many paths
+const EXPIRE_PATH_AFTER_TICKS = 150;
 export class Travelers {
     tick: number;
     map: Map;
+    param: any;
     randInt: (max: number) => number;
     r_queue: FlatQueue<number>;
     movement_cost_s: Float32Array;
@@ -33,6 +34,7 @@ export class Travelers {
     constructor (map: Map) {
         this.tick = 0;
         this.map = map;
+        this.param = null; // will be set by the worker
         this.randInt = makeRandInt(12345);
         this.r_queue = new FlatQueue<number>();
         // @ts-ignore
@@ -51,35 +53,43 @@ export class Travelers {
         return this.map.r_land[this.randInt(this.map.r_land.length || 1)];
     }
 
+    is_ocean_r(r: number): boolean {
+        return this.map.elevation_r[r] < 0 && !this.map.r_coastal.has(r);
+    }
+
     // calculate the movement cost between the adjacent regions along side s
     movementCost(s: number) {
-        const {map} = this;
+        const {map, param} = this;
         const {mesh} = map;
 
         const r1 = mesh.r_begin_s(s),
               r2 = mesh.r_end_s(s);
 
-        if (map.elevation_r[r1] < 0) return Infinity; // ocean
-        if (map.elevation_r[r2] < 0) return Infinity; // ocean
-        if (map.flow_s[s] + map.flow_s[mesh.s_opposite_s(s)] > 5) return Infinity; // wide rivers
-        // TODO: calculate shallowocean_r and have lower cost travel on it
+        // Don't allow traveling in deep ocean:
+        if (this.is_ocean_r(r1)) return Infinity;
+        if (this.is_ocean_r(r2)) return Infinity;
+
+        // Don't allow crossing wide rivers: (TODO: make this honor lg_min_flow and lg_river_width)
+        if (map.flow_s[s] + map.flow_s[mesh.s_opposite_s(s)] > 5) return Infinity;
 
         let cost = Math.hypot(
             mesh.x_of_r(r1) - mesh.x_of_r(r2),
             mesh.y_of_r(r1) - mesh.y_of_r(r2)
-        ) / PARTICLE_SPEED;
+        ) / param.speed;
 
-        if (map.elevation_r[r1] > 0.5) cost *= 15; // mountains
-        else if (map.elevation_r[r2] > 0.5) cost *= 15; // mountains
-        else if (map.elevation_r[r1] > 0.25) cost *= 5; // hills
-        else if (map.elevation_r[r2] > 0.25) cost *= 5; // hills
+        if (map.elevation_r[r1] > 0.5 || map.elevation_r[r2] > 0.5) cost *= param.mountains;
+        else if (map.elevation_r[r1] > 0.25 || map.elevation_r[r2] > 0.25) cost *= param.hills;
+        else if (Math.abs(map.elevation_r[r1] - map.elevation_r[r2]) > 0.1) cost *= param.sloped;
+
+        if ((map.elevation_r[r1] < 0) !== (map.elevation_r[r2] < 0)) cost *= param.mode_switch; // boat to cart or back
 
         return cost;
     }
 
     // For performance we'll cache some information about the current map, and
     // update it when the map changes, but not update it every tick
-    updateCache() {
+    updateCache(param) {
+        this.param = param;
         for (let s = 0; s < this.map.mesh.numSides; s++) {
             this.movement_cost_s[s] = this.movementCost(s);
         }
@@ -118,8 +128,6 @@ export class Travelers {
     // (this is for efficiency, so we can get hundreds of agents
     // using one pathfinding call instead of each one running A*)
     constructParticle(r_previous=undefined): Path {
-        const SPREAD = 5.0;
-
         if (--this._paths_left_before_running_dijsktra < 0) {
             this._paths_left_before_running_dijsktra = PATHS_PER_DESTINATION;
             this.findAllPathsToRegion(this.pickRandomRegion());
@@ -129,9 +137,10 @@ export class Travelers {
         let waypoints: Array<Waypoint> = [];
 
         // Although the paths are region to region, I want to store
-        // waypoints on the region *sides*
+        // waypoints on the region *sides*. This allows them to form
+        // lanes. By default there's one lane in each direction.
         let r = r_from;
-        let positionOnSide = 0.1 + Math.random() * 0.45;
+        let positionOnSide = 0.25 + this.param.lane_width * (Math.random() - 0.5);
         while (r >= 0) {
             let s = this.s_enter_r[r];
             if (s < 0) break; // path could not reach target, so let's stop here
@@ -141,7 +150,7 @@ export class Travelers {
                 y1 = this.map.mesh.y_of_t(t1),
                 x2 = this.map.mesh.x_of_t(t2),
                 y2 = this.map.mesh.y_of_t(t2);
-            let position = positionOnSide + 0.1 * (Math.random() - Math.random());
+            let position = positionOnSide + this.param.lane_changing * (Math.random() - Math.random());
             let x = lerp(x1, x2, position),
                 y = lerp(y1, y2, position);
             waypoints.push({x, y, s: this.s_enter_r[r]});
@@ -175,11 +184,11 @@ export class Travelers {
                 path.endTick += this.movement_cost_s[s];
             }
 
-            if (path.waypoints.length <= 1) { // entire path expired, or path got stuck
+            if (path.waypoints.length <= 1 || path.endTick > path.startTick + EXPIRE_PATH_AFTER_TICKS) { // entire path expired, or path got stuck
                 this.paths[i] = this.constructParticle();
             } else {
                 let r_current = this.map.mesh.r_begin_s(path.waypoints.at(-1).s);
-                if (path.endTick === Infinity || this.map.elevation_r[r_current] < 0) { // fell in water
+                if (path.endTick === Infinity || this.is_ocean_r(r_current)) { // fell in water
                     // Use the previous region and hope it's still good, so that the traveler
                     // turns around from this point and goes to some other destination
                     // TODO: this doesn't look right either, but looks better than what I had before
