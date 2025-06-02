@@ -2,6 +2,7 @@
     "compilerOptions": {
         "target": "esnext",
         "module": "bundler",
+        "moduleResolution": "nodenext",
         "allowImportingTsExtensions": true
     },
     "include": ["./*.ts"],
