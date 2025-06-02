@@ -373,8 +373,8 @@ function assignFlow(mesh: Mesh, riversParam: any, t_order: Int32Array, elevation
     for (let i = t_order.length-1; i >= 0; i--) {
         let t_tributary = t_order[i];
         let s_flow = s_downslope_t[t_tributary];
-        let t_trunk = (_halfedges[s_flow] / 3) | 0;
         if (s_flow >= 0) {
+            let t_trunk = (_halfedges[s_flow] / 3) | 0;
             flow_t[t_trunk] += flow_t[t_tributary];
             flow_s[s_flow] += flow_t[t_tributary]; // TODO: flow_s[s_downslope_t[t]] === flow_t[t]; redundant?
             if (elevation_t[t_trunk] > elevation_t[t_tributary] && elevation_t[t_tributary] >= 0.0) {
