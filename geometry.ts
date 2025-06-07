@@ -17,8 +17,8 @@ function setMeshGeometry(mesh: Mesh, P: Float32Array) {
 
     let p = 0;
     for (let r = 0; r < numRegions; r++) {
-        P[p++] = mesh.x_of_r(r);
-        P[p++] = mesh.y_of_r(r);
+        P[p++] = mesh.is_ghost_r(r) ? 0.0 : mesh.x_of_r(r);
+        P[p++] = mesh.is_ghost_r(r) ? 0.0 : mesh.y_of_r(r);
     }
     for (let t = 0; t < numTriangles; t++) {
         P[p++] = mesh.x_of_t(t);
