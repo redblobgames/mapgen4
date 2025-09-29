@@ -216,21 +216,36 @@ class WebGLWrapper {
 const vert_river = `
     precision highp float;
     uniform mat4 u_projection;
-    attribute vec4 a_xyuv;
-    varying vec2 v_uv;
+    attribute vec4 a_xyww; // x, y, width1, width2 (widths are constant across vertices)
+    attribute vec3 a_barycentric; // TODO: in WebGL 2, calculate this from gl_VertexID;
+    varying vec2 v_riverwidth;
+    varying vec3 v_barycentric;
     void main() {
-        v_uv = a_xyuv.ba;
-        gl_Position = u_projection * vec4(a_xyuv.xy, 0, 1);
+        v_riverwidth = a_xyww.ba;
+        v_barycentric = a_barycentric;
+        gl_Position = u_projection * vec4(a_xyww.xy, 0, 1);
     }`;
 
 const frag_river = `
     precision mediump float;
-    uniform sampler2D u_rivertexturemap;
-    varying vec2 v_uv;
+    varying vec2 v_riverwidth;
+    varying vec3 v_barycentric;
     const vec3 blue = vec3(0.2, 0.5, 0.7);
     void main() {
-        vec4 color = texture2D(u_rivertexturemap, v_uv);
-        gl_FragColor = vec4(blue * color.a, color.a);
+        float xt = v_barycentric.r / (v_barycentric.b + v_barycentric.r);
+        float dist = sqrt(v_barycentric.b*v_barycentric.b + v_barycentric.r*v_barycentric.r + v_barycentric.b*v_barycentric.r);
+        float pos = 0.5;
+        float width = 0.35 * mix(v_riverwidth.x, v_riverwidth.y, xt); // variable width from r side to b side
+        // NOTE: I've tried using screen space derivatives to make widths consistent between adjacent triangles,
+        // but it ended up looking worse, so I reverted it. I multiplied the width by 2.0 * fwidth(v_barycentric.g)
+        // and removed the divide by / s_length[s] in setRiverGeometry().
+        // NOTE: the smoothstep is from w + minwidth to w - antialias thickness, but antialias thickness should
+        // be calculated based on the matrix transform because we want it to be roughly 1 pixel; the min width should
+        // probably also be 1 pixel
+        float in_river = smoothstep(width + 0.025, max(0.0, width - 0.05), abs(dist - pos));
+        vec4 river_color = in_river * vec4(blue, 1);
+        // HACK: for debugging - if (min(v_barycentric.r, min(v_barycentric.g, v_barycentric.b)) < 0.05) river_color = vec4(0, 0, 0, 1);
+        gl_FragColor = river_color;
     }`;
 
 const vert_land = `
@@ -430,7 +445,8 @@ export default class Renderer {
     a_quad_em: Float32Array;
     quad_elements_length: number; // have to store the original size because the worker thread borrows the actual array
     quad_elements: Int32Array;
-    a_river_xyuv: Float32Array;
+    a_river_barycentric: Float32Array;
+    a_river_xyww: Float32Array;
 
     screenshotCanvas: HTMLCanvasElement;
     screenshotCallback: () => void;
@@ -439,7 +455,6 @@ export default class Renderer {
     webgl: WebGLWrapper;
 
     texture_colormap: Texture;
-    texture_rivermap: Texture;
 
     fbo_river: Framebuffer;
     fbo_land: Framebuffer;
@@ -456,7 +471,8 @@ export default class Renderer {
     buffer_quad_xy: Buffer;
     buffer_quad_em: Buffer;
     buffer_quad_elements: Buffer;
-    buffer_river_xyuv: Buffer;
+    buffer_river_barycentric: Buffer;
+    buffer_river_xyww: Buffer;
 
     constructor (mesh: Mesh) {
         const canvas = document.getElementById('mapgen4') as HTMLCanvasElement;
@@ -480,7 +496,14 @@ export default class Renderer {
          * Each of the N/2 leaves will produce 1 output triangle and
          * each of the N/2 nodes will produce 2 triangles. On average
          * there will be 1.5 output triangles per input triangle. */
-        this.a_river_xyuv = new Float32Array(1.5 * 3 * 4 * mesh.numSolidTriangles);
+        const numRiverVertices = 1.5 /* river triangles per input triangle */ * 3 /* vertices per triangle */ * mesh.numSolidTriangles;
+        this.a_river_barycentric = new Float32Array(numRiverVertices * 3);
+        this.a_river_xyww = new Float32Array(numRiverVertices * 4);
+        for (let i = 0; i < numRiverVertices; i++) {
+            this.a_river_barycentric[3 * i    ] = (i % 3 === 0)? 1.0 : 0.0;
+            this.a_river_barycentric[3 * i + 1] = (i % 3 === 1)? 1.0 : 0.0;
+            this.a_river_barycentric[3 * i + 2] = (i % 3 === 2)? 1.0 : 0.0;
+        }
 
         Geometry.setMeshGeometry(mesh, this.a_quad_xy);
 
@@ -489,14 +512,14 @@ export default class Renderer {
         this.buffer_quad_elements = this.webgl.createBuffer({indices: true, update: 'dynamic', data: this.quad_elements});
 
         this.buffer_fullscreen = this.webgl.createBuffer({update: 'static', data: new Float32Array([-2, 0, 0, -2, 2, 2])});
-        this.buffer_river_xyuv = this.webgl.createBuffer({update: 'dynamic', data: this.a_river_xyuv});
+        this.buffer_river_barycentric = this.webgl.createBuffer({update: 'static', data: this.a_river_barycentric});
+        this.buffer_river_xyww = this.webgl.createBuffer({update: 'dynamic', data: this.a_river_xyww});
 
         this.texture_colormap = this.webgl.createTexture({data: colormap.data, width: colormap.width, height: colormap.height, filter: 'nearest'});
-        this.texture_rivermap = this.webgl.createTexture({image: Geometry.createRiverBitmap(), filter: 'linear', mipmap: true});
 
         this.fbo_land  = this.webgl.createFramebuffer(fbo_texture_size, fbo_texture_size, {depth: false, filter: 'nearest'}); // NOTE: linear filter erases noisy artifacts
         this.fbo_depth = this.webgl.createFramebuffer(fbo_texture_size, fbo_texture_size, {depth: true, filter: 'nearest'}); // NOTE: linear requires adjusting parameters
-        this.fbo_river = this.webgl.createFramebuffer(fbo_texture_size, fbo_texture_size, {depth: false, filter: 'nearest'}); // TODO: linear makes rivers look better
+        this.fbo_river = this.webgl.createFramebuffer(fbo_texture_size, fbo_texture_size, {depth: false, filter: 'linear'}); // linear makes rivers look better
         this.fbo_drape = this.webgl.createFramebuffer(fbo_texture_size, fbo_texture_size, {depth: true, filter: 'linear'}); // linear to smooth out edges
 
         this.program_river = this.webgl.createProgram(vert_river, frag_river);
@@ -533,7 +556,7 @@ export default class Renderer {
     updateMap() {
         this.buffer_quad_em.subdata(0, this.a_quad_em);
         this.buffer_quad_elements.subdata(0, this.quad_elements);
-        this.buffer_river_xyuv.subdata(0, this.a_river_xyuv.subarray(0, 4 * 3 * this.numRiverTriangles));
+        this.buffer_river_xyww.subdata(0, this.a_river_xyww.subarray(0, 4 * 3 * this.numRiverTriangles));
     }
 
     /* Allow drawing at a different resolution than the internal texture size */
@@ -563,8 +586,8 @@ export default class Renderer {
     drawRivers() {
         this.drawGeneric(this.program_river, this.fbo_river, (gl, program) => {
             gl.uniformMatrix4fv(program.u_projection, false, this.topdown);
-            this.buffer_river_xyuv.vertexAttribPointer(program.a_xyuv, 4, gl.FLOAT, false, 0, 0);
-            this.texture_rivermap.activate(gl.TEXTURE0, program.u_rivertexturemap);
+            this.buffer_river_barycentric.vertexAttribPointer(program.a_barycentric, 3, gl.FLOAT, false, 0, 0);
+            this.buffer_river_xyww.vertexAttribPointer(program.a_xyww, 4, gl.FLOAT, false, 0, 0);
 
             gl.enable(gl.BLEND);
             gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);

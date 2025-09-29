@@ -39,7 +39,7 @@ let handler = (event) => {
     
     // This handler is for all subsequent messages
     handler = (event) => {
-        let {param, constraints, quad_elements_buffer, a_quad_em_buffer, a_river_xyuv_buffer} = event.data;
+        let {param, constraints, quad_elements_buffer, a_quad_em_buffer, a_river_xyww_buffer} = event.data;
 
         let numRiverTriangles = 0;
         let start_time = performance.now();
@@ -55,7 +55,7 @@ let handler = (event) => {
             Geometry.setMapGeometry(map, new Int32Array(quad_elements_buffer), new Float32Array(a_quad_em_buffer));
         }
         if (run.rivers) {
-            numRiverTriangles = Geometry.setRiverTextures(map, param.spacing, param.rivers, new Float32Array(a_river_xyuv_buffer));
+            numRiverTriangles = Geometry.setRiverGeometry(map, param.spacing, param.rivers, new Float32Array(a_river_xyww_buffer));
         }
         let elapsed = performance.now() - start_time;
 
@@ -64,12 +64,12 @@ let handler = (event) => {
              numRiverTriangles,
              quad_elements_buffer,
              a_quad_em_buffer,
-             a_river_xyuv_buffer,
+             a_river_xyww_buffer,
             },
             [
                 quad_elements_buffer,
                 a_quad_em_buffer,
-                a_river_xyuv_buffer,
+                a_river_xyww_buffer,
             ]
         );
     };

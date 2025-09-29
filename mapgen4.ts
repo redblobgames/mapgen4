@@ -39,7 +39,7 @@ const initialParams = {
     ],
     rivers: [
         ['lg_min_flow', 2.7, -5, 5],
-        ['lg_river_width', -2.7, -5, 5],
+        ['lg_river_width', -2.4, -5, 5],
         ['flow', 0.2, 0, 1],
     ],
     render: [
@@ -58,7 +58,7 @@ const initialParams = {
         ['outline_strength', 15, 0, 30],
         ['outline_threshold', 0, 0, 100],
         ['outline_coast', 0, 0, 1],
-        ['outline_water', 10.0, 0, 20], // things start going wrong when this is high
+        ['outline_water', 13.0, 0, 20], // things start going wrong when this is high
         ['biome_colors', 1, 0, 1],
     ],
 };
@@ -162,14 +162,14 @@ function main({mesh, t_peaks}: { mesh: Mesh; t_peaks: number[]; }) {
     
     worker.addEventListener('message', event => {
         working = false;
-        let {elapsed, numRiverTriangles, quad_elements_buffer, a_quad_em_buffer, a_river_xyuv_buffer} = event.data;
+        let {elapsed, numRiverTriangles, quad_elements_buffer, a_quad_em_buffer, a_river_xyww_buffer} = event.data;
         elapsedTimeHistory.push(elapsed | 0);
         if (elapsedTimeHistory.length > 10) { elapsedTimeHistory.splice(0, 1); }
         const timingDiv = document.getElementById('timing');
         if (timingDiv) { timingDiv.innerText = `${elapsedTimeHistory.join(' ')} milliseconds`; }
         render.quad_elements = new Int32Array(quad_elements_buffer);
         render.a_quad_em = new Float32Array(a_quad_em_buffer);
-        render.a_river_xyuv = new Float32Array(a_river_xyuv_buffer);
+        render.a_river_xyww = new Float32Array(a_river_xyww_buffer);
         render.numRiverTriangles = numRiverTriangles;
         render.updateMap();
         redraw();
@@ -201,11 +201,11 @@ function main({mesh, t_peaks}: { mesh: Mesh; t_peaks: number[]; }) {
                 },
                 quad_elements_buffer: render.quad_elements.buffer,
                 a_quad_em_buffer: render.a_quad_em.buffer,
-                a_river_xyuv_buffer: render.a_river_xyuv.buffer,
+                a_river_xyww_buffer: render.a_river_xyww.buffer,
             }, [
                 render.quad_elements.buffer,
                 render.a_quad_em.buffer,
-                render.a_river_xyuv.buffer,
+                render.a_river_xyww.buffer,
             ]
             );
         } else {
