@@ -21,7 +21,7 @@ type Buffer = {
 }
 
 type Program = {
-    use(): void;
+    run(body: () => void): void;
     [name: `a_${string}`]: GLint;
     [name: `u_${string}`]: WebGLUniformLocation;
 }
@@ -162,7 +162,7 @@ class WebGLWrapper {
         return this._createFramebufferWrapper(framebuffer, texture, options.depth ?? false);
     }
 
-    createProgram(vert: string, frag: string): Program {
+    createProgram(name: string, vert: string, frag: string, setup: (gl: WebGL2RenderingContext, program: Program) => void): Program {
         const {gl} = this;
 
         function createShader(type, source): WebGLShader {
@@ -170,7 +170,7 @@ class WebGLWrapper {
             gl.shaderSource(shader, "#version 300 es\n" + source);
             gl.compileShader(shader);
             if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-                console.error("Error compiling shader:");
+                console.error(`Error compiling shader for program ${name}`);
                 console.error(gl.getShaderInfoLog(shader));
             }
             return shader;
@@ -182,17 +182,25 @@ class WebGLWrapper {
         gl.attachShader(pr, vs);
         gl.attachShader(pr, fs);
         gl.linkProgram(pr);
+        gl.validateProgram(pr);
 
         if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) {
-            console.error("Error linking shader:");
+            console.error(`Error linking shader for program ${name}`);
             console.error(gl.getProgramInfoLog(pr));
         }
 
         gl.deleteShader(vs);
         gl.deleteShader(fs);
 
+        const vao = gl.createVertexArray();
+
         let program: Program = {
-            use() { gl.useProgram(pr); },
+            run(body) {
+                gl.bindVertexArray(vao);
+                gl.useProgram(pr);
+                body();
+                gl.bindVertexArray(null);
+            },
         };
 
         for (let i = 0; i < gl.getProgramParameter(pr, gl.ACTIVE_ATTRIBUTES); i++) {
@@ -203,6 +211,10 @@ class WebGLWrapper {
             let name = gl.getActiveUniform(pr, i).name;
             program[name] = gl.getUniformLocation(pr, name);
         }
+
+        gl.bindVertexArray(vao);
+        setup(gl, program);
+        gl.bindVertexArray(null);
 
         return program;
     }
@@ -526,11 +538,28 @@ export default class Renderer {
         this.fbo_river = this.webgl.createFramebuffer(fbo_texture_size, fbo_texture_size, {depth: false, filter: 'linear'}); // linear makes rivers look better
         this.fbo_drape = this.webgl.createFramebuffer(fbo_texture_size, fbo_texture_size, {depth: true, filter: 'linear'}); // linear to smooth out edges
 
-        this.program_river = this.webgl.createProgram(vert_river, frag_river);
-        this.program_land  = this.webgl.createProgram(vert_land,  frag_land);
-        this.program_depth = this.webgl.createProgram(vert_depth, frag_depth);
-        this.program_drape = this.webgl.createProgram(vert_drape, frag_drape);
-        this.program_final = this.webgl.createProgram(vert_final, frag_final);
+        this.program_river = this.webgl.createProgram('river', vert_river, frag_river, (gl, program) => {
+            this.buffer_river_barycentric.vertexAttribPointer(program.a_barycentric, 3, gl.FLOAT, false, 0, 0);
+            this.buffer_river_xyww.vertexAttribPointer(program.a_xyww, 4, gl.FLOAT, false, 0, 0);
+        });
+        this.program_land  = this.webgl.createProgram('land', vert_land,  frag_land, (gl, program) => {
+            this.buffer_quad_xy.vertexAttribPointer(program.a_xy, 2, gl.FLOAT, false, 0, 0);
+            this.buffer_quad_em.vertexAttribPointer(program.a_em, 2, gl.FLOAT, false, 0, 0);
+            this.buffer_quad_elements.bind();
+        });
+        this.program_depth = this.webgl.createProgram('depth', vert_depth, frag_depth, (gl, program) => {
+            this.buffer_quad_xy.vertexAttribPointer(program.a_xy, 2, gl.FLOAT, false, 0, 0);
+            this.buffer_quad_em.vertexAttribPointer(program.a_em, 2, gl.FLOAT, false, 0, 0);
+            this.buffer_quad_elements.bind();
+        });
+        this.program_drape = this.webgl.createProgram('drape', vert_drape, frag_drape, (gl, program) => {
+            this.buffer_quad_xy.vertexAttribPointer(program.a_xy, 2, gl.FLOAT, false, 0, 0);
+            this.buffer_quad_em.vertexAttribPointer(program.a_em, 2, gl.FLOAT, false, 0, 0);
+            this.buffer_quad_elements.bind();
+        });
+        this.program_final = this.webgl.createProgram('final', vert_final, frag_final, (gl, program) => {
+            this.buffer_fullscreen.vertexAttribPointer(program.a_uv, 2, gl.FLOAT, false, 0, 0);
+        });
 
         this.screenshotCanvas = document.createElement('canvas');
         this.screenshotCanvas.width = fbo_texture_size;
@@ -580,18 +609,16 @@ export default class Renderer {
         const {gl} = this.webgl;
         fb = fb ?? this.webgl.drawToScreen();
         fb.viewport();
-        program.use();
-
-        if (fb.depth) gl.enable(gl.DEPTH_TEST); else gl.disable(gl.DEPTH_TEST);
-        draw(gl, program);
-        if (fb.depth) gl.disable(gl.DEPTH_TEST);
+        program.run(() => {
+            if (fb.depth) gl.enable(gl.DEPTH_TEST); else gl.disable(gl.DEPTH_TEST);
+            draw(gl, program);
+            if (fb.depth) gl.disable(gl.DEPTH_TEST);
+        });
     }
 
     drawRivers() {
         this.drawGeneric(this.program_river, this.fbo_river, (gl, program) => {
             gl.uniformMatrix4fv(program.u_projection, false, this.topdown);
-            this.buffer_river_barycentric.vertexAttribPointer(program.a_barycentric, 3, gl.FLOAT, false, 0, 0);
-            this.buffer_river_xyww.vertexAttribPointer(program.a_xyww, 4, gl.FLOAT, false, 0, 0);
 
             gl.enable(gl.BLEND);
             gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
@@ -605,11 +632,8 @@ export default class Renderer {
         this.drawGeneric(this.program_land, this.fbo_land, (gl, program) => {
             gl.uniformMatrix4fv(program.u_projection, false, this.topdown);
             gl.uniform1f(program.u_outline_water, outline_water);
-            this.buffer_quad_xy.vertexAttribPointer(program.a_xy, 2, gl.FLOAT, false, 0, 0);
-            this.buffer_quad_em.vertexAttribPointer(program.a_em, 2, gl.FLOAT, false, 0, 0);
             this.fbo_river.texture.activate(gl.TEXTURE0, program.u_water);
 
-            this.buffer_quad_elements.bind();
             gl.drawElements(gl.TRIANGLES, this.quad_elements_length, gl.UNSIGNED_INT, 0);
         });
     }
@@ -617,10 +641,7 @@ export default class Renderer {
     drawDepth() {
         this.drawGeneric(this.program_depth, this.fbo_depth, (gl, program) => {
             gl.uniformMatrix4fv(program.u_projection, false, this.projection);
-            this.buffer_quad_xy.vertexAttribPointer(program.a_xy, 2, gl.FLOAT, false, 0, 0);
-            this.buffer_quad_em.vertexAttribPointer(program.a_em, 2, gl.FLOAT, false, 0, 0);
 
-            this.buffer_quad_elements.bind();
             gl.drawElements(gl.TRIANGLES, this.quad_elements_length, gl.UNSIGNED_INT, 0);
         });
     }
@@ -647,10 +668,6 @@ export default class Renderer {
             this.fbo_river.texture.activate(gl.TEXTURE2, program.u_water);
             this.fbo_depth.texture.activate(gl.TEXTURE3, program.u_depth);
 
-            this.buffer_quad_xy.vertexAttribPointer(program.a_xy, 2, gl.FLOAT, false, 0, 0);
-            this.buffer_quad_em.vertexAttribPointer(program.a_em, 2, gl.FLOAT, false, 0, 0);
-
-            this.buffer_quad_elements.bind();
             gl.drawElements(gl.TRIANGLES, this.quad_elements_length, gl.UNSIGNED_INT, 0);
         });
     }
@@ -658,7 +675,6 @@ export default class Renderer {
     drawFinal(offset: [number, number]) {
         this.drawGeneric(this.program_final, null, (gl, program) => {
             gl.uniform2fv(program.u_offset, offset);
-            this.buffer_fullscreen.vertexAttribPointer(program.a_uv, 2, gl.FLOAT, false, 0, 0);
             this.fbo_drape.texture.activate(gl.TEXTURE0, program.u_texture);
 
             gl.drawArrays(gl.TRIANGLES, 0, 3);
