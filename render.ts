@@ -44,13 +44,12 @@ type Framebuffer = {
 }
 
 class WebGLWrapper {
-    gl: WebGLRenderingContext;
+    gl: WebGL2RenderingContext;
 
     constructor (canvas: HTMLCanvasElement) {
-        this.gl = canvas.getContext('webgl') as WebGLRenderingContext;
-        if (!this.gl) { alert("This project requires WebGL."); return; }
+        this.gl = canvas.getContext('webgl2') as WebGL2RenderingContext;
+        if (!this.gl) { alert("This project requires WebGL 2."); return; }
         canvas.addEventListener('webglcontextlost', () => console.error("This project not handle WebGL context loss"));
-        this.gl.getExtension('OES_element_index_uint'); // MDN says this is universally supported
     }
 
     createBuffer(options: {indices?: boolean, update: 'static' | 'dynamic', data: AllowSharedBufferSource}): Buffer {
@@ -168,7 +167,7 @@ class WebGLWrapper {
 
         function createShader(type, source): WebGLShader {
             const shader = gl.createShader(type);
-            gl.shaderSource(shader, source);
+            gl.shaderSource(shader, "#version 300 es\n" + source);
             gl.compileShader(shader);
             if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
                 console.error("Error compiling shader:");
@@ -216,10 +215,10 @@ class WebGLWrapper {
 const vert_river = `
     precision highp float;
     uniform mat4 u_projection;
-    attribute vec4 a_xyww; // x, y, width1, width2 (widths are constant across vertices)
-    attribute vec3 a_barycentric; // TODO: in WebGL 2, calculate this from gl_VertexID;
-    varying vec2 v_riverwidth;
-    varying vec3 v_barycentric;
+    in vec4 a_xyww; // x, y, width1, width2 (widths are constant across vertices)
+    in vec3 a_barycentric; // TODO: in WebGL 2, calculate this from gl_VertexID;
+    out vec2 v_riverwidth;
+    out vec3 v_barycentric;
     void main() {
         v_riverwidth = a_xyww.ba;
         v_barycentric = a_barycentric;
@@ -228,8 +227,9 @@ const vert_river = `
 
 const frag_river = `
     precision mediump float;
-    varying vec2 v_riverwidth;
-    varying vec3 v_barycentric;
+    in vec2 v_riverwidth;
+    in vec3 v_barycentric;
+    out vec4 out_fragcolor;
     const vec3 blue = vec3(0.2, 0.5, 0.7);
     void main() {
         float xt = v_barycentric.r / (v_barycentric.b + v_barycentric.r);
@@ -245,16 +245,16 @@ const frag_river = `
         float in_river = smoothstep(width + 0.025, max(0.0, width - 0.05), abs(dist - pos));
         vec4 river_color = in_river * vec4(blue, 1);
         // HACK: for debugging - if (min(v_barycentric.r, min(v_barycentric.g, v_barycentric.b)) < 0.05) river_color = vec4(0, 0, 0, 1);
-        gl_FragColor = river_color;
+        out_fragcolor = river_color;
     }`;
 
 const vert_land = `
     precision highp float;
     uniform mat4 u_projection;
-    attribute vec2 a_xy;
-    attribute vec2 a_em; // NOTE: moisture channel unused
-    varying float v_e;
-    varying vec2 v_xy;
+    in vec2 a_xy;
+    in vec2 a_em; // NOTE: moisture channel unused
+    out float v_e;
+    out vec2 v_xy;
     void main() {
         vec4 pos = u_projection * vec4(a_xy, 0, 1);
         v_xy = (1.0 + pos.xy) * 0.5;
@@ -266,11 +266,12 @@ const vert_land = `
     precision highp float;
     uniform sampler2D u_water;
     uniform float u_outline_water;
-    varying float v_e;
-    varying vec2 v_xy;
+    in float v_e;
+    in vec2 v_xy;
+    out vec4 out_fragcolor;
     void main() {
         float e = 0.5 * (1.0 + v_e);
-        float river = texture2D(u_water, v_xy).a;
+        float river = texture(u_water, v_xy).a;
         if (e >= 0.5) {
             float bump = u_outline_water / 256.0;
             float L1 = e + bump;
@@ -278,15 +279,15 @@ const vert_land = `
             // TODO: simplify equation
             e = min(L1, mix(L1, L2, river));
         }
-        gl_FragColor = vec4(fract(256.0*e), e, 0, 1);
+        out_fragcolor = vec4(fract(256.0*e), e, 0, 1);
     }`;
 
 const vert_depth = `
     precision highp float;
     uniform mat4 u_projection;
-    attribute vec2 a_xy;
-    attribute vec2 a_em;
-    varying float v_z;
+    in vec2 a_xy;
+    in vec2 a_em;
+    out float v_z;
     void main() {
         vec4 pos = u_projection * vec4(a_xy, max(0.0, a_em.x), 1);
         v_z = a_em.x;
@@ -295,18 +296,19 @@ const vert_depth = `
 
 const frag_depth = `
     precision highp float;
-    varying float v_z;
+    in float v_z;
+    out vec4 out_fragcolor;
     void main() {
-        gl_FragColor = vec4(fract(256.0*v_z), floor(256.0*v_z)/256.0, 0, 1);
+        out_fragcolor = vec4(fract(256.0*v_z), floor(256.0*v_z)/256.0, 0, 1);
     }`;
 
 const vert_drape = `
     precision highp float;
     uniform mat4 u_projection;
-    attribute vec2 a_xy;
-    attribute vec2 a_em;
-    varying vec2 v_em, v_uv, v_xy;
-    varying float v_z;
+    in vec2 a_xy;
+    in vec2 a_em;
+    out vec2 v_em, v_uv, v_xy;
+    out float v_z;
     void main() {
         v_em = a_em;
         vec2 xy_clamped = clamp(a_xy, vec2(0, 0), vec2(1000, 1000));
@@ -333,8 +335,9 @@ const frag_drape = `
                   u_outline_strength, u_outline_coast, u_outline_water,
                   u_outline_depth, u_outline_threshold,
                   u_biome_colors;
-    varying vec2 v_uv, v_xy, v_em;
-    varying float v_z;
+    in vec2 v_uv, v_xy, v_em;
+    in float v_z;
+    out vec4 out_fragcolor;
 
     const vec2 _decipher = vec2(1.0/256.0, 1);
     float decipher(vec4 v) {
@@ -350,17 +353,17 @@ const frag_drape = `
         vec2 dx = vec2(u_inverse_texture_size.x, 0),
              dy = vec2(0, u_inverse_texture_size.y);
 
-        float zE = decipher(texture2D(u_mapdata, pos + dx));
-        float zN = decipher(texture2D(u_mapdata, pos - dy));
-        float zW = decipher(texture2D(u_mapdata, pos - dx));
-        float zS = decipher(texture2D(u_mapdata, pos + dy));
+        float zE = decipher(texture(u_mapdata, pos + dx));
+        float zN = decipher(texture(u_mapdata, pos - dy));
+        float zW = decipher(texture(u_mapdata, pos - dx));
+        float zS = decipher(texture(u_mapdata, pos + dy));
         vec3 slope_vector = normalize(vec3(zS-zN, zE-zW, u_overhead * (u_inverse_texture_size.x + u_inverse_texture_size.y)));
         vec3 light_vector = normalize(vec3(u_light_angle, mix(u_slope, u_flat, slope_vector.z)));
         float light = u_ambient + max(0.0, dot(light_vector, slope_vector));
-        vec2 em = texture2D(u_mapdata, pos).yz;
+        vec2 em = texture(u_mapdata, pos).yz;
         em.y = v_em.y;
         vec3 neutral_biome_color = neutral_land_biome;
-        vec4 water_color = texture2D(u_water, pos);
+        vec4 water_color = texture(u_water, pos);
         if (em.x >= 0.5 && v_z >= 0.0) {
             // on land, lower the elevation around rivers
             em.x -= u_outline_water / 256.0 * (1.0 - water_color.a);
@@ -368,7 +371,7 @@ const frag_drape = `
             // in the ocean, or underground, don't draw rivers
             water_color.a = 0.0; neutral_biome_color = neutral_water_biome;
         }
-        vec3 biome_color = texture2D(u_colormap, em).rgb;
+        vec3 biome_color = texture(u_colormap, em).rgb;
         water_color = mix(vec4(neutral_water_biome * (1.2 - water_color.a), water_color.a), water_color, u_biome_colors);
         biome_color = mix(neutral_biome_color, biome_color, u_biome_colors);
         if (v_z < 0.0) {
@@ -386,35 +389,35 @@ const frag_drape = `
 
         // TODO: once I remove the elevation rounding artifact I can simplify
         // this by taking the max first and then deciphering
-        float depth0 = decipher(texture2D(u_depth, v_xy)),
-              depth1 = max(max(decipher(texture2D(u_depth, v_xy + u_outline_depth*(-dy-dx))),
-                               decipher(texture2D(u_depth, v_xy + u_outline_depth*(-dy+dx)))),
-                           decipher(texture2D(u_depth, v_xy + u_outline_depth*(-dy)))),
-              depth2 = max(max(decipher(texture2D(u_depth, v_xy + u_outline_depth*(dy-dx))),
-                               decipher(texture2D(u_depth, v_xy + u_outline_depth*(dy+dx)))),
-                           decipher(texture2D(u_depth, v_xy + u_outline_depth*(dy))));
+        float depth0 = decipher(texture(u_depth, v_xy)),
+              depth1 = max(max(decipher(texture(u_depth, v_xy + u_outline_depth*(-dy-dx))),
+                               decipher(texture(u_depth, v_xy + u_outline_depth*(-dy+dx)))),
+                           decipher(texture(u_depth, v_xy + u_outline_depth*(-dy)))),
+              depth2 = max(max(decipher(texture(u_depth, v_xy + u_outline_depth*(dy-dx))),
+                               decipher(texture(u_depth, v_xy + u_outline_depth*(dy+dx)))),
+                           decipher(texture(u_depth, v_xy + u_outline_depth*(dy))));
         float outline = 1.0 + u_outline_strength * (max(u_outline_threshold, depth1-depth0) - u_outline_threshold);
 
         // Add coast outline, but avoid it if there's a river nearby
         float neighboring_river = max(
             max(
-                texture2D(u_water, pos + u_outline_depth * dx).a,
-                texture2D(u_water, pos - u_outline_depth * dx).a
+                texture(u_water, pos + u_outline_depth * dx).a,
+                texture(u_water, pos - u_outline_depth * dx).a
             ),
             max(
-                texture2D(u_water, pos + u_outline_depth * dy).a,
-                texture2D(u_water, pos - u_outline_depth * dy).a
+                texture(u_water, pos + u_outline_depth * dy).a,
+                texture(u_water, pos - u_outline_depth * dy).a
             )
         );
         if (em.x <= 0.5 && max(depth1, depth2) > 1.0/256.0 && neighboring_river <= 0.2) { outline += u_outline_coast * 256.0 * (max(depth1, depth2) - 2.0*(em.x - 0.5)); }
 
-        gl_FragColor = vec4(mix(biome_color, water_color.rgb, water_color.a) * light / outline, 1);
+        out_fragcolor = vec4(mix(biome_color, water_color.rgb, water_color.a) * light / outline, 1);
     }`;
 
 const vert_final = `
     precision highp float;
-    attribute vec2 a_uv;
-    varying vec2 v_uv;
+    in vec2 a_uv;
+    out vec2 v_uv;
     void main() {
         v_uv = a_uv;
         gl_Position = vec4(2.0 * v_uv - 1.0, 0.0, 1.0);
@@ -424,9 +427,10 @@ const frag_final = `
     precision mediump float;
     uniform sampler2D u_texture;
     uniform vec2 u_offset;
-    varying vec2 v_uv;
+    in vec2 v_uv;
+    out vec4 out_fragcolor;
     void main() {
-         gl_FragColor = texture2D(u_texture, v_uv + u_offset);
+         out_fragcolor = texture(u_texture, v_uv + u_offset);
     }`;
 
 //////////////////////////////////////////////////////////////////////
@@ -572,7 +576,7 @@ export default class Renderer {
     }
 
     /* wrapper function to make the other drawing functions more convenient */
-    drawGeneric(program: Program, fb: Framebuffer | null, draw: (gl: WebGLRenderingContext, program: Program) => void) {
+    drawGeneric(program: Program, fb: Framebuffer | null, draw: (gl: WebGL2RenderingContext, program: Program) => void) {
         const {gl} = this.webgl;
         fb = fb ?? this.webgl.drawToScreen();
         fb.viewport();
