@@ -50,6 +50,10 @@ class WebGLWrapper {
         this.gl = canvas.getContext('webgl2') as WebGL2RenderingContext;
         if (!this.gl) { alert("This project requires WebGL 2."); return; }
         canvas.addEventListener('webglcontextlost', () => console.error("This project not handle WebGL context loss"));
+        const ext_color_buffer_float = this.gl.getExtension('EXT_color_buffer_float');
+        if (!ext_color_buffer_float) { alert("This project requires WebGL2 EXT_color_buffer_float"); }
+        const oes_texture_float_linear = this.gl.getExtension('OES_texture_float_linear');
+        if (!oes_texture_float_linear) { console.warn("OES_texture_float_linear not available"); }
     }
 
     createBuffer(options: {indices?: boolean, update: 'static' | 'dynamic', data: AllowSharedBufferSource}): Buffer {
@@ -74,7 +78,7 @@ class WebGLWrapper {
         };
     }
 
-    createTexture(options: {width?: number, height?: number, mipmap?: boolean, image?: HTMLCanvasElement, data?: Uint8Array, filter: 'linear'|'nearest'}): Texture {
+    createTexture(options: {width?: number, height?: number, mipmap?: boolean, image?: HTMLCanvasElement, data?: Uint8Array, internalFormat?: GLenum, format?: GLenum, filter: 'linear'|'nearest'}): Texture {
         const {gl} = this;
         const texture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -82,7 +86,10 @@ class WebGLWrapper {
         if (options.image) {
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, options.image);
         } else if (options.width && options.height) {
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, options.width, options.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, options.data ?? null);
+            gl.texStorage2D(gl.TEXTURE_2D, 1, options.internalFormat ?? gl.RGBA8, options.width, options.height);
+            if (options.data) {
+                gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, options.width, options.height, options.format ?? gl.RGBA, gl.UNSIGNED_BYTE, options.data);
+            }
         } else {
             throw "createTexture needs either an image or a width✕height";
         }
@@ -139,9 +146,9 @@ class WebGLWrapper {
         return this._createFramebufferWrapper(null, null, true);
     }
 
-    createFramebuffer(width: number, height: number, options: {depth?: boolean, filter: 'linear'|'nearest'}): Framebuffer {
+    createFramebuffer(width: number, height: number, options: {depth?: boolean, internalFormat?: GLenum, format?: GLenum, filter: 'linear'|'nearest'}): Framebuffer {
         const {gl} = this;
-        const texture = this.createTexture({width, height, filter: options.filter});
+        const texture = this.createTexture({width, height, internalFormat: options.internalFormat, format: options.format, filter: options.filter});
         const framebuffer = gl.createFramebuffer();
         gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture.id, 0);
@@ -182,11 +189,16 @@ class WebGLWrapper {
         gl.attachShader(pr, vs);
         gl.attachShader(pr, fs);
         gl.linkProgram(pr);
-        gl.validateProgram(pr);
 
         if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) {
-            console.error(`Error linking shader for program ${name}`);
+            console.error(`Error linking shaders for program ${name}`);
             console.error(gl.getProgramInfoLog(pr));
+        }
+
+        gl.validateProgram(pr);
+        if (!gl.getProgramParameter(pr, gl.VALIDATE_STATUS)) {
+            console.warn(`Warning while validating shaders for program ${name}`);
+            console.warn(gl.getProgramInfoLog(pr));
         }
 
         gl.deleteShader(vs);
@@ -280,7 +292,7 @@ const vert_land = `
     uniform float u_outline_water;
     in float v_e;
     in vec2 v_xy;
-    out vec4 out_fragcolor;
+    out vec4 out_elevation;
     void main() {
         float e = 0.5 * (1.0 + v_e);
         float river = texture(u_water, v_xy).a;
@@ -291,7 +303,7 @@ const vert_land = `
             // TODO: simplify equation
             e = min(L1, mix(L1, L2, river));
         }
-        out_fragcolor = vec4(fract(256.0*e), e, 0, 1);
+        out_elevation = vec4(e, 0, e, 1);
     }`;
 
 const vert_depth = `
@@ -338,7 +350,7 @@ const vert_drape = `
 const frag_drape = `
     precision highp float;
     uniform sampler2D u_colormap;
-    uniform sampler2D u_mapdata;
+    uniform sampler2D u_elevation;
     uniform sampler2D u_water;
     uniform sampler2D u_depth;
     uniform vec2 u_light_angle, u_inverse_texture_size;
@@ -365,25 +377,24 @@ const frag_drape = `
         vec2 dx = vec2(u_inverse_texture_size.x, 0),
              dy = vec2(0, u_inverse_texture_size.y);
 
-        float zE = decipher(texture(u_mapdata, pos + dx));
-        float zN = decipher(texture(u_mapdata, pos - dy));
-        float zW = decipher(texture(u_mapdata, pos - dx));
-        float zS = decipher(texture(u_mapdata, pos + dy));
+        float z  = texture(u_elevation, pos).x;
+        float zE = texture(u_elevation, pos + dx).x;
+        float zN = texture(u_elevation, pos - dy).x;
+        float zW = texture(u_elevation, pos - dx).x;
+        float zS = texture(u_elevation, pos + dy).x;
         vec3 slope_vector = normalize(vec3(zS-zN, zE-zW, u_overhead * (u_inverse_texture_size.x + u_inverse_texture_size.y)));
         vec3 light_vector = normalize(vec3(u_light_angle, mix(u_slope, u_flat, slope_vector.z)));
         float light = u_ambient + max(0.0, dot(light_vector, slope_vector));
-        vec2 em = texture(u_mapdata, pos).yz;
-        em.y = v_em.y;
         vec3 neutral_biome_color = neutral_land_biome;
         vec4 water_color = texture(u_water, pos);
-        if (em.x >= 0.5 && v_z >= 0.0) {
+        if (z >= 0.5 && v_z >= 0.0) {
             // on land, lower the elevation around rivers
-            em.x -= u_outline_water / 256.0 * (1.0 - water_color.a);
+            z -= u_outline_water / 256.0 * (1.0 - water_color.a);
         } else {
             // in the ocean, or underground, don't draw rivers
             water_color.a = 0.0; neutral_biome_color = neutral_water_biome;
         }
-        vec3 biome_color = texture(u_colormap, em).rgb;
+        vec3 biome_color = texture(u_colormap, vec2(z, v_em.y)).rgb;
         water_color = mix(vec4(neutral_water_biome * (1.2 - water_color.a), water_color.a), water_color, u_biome_colors);
         biome_color = mix(neutral_biome_color, biome_color, u_biome_colors);
         if (v_z < 0.0) {
@@ -395,7 +406,7 @@ const frag_drape = `
             biome_color = mix(underground_color, highlight_color, 0.5 * smoothstep(-0.025, 0.0, v_z));
             light = 1.0 - 0.3 * smoothstep(0.8, 1.0, fract((v_em.x - v_z) * 20.0)); // add horizontal lines
         }
-        // if (fract(em.x * 10.0) < 10.0 * fwidth(em.x)) { biome_color = vec3(0,0,0); } // contour lines
+        // if (fract(z * 10.0) < 10.0 * fwidth(z)) { biome_color = vec3(0,0,0); } // contour lines
 
         // TODO: add noise texture based on biome
 
@@ -421,7 +432,7 @@ const frag_drape = `
                 texture(u_water, pos - u_outline_depth * dy).a
             )
         );
-        if (em.x <= 0.5 && max(depth1, depth2) > 1.0/256.0 && neighboring_river <= 0.2) { outline += u_outline_coast * 256.0 * (max(depth1, depth2) - 2.0*(em.x - 0.5)); }
+        if (z <= 0.5 && max(depth1, depth2) > 1.0/256.0 && neighboring_river <= 0.2) { outline += u_outline_coast * 256.0 * (max(depth1, depth2) - 2.0*(z - 0.5)); }
 
         out_fragcolor = vec4(mix(biome_color, water_color.rgb, water_color.a) * light / outline, 1);
     }`;
@@ -533,7 +544,7 @@ export default class Renderer {
 
         this.texture_colormap = this.webgl.createTexture({data: colormap.data, width: colormap.width, height: colormap.height, filter: 'nearest'});
 
-        this.fbo_land  = this.webgl.createFramebuffer(fbo_texture_size, fbo_texture_size, {depth: false, filter: 'nearest'}); // NOTE: linear filter erases noisy artifacts
+        this.fbo_land  = this.webgl.createFramebuffer(fbo_texture_size, fbo_texture_size, {depth: false, internalFormat: this.webgl.gl.R16F, filter: 'linear'}); // NOTE: linear filter erases noisy artifacts
         this.fbo_depth = this.webgl.createFramebuffer(fbo_texture_size, fbo_texture_size, {depth: true, filter: 'nearest'}); // NOTE: linear requires adjusting parameters
         this.fbo_river = this.webgl.createFramebuffer(fbo_texture_size, fbo_texture_size, {depth: false, filter: 'linear'}); // linear makes rivers look better
         this.fbo_drape = this.webgl.createFramebuffer(fbo_texture_size, fbo_texture_size, {depth: true, filter: 'linear'}); // linear to smooth out edges
@@ -664,7 +675,7 @@ export default class Renderer {
             gl.uniform1f(program.u_biome_colors, renderParam.biome_colors);
 
             this.texture_colormap.activate(gl.TEXTURE0, program.u_colormap);
-            this.fbo_land.texture.activate(gl.TEXTURE1, program.u_mapdata);
+            this.fbo_land.texture.activate(gl.TEXTURE1, program.u_elevation);
             this.fbo_river.texture.activate(gl.TEXTURE2, program.u_water);
             this.fbo_depth.texture.activate(gl.TEXTURE3, program.u_depth);
 
