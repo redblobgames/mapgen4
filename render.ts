@@ -238,12 +238,12 @@ const vert_river = `
     precision highp float;
     uniform mat4 u_projection;
     in vec4 a_xyww; // x, y, width1, width2 (widths are constant across vertices)
-    in vec3 a_barycentric; // TODO: in WebGL 2, calculate this from gl_VertexID;
     out vec2 v_riverwidth;
     out vec3 v_barycentric;
     void main() {
         v_riverwidth = a_xyww.ba;
-        v_barycentric = a_barycentric;
+        int index = gl_VertexID % 3;
+        v_barycentric = vec3(index == 0, index == 1, index == 2);
         gl_Position = u_projection * vec4(a_xyww.xy, 0, 1);
     }`;
 
@@ -463,7 +463,6 @@ export default class Renderer {
     a_quad_em: Float32Array;
     quad_elements_length: number; // have to store the original size because the worker thread borrows the actual array
     quad_elements: Int32Array;
-    a_river_barycentric: Float32Array;
     a_river_xyww: Float32Array;
 
     screenshotCanvas: HTMLCanvasElement;
@@ -489,7 +488,6 @@ export default class Renderer {
     buffer_quad_xy: Buffer;
     buffer_quad_em: Buffer;
     buffer_quad_elements: Buffer;
-    buffer_river_barycentric: Buffer;
     buffer_river_xyww: Buffer;
 
     constructor (mesh: Mesh) {
@@ -515,13 +513,7 @@ export default class Renderer {
          * each of the N/2 nodes will produce 2 triangles. On average
          * there will be 1.5 output triangles per input triangle. */
         const numRiverVertices = 1.5 /* river triangles per input triangle */ * 3 /* vertices per triangle */ * mesh.numSolidTriangles;
-        this.a_river_barycentric = new Float32Array(numRiverVertices * 3);
         this.a_river_xyww = new Float32Array(numRiverVertices * 4);
-        for (let i = 0; i < numRiverVertices; i++) {
-            this.a_river_barycentric[3 * i    ] = (i % 3 === 0)? 1.0 : 0.0;
-            this.a_river_barycentric[3 * i + 1] = (i % 3 === 1)? 1.0 : 0.0;
-            this.a_river_barycentric[3 * i + 2] = (i % 3 === 2)? 1.0 : 0.0;
-        }
 
         Geometry.setMeshGeometry(mesh, this.a_quad_xy);
 
@@ -530,7 +522,6 @@ export default class Renderer {
         this.buffer_quad_elements = this.webgl.createBuffer({indices: true, update: 'dynamic', data: this.quad_elements});
 
         this.buffer_fullscreen = this.webgl.createBuffer({update: 'static', data: new Float32Array([-2, 0, 0, -2, 2, 2])});
-        this.buffer_river_barycentric = this.webgl.createBuffer({update: 'static', data: this.a_river_barycentric});
         this.buffer_river_xyww = this.webgl.createBuffer({update: 'dynamic', data: this.a_river_xyww});
 
         this.texture_colormap = this.webgl.createTexture({data: colormap.data, width: colormap.width, height: colormap.height, filter: 'nearest'});
@@ -541,7 +532,6 @@ export default class Renderer {
         this.fbo_drape = this.webgl.createFramebuffer(fbo_texture_size, fbo_texture_size, {depth: true, filter: 'linear'}); // linear to smooth out edges
 
         this.program_river = this.webgl.createProgram('river', vert_river, frag_river, (gl, program) => {
-            this.buffer_river_barycentric.vertexAttribPointer(program.a_barycentric, 3, gl.FLOAT, false, 0, 0);
             this.buffer_river_xyww.vertexAttribPointer(program.a_xyww, 4, gl.FLOAT, false, 0, 0);
         });
         this.program_land  = this.webgl.createProgram('land', vert_land,  frag_land, (gl, program) => {
