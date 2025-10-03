@@ -50,10 +50,8 @@ class WebGLWrapper {
         this.gl = canvas.getContext('webgl2') as WebGL2RenderingContext;
         if (!this.gl) { alert("This project requires WebGL 2."); return; }
         canvas.addEventListener('webglcontextlost', () => console.error("This project not handle WebGL context loss"));
-        const ext_color_buffer_float = this.gl.getExtension('EXT_color_buffer_float');
+        const ext_color_buffer_float = this.gl.getExtension('EXT_color_buffer_float'); // 99.93% support
         if (!ext_color_buffer_float) { alert("This project requires WebGL2 EXT_color_buffer_float"); }
-        const oes_texture_float_linear = this.gl.getExtension('OES_texture_float_linear');
-        if (!oes_texture_float_linear) { console.warn("OES_texture_float_linear not available"); }
     }
 
     createBuffer(options: {indices?: boolean, update: 'static' | 'dynamic', data: AllowSharedBufferSource}): Buffer {
@@ -303,7 +301,7 @@ const vert_land = `
             // TODO: simplify equation
             e = min(L1, mix(L1, L2, river));
         }
-        out_elevation = vec4(e, 0, e, 1);
+        out_elevation = vec4(e, 0, 0, 1);
     }`;
 
 const vert_depth = `
@@ -321,9 +319,9 @@ const vert_depth = `
 const frag_depth = `
     precision highp float;
     in float v_z;
-    out vec4 out_fragcolor;
+    out vec4 out_depth;
     void main() {
-        out_fragcolor = vec4(fract(256.0*v_z), floor(256.0*v_z)/256.0, 0, 1);
+        out_depth = vec4(v_z, 0, 0, 1);
     }`;
 
 const vert_drape = `
@@ -362,11 +360,6 @@ const frag_drape = `
     in vec2 v_uv, v_xy, v_em;
     in float v_z;
     out vec4 out_fragcolor;
-
-    const vec2 _decipher = vec2(1.0/256.0, 1);
-    float decipher(vec4 v) {
-        return dot(_decipher, v.xy);
-    }
 
     const vec3 neutral_land_biome = vec3(0.9, 0.8, 0.7);
     const vec3 neutral_water_biome = 0.8 * neutral_land_biome;
@@ -410,15 +403,13 @@ const frag_drape = `
 
         // TODO: add noise texture based on biome
 
-        // TODO: once I remove the elevation rounding artifact I can simplify
-        // this by taking the max first and then deciphering
-        float depth0 = decipher(texture(u_depth, v_xy)),
-              depth1 = max(max(decipher(texture(u_depth, v_xy + u_outline_depth*(-dy-dx))),
-                               decipher(texture(u_depth, v_xy + u_outline_depth*(-dy+dx)))),
-                           decipher(texture(u_depth, v_xy + u_outline_depth*(-dy)))),
-              depth2 = max(max(decipher(texture(u_depth, v_xy + u_outline_depth*(dy-dx))),
-                               decipher(texture(u_depth, v_xy + u_outline_depth*(dy+dx)))),
-                           decipher(texture(u_depth, v_xy + u_outline_depth*(dy))));
+        float depth0 = texture(u_depth, v_xy).x,
+              depth1 = max(max(texture(u_depth, v_xy + u_outline_depth*(-dy-dx)).x,
+                               texture(u_depth, v_xy + u_outline_depth*(-dy+dx)).x),
+                           texture(u_depth, v_xy + u_outline_depth*(-dy)).x),
+              depth2 = max(max(texture(u_depth, v_xy + u_outline_depth*(dy-dx)).x,
+                               texture(u_depth, v_xy + u_outline_depth*(dy+dx)).x),
+                           texture(u_depth, v_xy + u_outline_depth*(dy)).x);
         float outline = 1.0 + u_outline_strength * (max(u_outline_threshold, depth1-depth0) - u_outline_threshold);
 
         // Add coast outline, but avoid it if there's a river nearby
@@ -544,8 +535,8 @@ export default class Renderer {
 
         this.texture_colormap = this.webgl.createTexture({data: colormap.data, width: colormap.width, height: colormap.height, filter: 'nearest'});
 
-        this.fbo_land  = this.webgl.createFramebuffer(fbo_texture_size, fbo_texture_size, {depth: false, internalFormat: this.webgl.gl.R16F, filter: 'linear'}); // NOTE: linear filter erases noisy artifacts
-        this.fbo_depth = this.webgl.createFramebuffer(fbo_texture_size, fbo_texture_size, {depth: true, filter: 'nearest'}); // NOTE: linear requires adjusting parameters
+        this.fbo_land  = this.webgl.createFramebuffer(fbo_texture_size, fbo_texture_size, {depth: false, internalFormat: this.webgl.gl.R16F, filter: 'linear'});
+        this.fbo_depth = this.webgl.createFramebuffer(fbo_texture_size, fbo_texture_size, {depth: true, internalFormat: this.webgl.gl.R16F, filter: 'nearest'}); // NOTE: linear requires adjusting parameters
         this.fbo_river = this.webgl.createFramebuffer(fbo_texture_size, fbo_texture_size, {depth: false, filter: 'linear'}); // linear makes rivers look better
         this.fbo_drape = this.webgl.createFramebuffer(fbo_texture_size, fbo_texture_size, {depth: true, filter: 'linear'}); // linear to smooth out edges
 

@@ -29,8 +29,7 @@ function setMeshGeometry(mesh: Mesh, P: Float32Array) {
  * Fill an indexed buffer with data from the map.
  */
 function setMapGeometry(map: Map, I: Int32Array, P: Float32Array) {
-    // TODO: V should probably depend on the slope, or elevation, or maybe it should be 0.95 in mountainous areas and 0.99 elsewhere
-    const V = 0.95; // reduce elevation in valleys
+    const mountain_wrinkliness = 0.05; // TODO: control this from a slider
     let {mesh, flow_s, elevation_r, elevation_t, rainfall_r} = map;
     let {numSolidSides, numRegions, numTriangles, is_boundary_t} = mesh;
 
@@ -43,7 +42,10 @@ function setMapGeometry(map: Map, I: Int32Array, P: Float32Array) {
         P[p++] = rainfall_r[r];
     }
     for (let t = 0; t < numTriangles; t++) {
-        P[p++] = V * elevation_t[t];
+        // We don't want to reduce elevation underwater, but we might want to
+        // vary this for other reasons — TODO: try varying by slope or elevation
+        const reduceElevationInValleys = 1.0 - mountain_wrinkliness * (elevation_t[t] >= 0.0 ? 1.0 : 0.0);
+        P[p++] = reduceElevationInValleys * elevation_t[t];
         let s0 = 3*t;
         let r1 = mesh.r_begin_s(s0),
             r2 = mesh.r_begin_s(s0+1),
