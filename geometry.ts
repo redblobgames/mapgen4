@@ -28,8 +28,7 @@ function setMeshGeometry(mesh: Mesh, P: Float32Array) {
 /**
  * Fill an indexed buffer with data from the map.
  */
-function setMapGeometry(map: Map, I: Int32Array, P: Float32Array) {
-    const mountain_wrinkliness = 0.05; // TODO: control this from a slider
+function setMapGeometry(map: Map, mountain_folds: number, I: Int32Array, P: Float32Array) {
     let {mesh, flow_s, elevation_r, elevation_t, rainfall_r} = map;
     let {numSolidSides, numRegions, numTriangles, is_boundary_t} = mesh;
 
@@ -42,10 +41,11 @@ function setMapGeometry(map: Map, I: Int32Array, P: Float32Array) {
         P[p++] = rainfall_r[r];
     }
     for (let t = 0; t < numTriangles; t++) {
-        // We don't want to reduce elevation underwater, but we might want to
-        // vary this for other reasons — TODO: try varying by slope or elevation
-        const reduceElevationInValleys = 1.0 - mountain_wrinkliness * (elevation_t[t] >= 0.0 ? 1.0 : 0.0);
-        P[p++] = reduceElevationInValleys * elevation_t[t];
+        // The quadrilateral's folds can have a lower elevation to
+        // make the valleys lower than the ridges. We'll apply it at
+        // higher elevations, and not at all at sea level or below. I
+        // also tried using slope but liked elevation better.
+        P[p++] = (1.0 - mountain_folds * Math.sqrt(Math.max(0, elevation_t[t]))) * elevation_t[t];
         let s0 = 3*t;
         let r1 = mesh.r_begin_s(s0),
             r2 = mesh.r_begin_s(s0+1),

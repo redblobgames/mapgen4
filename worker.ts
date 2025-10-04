@@ -52,7 +52,7 @@ let handler = (event) => {
             map.assignRivers(param.rivers);
         }
         if (run.biomes || run.rivers) {
-            Geometry.setMapGeometry(map, new Int32Array(quad_elements_buffer), new Float32Array(a_quad_em_buffer));
+            Geometry.setMapGeometry(map, param.elevation.mountain_folds, new Int32Array(quad_elements_buffer), new Float32Array(a_quad_em_buffer));
         }
         if (run.rivers) {
             numRiverTriangles = Geometry.setRiverGeometry(map, param.spacing, param.rivers, new Float32Array(a_river_xyww_buffer));

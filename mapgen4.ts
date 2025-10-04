@@ -21,6 +21,7 @@ import type {Mesh} from "./types.d.ts";
 
 
 
+// each parameter is [initial value, low, high]
 const initialParams = {
     elevation: [
         ['seed', 187, 1, 1 << 30],
@@ -29,7 +30,8 @@ const initialParams = {
         ['hill_height', 0.02, 0, 0.1],
         ['mountain_jagged', 0, 0, 1],
         ['mountain_sharpness', 9.8, 9.1, 12.5],
-        ['ocean_depth', 1.5, 1, 3],
+        ['mountain_folds', 0.05, 0.0, 0.5],
+        ['ocean_depth', 1.40, 1, 3],
     ],
     biomes: [
         ['wind_angle_deg', 0, 0, 360],
